@@ -12,8 +12,8 @@ lint:
 template:
   org: nf-core
   name: oncoseq
-  description: Analysis of whole genome data for oncology.
-  author: MPGI-Team
+  description: Oncology analysis pipeline for WGS data.
+  author: CHUSJ-MPGI
   version: 1.0.0dev
   force: true
   outdir: .

@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/nf-core/oncoseq/master/nextflow_schema.json",
     "title": "nf-core/oncoseq pipeline parameters",
-    "description": "Analysis of whole genome data for oncology.",
+    "description": "Oncology analysis pipeline for WGS data.",
     "type": "object",
     "$defs": {
         "input_output_options": {
