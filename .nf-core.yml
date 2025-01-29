@@ -1,0 +1,22 @@
+repository_type: pipeline
+
+nf_core_version: 3.1.2
+
+lint:
+  files_exist:
+    - conf/igenomes.config
+    - conf/igenomes_ignored.config
+    - conf/igenomes.config
+    - conf/igenomes_ignored.config
+
+template:
+  org: nf-core
+  name: oncoseq
+  description: Analysis of whole genome data for oncology.
+  author: MPGI-Team
+  version: 1.0.0dev
+  force: true
+  outdir: .
+  skip_features:
+    - igenomes
+  is_nfcore: true
