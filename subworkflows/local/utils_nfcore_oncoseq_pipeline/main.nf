@@ -33,6 +33,7 @@ workflow PIPELINE_INITIALISATION {
     outdir            //  string: The output directory where the results will be saved
     input             //  string: Path to input samplesheet
     ubam_samplesheet  // string: Path to ubam samplesheet
+    demux_samplesheet // string: Path to demux samplesheet
 
     main:
 
@@ -124,7 +125,21 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_samplesheet }
     }
 
+    if (params.demux != null) {
+        Channel
+            .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .map {
+                barcode, sample ->
+                    tuple(barcode,sample)
+            }
+            .set { ch_demux }
+    } else {
+        Channel.empty()
+            .set { ch_demux }
+    }
+
     emit:
+    demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     versions    = ch_versions
 }

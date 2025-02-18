@@ -226,10 +226,6 @@
             "type": "string",
             "description": "Kit used for barcoding"
         },
-        "demux_sheet": {
-            "type": "string",
-            "description": "Samplesheet for demultiplexing with dorado"
-        },
         "ref": {
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/NO_REF",
@@ -263,6 +259,10 @@
         "batch": {
             "type": "string",
             "description": "Batch size for basecalling"
+        },
+        "demux_samplesheet": {
+            "type": "string",
+            "description": "Samplesheet for demultiplexing, first column must be barcode and second column sample"
         }
     }
 }

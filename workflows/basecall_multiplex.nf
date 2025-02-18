@@ -4,6 +4,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { DORADO_BASECALL        } from '../modules/local/dorado/main'
+include { DORADO_DEMULTIPLEX     } from '../modules/local/dorado/main'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -15,15 +16,18 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_onco
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-workflow ONCOSEQ {
+workflow BASECALL_MULTIPLEX {
 
     take:
     ch_samplesheet // channel: samplesheet read in from --input
+    //ch_demux       // channel : demux samplesheet read in from --demux_samplesheet
     main:
 
     ch_versions = Channel.empty()
 
     DORADO_BASECALL(ch_samplesheet)
+
+    DORADO_DEMULTIPLEX(DORADO_BASECALL.out.ubam)
 
     //
     // Collate and save software versions
@@ -39,7 +43,7 @@ workflow ONCOSEQ {
 
 
     emit:
-    versions       = ch_versions                 // channel: [ path(versions.yml) ]
+    versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
 
 }
 

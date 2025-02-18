@@ -15,7 +15,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { ONCOSEQ  } from './workflows/oncoseq'
+include { BASECALL_SIMPLEX  } from './workflows/basecall_simplex'
+include { BASECALL_MULTIPLEX  } from './workflows/basecall_multiplex'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 /*
@@ -37,7 +38,23 @@ workflow NFCORE_ONCOSEQ {
     //
     // WORKFLOW: Run pipeline
     //
-    ONCOSEQ (
+    BASECALL_SIMPLEX (
+        samplesheet
+    )
+}
+
+workflow NFCORE_ONCOSEQ_CFDNA {
+
+    take:
+    samplesheet // channel: samplesheet read in from --input
+    //demux       // channel: demux_samplesheet read in from --demux_samplesheet
+
+    main:
+
+    //
+    // WORKFLOW: Run pipeline
+    //
+    BASECALL_MULTIPLEX (
         samplesheet
     )
 }
@@ -60,7 +77,8 @@ workflow {
         args,
         params.outdir,
         params.input,
-        params.ubam_samplesheet
+        params.ubam_samplesheet,
+        params.demux_samplesheet
     )
 
     // Combine the samplesheet with the model :
