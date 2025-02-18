@@ -177,7 +177,7 @@
                     "type": "string",
                     "fa_icon": "far fa-check-circle",
                     "description": "Base URL or local path to location of pipeline test dataset files",
-                    "default": "https://raw.githubusercontent.com/nf-core/test-datasets/",
+                    "default": "/workspaces/nf-core-oncoseq/test_data/",
                     "hidden": true
                 },
                 "trace_report_suffix": {
@@ -199,5 +199,70 @@
         {
             "$ref": "#/$defs/generic_options"
         }
-    ]
+    ],
+    "properties": {
+        "adaptive": {
+            "type": "boolean",
+            "description": "Whether to run the pipeline in adaptive mode"
+        },
+        "skip_basecall": {
+            "type": "boolean",
+            "description": "Whether to skip basecalling and start by mapping reads"
+        },
+        "skip_mapping": {
+            "type": "boolean",
+            "description": "Whether to skip mapping and only basecall"
+        },
+        "ubam_samplesheet": {
+            "type": "string",
+            "description": "Samplesheet pointing to the ubam to restart basecalling from"
+        },
+        "bed": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NO_BED",
+            "description": "Bed file used for adaptive mode"
+        },
+        "demux": {
+            "type": "string",
+            "description": "Kit used for barcoding"
+        },
+        "demux_sheet": {
+            "type": "string",
+            "description": "Samplesheet for demultiplexing with dorado"
+        },
+        "ref": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NO_REF",
+            "description": "Path to reference to use for mapping"
+        },
+        "minqs": {
+            "type": "integer",
+            "default": 10,
+            "description": "Minimum phred score to filter reads with"
+        },
+        "model": {
+            "type": "string",
+            "description": "Basecalling model to use"
+        },
+        "m_bases": {
+            "type": "string",
+            "description": "Modifications model to usefor basecalling"
+        },
+        "model_path": {
+            "type": "string",
+            "description": "If using on a HPC, path to the local basecalling model"
+        },
+        "m_bases_path": {
+            "type": "string",
+            "description": "If using on a HPC, path to the local basecalling model for modifications"
+        },
+        "device": {
+            "type": "string",
+            "description": "Device to use for basecalling"
+        },
+        "batch": {
+            "type": "string",
+            "description": "Batch size for basecalling"
+        }
+    }
 }

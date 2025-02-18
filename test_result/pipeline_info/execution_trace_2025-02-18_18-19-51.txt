@@ -1,0 +1,3 @@
+task_id	hash	native_id	name	status	exit	submit	duration	realtime	%cpu	peak_rss	peak_vmem	rchar	wchar
+2	37/1effa6	36884	NFCORE_ONCOSEQ:ONCOSEQ:DORADO_BASECALL (sample2)	COMPLETED	0	2025-02-18 18:19:54.333	36.2s	36s	643.4%	10.6 GB	51.8 GB	34.8 MB	2.9 MB
+1	53/65f133	36903	NFCORE_ONCOSEQ:ONCOSEQ:DORADO_BASECALL (sample1)	COMPLETED	0	2025-02-18 18:19:54.343	36.4s	36.2s	649.9%	9.7 GB	51.8 GB	34.8 MB	2.8 MB

@@ -40,8 +40,6 @@ workflow NFCORE_ONCOSEQ {
     ONCOSEQ (
         samplesheet
     )
-    emit:
-    multiqc_report = ONCOSEQ.out.multiqc_report // channel: /path/to/multiqc_report.html
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -61,14 +59,20 @@ workflow {
         params.monochrome_logs,
         args,
         params.outdir,
-        params.input
+        params.input,
+        params.ubam_samplesheet
     )
 
+    // Combine the samplesheet with the model :
+    ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+
+    ch_input = PIPELINE_INITIALISATION.out.samplesheet
+        .combine(ch_model)
     //
     // WORKFLOW: Run main workflow
     //
     NFCORE_ONCOSEQ (
-        PIPELINE_INITIALISATION.out.samplesheet
+        ch_input
     )
     //
     // SUBWORKFLOW: Run completion tasks
@@ -79,8 +83,7 @@ workflow {
         params.plaintext_email,
         params.outdir,
         params.monochrome_logs,
-        params.hook_url,
-        NFCORE_ONCOSEQ.out.multiqc_report
+        params.hook_url
     )
 }
 
