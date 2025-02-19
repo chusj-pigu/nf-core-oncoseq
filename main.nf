@@ -15,16 +15,18 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { BASECALL_SIMPLEX  } from './workflows/basecall_simplex'
-include { BASECALL_MULTIPLEX  } from './workflows/basecall_multiplex'
+include { BASECALL_SIMPLEX        } from './workflows/basecall_simplex'
+include { BASECALL_MULTIPLEX      } from './workflows/basecall_multiplex'
+include { MAPPING                 } from './workflows/mapping'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
+//TODO mpgi: add option to start from pod5, fastq and aligned bam
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
@@ -32,6 +34,7 @@ workflow NFCORE_ONCOSEQ {
 
     take:
     samplesheet // channel: samplesheet read in from --input
+    ref         // channel : reference for mapping, either empty if skipping mapping, or a path
 
     main:
 
@@ -41,6 +44,8 @@ workflow NFCORE_ONCOSEQ {
     BASECALL_SIMPLEX (
         samplesheet
     )
+
+    MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
@@ -48,6 +53,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     take:
     samplesheet // channel: samplesheet read in from --input
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
+    ref         // channel : reference for mapping, either empty if skipping mapping, or a path
 
     main:
 
@@ -58,6 +64,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         samplesheet,
         demux
     )
+    MAPPING(BASECALL_MULTIPLEX.out.fastq,ref)
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -82,11 +89,16 @@ workflow {
         params.demux_samplesheet
     )
 
+    // Load Channels from parameters:
+
     // Combine the samplesheet with the model :
     ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
 
     ch_input = PIPELINE_INITIALISATION.out.samplesheet
         .combine(ch_model)
+
+    ch_ref = Channel.fromPath(params.ref)
+
     //
     // WORKFLOW: Run main workflow
     //
@@ -94,12 +106,13 @@ workflow {
     if ( params.demux != null ) {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
-            PIPELINE_INITIALISATION.out.demux_sheet
+            PIPELINE_INITIALISATION.out.demux_sheet,
+            ch_ref
         )
     } else {
-
         NFCORE_ONCOSEQ (
-        ch_input
+        ch_input,
+        ch_ref
     )
     }
     //

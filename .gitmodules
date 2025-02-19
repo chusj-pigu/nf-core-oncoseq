@@ -10,3 +10,7 @@
 	path = modules/local/nanoplot
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = nanoplot
+[submodule "modules/local/minimap2"]
+	path = modules/local/minimap2
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = minimap2

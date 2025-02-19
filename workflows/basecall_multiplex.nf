@@ -87,6 +87,8 @@ workflow BASECALL_MULTIPLEX {
 
 
     emit:
+    fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
+    nanoplot       = NANOPLOT_FASTQ.out.nanoplot
     versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
 
 }
