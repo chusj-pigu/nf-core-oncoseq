@@ -219,7 +219,7 @@
         },
         "bed": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NO_BED",
+            "default": "${projectDir}/assets/NO_BED",
             "description": "Bed file used for adaptive mode"
         },
         "demux": {
@@ -228,7 +228,7 @@
         },
         "ref": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NO_REF",
+            "default": "${projectDir}/assets/NO_REF",
             "description": "Path to reference to use for mapping"
         },
         "minqs": {
