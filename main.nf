@@ -47,7 +47,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
 
     take:
     samplesheet // channel: samplesheet read in from --input
-    //demux       // channel: demux_samplesheet read in from --demux_samplesheet
+    demux       // channel: demux_samplesheet read in from --demux_samplesheet
 
     main:
 
@@ -55,7 +55,8 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     // WORKFLOW: Run pipeline
     //
     BASECALL_MULTIPLEX (
-        samplesheet
+        samplesheet,
+        demux
     )
 }
 /*
@@ -89,9 +90,18 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    NFCORE_ONCOSEQ (
+
+    if ( params.demux != null ) {
+        NFCORE_ONCOSEQ_CFDNA (
+            ch_input,
+            PIPELINE_INITIALISATION.out.demux_sheet
+        )
+    } else {
+
+        NFCORE_ONCOSEQ (
         ch_input
     )
+    }
     //
     // SUBWORKFLOW: Run completion tasks
     //
