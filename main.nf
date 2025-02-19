@@ -15,7 +15,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { ONCOSEQ  } from './workflows/oncoseq'
+include { BASECALL_SIMPLEX  } from './workflows/basecall_simplex'
+include { BASECALL_MULTIPLEX  } from './workflows/basecall_multiplex'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 /*
@@ -37,11 +38,26 @@ workflow NFCORE_ONCOSEQ {
     //
     // WORKFLOW: Run pipeline
     //
-    ONCOSEQ (
+    BASECALL_SIMPLEX (
         samplesheet
     )
-    emit:
-    multiqc_report = ONCOSEQ.out.multiqc_report // channel: /path/to/multiqc_report.html
+}
+
+workflow NFCORE_ONCOSEQ_CFDNA {
+
+    take:
+    samplesheet // channel: samplesheet read in from --input
+    demux       // channel: demux_samplesheet read in from --demux_samplesheet
+
+    main:
+
+    //
+    // WORKFLOW: Run pipeline
+    //
+    BASECALL_MULTIPLEX (
+        samplesheet,
+        demux
+    )
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -61,15 +77,31 @@ workflow {
         params.monochrome_logs,
         args,
         params.outdir,
-        params.input
+        params.input,
+        params.ubam_samplesheet,
+        params.demux_samplesheet
     )
 
+    // Combine the samplesheet with the model :
+    ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+
+    ch_input = PIPELINE_INITIALISATION.out.samplesheet
+        .combine(ch_model)
     //
     // WORKFLOW: Run main workflow
     //
-    NFCORE_ONCOSEQ (
-        PIPELINE_INITIALISATION.out.samplesheet
+
+    if ( params.demux != null ) {
+        NFCORE_ONCOSEQ_CFDNA (
+            ch_input,
+            PIPELINE_INITIALISATION.out.demux_sheet
+        )
+    } else {
+
+        NFCORE_ONCOSEQ (
+        ch_input
     )
+    }
     //
     // SUBWORKFLOW: Run completion tasks
     //
@@ -79,8 +111,7 @@ workflow {
         params.plaintext_email,
         params.outdir,
         params.monochrome_logs,
-        params.hook_url,
-        NFCORE_ONCOSEQ.out.multiqc_report
+        params.hook_url
     )
 }
 

@@ -13,13 +13,13 @@
                 "errorMessage": "Sample name must be provided and cannot contain spaces",
                 "meta": ["id"]
             },
-            "pod5": {
+            "ubam": {
                 "type": "string",
-                "format": "path",
+                "format": "file-path",
                 "exists": true,
-                "errorMessage": "pod5 file path must be provided"
+                "errorMessage": "Absolute path to ubam file path must be provided"
             }
         },
-        "required": ["sample", "pod5"]
+        "required": ["sample", "ubam"]
     }
 }
