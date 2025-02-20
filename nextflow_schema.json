@@ -205,21 +205,12 @@
             "type": "boolean",
             "description": "Whether to run the pipeline in adaptive mode"
         },
-        "skip_basecall": {
-            "type": "boolean",
-            "description": "Whether to skip basecalling and start by mapping reads"
-        },
-        "skip_mapping": {
-            "type": "boolean",
-            "description": "Whether to skip mapping and only basecall"
-        },
         "ubam_samplesheet": {
             "type": "string",
             "description": "Samplesheet pointing to the ubam to restart basecalling from"
         },
         "bed": {
             "type": "string",
-            "default": "${projectDir}/assets/NO_BED",
             "description": "Bed file used for adaptive mode"
         },
         "demux": {
@@ -228,7 +219,6 @@
         },
         "ref": {
             "type": "string",
-            "default": "${projectDir}/assets/NO_REF",
             "description": "Path to reference to use for mapping"
         },
         "minqs": {
@@ -263,6 +253,11 @@
         "demux_samplesheet": {
             "type": "string",
             "description": "Samplesheet for demultiplexing, first column must be barcode and second column sample"
+        },
+        "igenomes_base": {
+            "type": "string",
+            "default": "s3://ngi-igenomes/igenomes/",
+            "description": "Base path for illumina genomes to pull from AWS, typically not changed"
         }
     }
 }

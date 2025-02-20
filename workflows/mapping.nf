@@ -7,6 +7,7 @@ include { MINIMAP2_ALIGN         } from '../modules/local/minimap2/main.nf'
 include { SAMTOOLS_TOBAM         } from '../modules/local/samtools/main.nf'
 include { SAMTOOLS_SORT          } from '../modules/local/samtools/main.nf'
 include { SAMTOOLS_INDEX         } from '../modules/local/samtools/main.nf'
+include { MOSDEPTH_GENERAL       } from '../modules/local/mosdepth/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -35,6 +36,8 @@ workflow MAPPING {
     SAMTOOLS_TOBAM(MINIMAP2_ALIGN.out.sam)
     SAMTOOLS_SORT(SAMTOOLS_TOBAM.out.bamfile)
     SAMTOOLS_INDEX(SAMTOOLS_SORT.out.sortedbam)
+
+    MOSDEPTH_GENERAL(SAMTOOLS_INDEX.out.bamfile_index)
 
     //
     // Collate and save software versions
