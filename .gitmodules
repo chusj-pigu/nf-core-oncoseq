@@ -14,3 +14,11 @@
 	path = modules/local/minimap2
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = minimap2
+[submodule "modules/local/quarto"]
+	path = modules/local/quarto
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = quarto
+[submodule "modules/local/mosdepth"]
+	path = modules/local/mosdepth
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = mosdepth
