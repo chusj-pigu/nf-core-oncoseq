@@ -7,19 +7,17 @@
     "items": {
         "type": "object",
         "properties": {
+            "barcode": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "First column must contain barcode"
+            },
             "sample": {
                 "type": "string",
                 "pattern": "^\\S+$",
-                "errorMessage": "Sample name must be provided and cannot contain spaces",
-                "meta": ["id"]
-            },
-            "pod5": {
-                "type": "string",
-                "format": "path",
-                "exists": true,
-                "errorMessage": "pod5 file path must be provided"
+                "errorMessage": "Sample name must be provided and cannot contain spaces"
             }
         },
-        "required": ["sample", "pod5"]
+        "required": ["barcode", "sample"]
     }
 }
