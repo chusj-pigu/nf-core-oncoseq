@@ -26,11 +26,11 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_onco
     NAMED WORKFLOWS FOR PIPELINE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-//TODO mpgi: add option to start from pod5, fastq and aligned bam
+//TODO mpgi: add option to start from pod5, fastq and aligned bam if we want to skip basecall and mapping
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_ONCOSEQ {
+workflow NFCORE_ONCOSEQ_SIMPLEX {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -48,7 +48,7 @@ workflow NFCORE_ONCOSEQ {
     MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
 }
 
-workflow NFCORE_ONCOSEQ_CFDNA {
+workflow NFCORE_ONCOSEQ_MULTIPLEX{
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -104,13 +104,13 @@ workflow {
     //
 
     if ( params.demux != null ) {
-        NFCORE_ONCOSEQ_CFDNA (
+        NFCORE_ONCOSEQ_MULTIPLEX (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
             ch_ref
         )
     } else {
-        NFCORE_ONCOSEQ (
+        NFCORE_ONCOSEQ_SIMPLEX (
         ch_input,
         ch_ref
     )

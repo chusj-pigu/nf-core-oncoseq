@@ -22,6 +22,8 @@ include { methodsDescriptionText                    } from '../subworkflows/loca
 
 workflow BASECALL_MULTIPLEX {
 
+    //TODO Add reports for read stats figure and tables
+
     take:
     ch_samplesheet // channel: samplesheet read in from --input
     ch_demux       // channel : demux samplesheet read in from --demux_samplesheet
@@ -73,6 +75,23 @@ workflow BASECALL_MULTIPLEX {
 
     NANOPLOT_FASTQ(SAMTOOLS_TOFASTQ_PASS.out.fq)
 
+    ch_read_stats = NANOPLOT_FASTQ.out.txt
+        .flatMap { meta, tables ->
+            tables.collect { table ->
+                tuple(meta, table) // Emit a tuple for each file path
+            }
+        }
+        .map { meta, table ->
+                def lines = table.splitText()
+                def num_reads = lines[5].split(/\s+/)[3].replaceAll(',', '').toDouble()
+                def tot_bases = lines[8].split(/\s+/)[2].replaceAll(',', '').toDouble()
+                tuple(meta, num_reads, tot_bases)
+            }
+        .collectFile { item ->
+            def sample_id = item[0].id // Extract 'sample1' from [id: 'sample1']
+            [ "read_stats.txt", sample_id + '\t' + item[1] + '\t' + item[2] +  '\n']
+        }
+
     //
     // Collate and save software versions
     //
@@ -88,7 +107,7 @@ workflow BASECALL_MULTIPLEX {
 
     emit:
     fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
-    nanoplot       = NANOPLOT_FASTQ.out.nanoplot
+    nanoplot       = NANOPLOT_FASTQ.out.figure
     versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
 
 }
