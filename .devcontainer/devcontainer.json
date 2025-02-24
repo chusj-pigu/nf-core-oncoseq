@@ -16,5 +16,7 @@
             // Add the IDs of extensions you want installed when the container is created.
             "extensions": ["ms-python.python", "ms-python.vscode-pylance", "nf-core.nf-core-extensionpack"]
         }
-    }
+    
+    },
+    "postStartCommand": "sudo chown gitpod:gitpod /opt/conda/bin/nextflow"
 }
