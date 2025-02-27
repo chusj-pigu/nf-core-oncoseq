@@ -5,8 +5,7 @@
 */
 include { MINIMAP2_ALIGN         } from '../modules/local/minimap2/main.nf'
 include { SAMTOOLS_TOBAM         } from '../modules/local/samtools/main.nf'
-include { SAMTOOLS_SORT          } from '../modules/local/samtools/main.nf'
-include { SAMTOOLS_INDEX         } from '../modules/local/samtools/main.nf'
+include { SAMTOOLS_SORT_INDEX    } from '../modules/local/samtools/main.nf'
 include { MOSDEPTH_GENERAL       } from '../modules/local/mosdepth/main.nf'
 include { QUARTO_TABLE           } from '../modules/local/quarto/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
@@ -31,16 +30,20 @@ workflow MAPPING {
 
     ch_versions = Channel.empty()
 
+    // Before mapping, remove suffix "pass" in input from qc filtering in basecalling workflow:
     ch_mapping_in = fastq_ch
+        .map { meta, reads ->
+            def meta_prefix = meta.id.replace('_pass', '')
+            tuple(id:meta_prefix, reads)
+            }
         .combine(ref_ch)
 
     MINIMAP2_ALIGN(ch_mapping_in)
 
     SAMTOOLS_TOBAM(MINIMAP2_ALIGN.out.sam)
-    SAMTOOLS_SORT(SAMTOOLS_TOBAM.out.bamfile)
-    SAMTOOLS_INDEX(SAMTOOLS_SORT.out.sortedbam)
+    SAMTOOLS_SORT_INDEX(SAMTOOLS_TOBAM.out.bamfile)
 
-    MOSDEPTH_GENERAL(SAMTOOLS_INDEX.out.bamfile_index)
+    MOSDEPTH_GENERAL(SAMTOOLS_SORT_INDEX.out.sortedbamidx)
 
     // Take mean coverage only from summary file of mosdepth to reduce file size loaded into R:
     ch_mosdepth_coverage = MOSDEPTH_GENERAL.out.summary

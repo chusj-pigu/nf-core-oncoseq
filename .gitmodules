@@ -6,10 +6,6 @@
 	path = modules/local/samtools
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = samtools
-[submodule "modules/local/nanoplot"]
-	path = modules/local/nanoplot
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = nanoplot
 [submodule "modules/local/minimap2"]
 	path = modules/local/minimap2
 	url = https://github.com/chusj-pigu/wf-modules
@@ -22,3 +18,7 @@
 	path = modules/local/mosdepth
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = mosdepth
+[submodule "modules/local/seqkit"]
+	path = modules/local/seqkit
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = seqkit

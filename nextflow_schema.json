@@ -201,10 +201,6 @@
         }
     ],
     "properties": {
-        "adaptive": {
-            "type": "boolean",
-            "description": "Whether to run the pipeline in adaptive mode"
-        },
         "ubam_samplesheet": {
             "type": "string",
             "description": "Samplesheet pointing to the ubam to restart basecalling from"
@@ -258,6 +254,11 @@
             "type": "string",
             "default": "s3://ngi-igenomes/igenomes/",
             "description": "Base path for illumina genomes to pull from AWS, typically not changed"
+        },
+        "mapping_small": {
+            "type": "boolean",
+            "default": true,
+            "description": "Option for finetuning time ressources allocation for minimap2. Set to false if a big genome is to be aligned (human whole genome 30X)"
         }
     }
 }
