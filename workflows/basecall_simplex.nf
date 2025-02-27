@@ -7,7 +7,8 @@ include { DORADO_BASECALL                           } from '../modules/local/dor
 include { SAMTOOLS_QSFILTER                         } from '../modules/local/samtools/main.nf'
 include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_PASS } from '../modules/local/samtools/main.nf'
 include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_FAIL } from '../modules/local/samtools/main.nf'
-include { NANOPLOT_UBAM                             } from '../modules/local/nanoplot/main.nf'
+include { SEQKIT_STATS as SEQKIT_STATS_PASS         } from '../modules/local/seqkit/main.nf'
+include { SEQKIT_STATS as SEQKIT_STATS_FAIL         } from '../modules/local/seqkit/main.nf'
 include { paramsSummaryMap                          } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc                      } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML                    } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -20,6 +21,8 @@ include { methodsDescriptionText                    } from '../subworkflows/loca
 */
 
 workflow BASECALL_SIMPLEX {
+
+    //TODO Add reports for read stats figure and tables
 
     take:
     ch_samplesheet // channel: samplesheet read in from --input
@@ -34,13 +37,30 @@ workflow BASECALL_SIMPLEX {
             tuple(meta, meta.id, ubam)         // Make a mock barcode variable as sample_id (meta) to regularize with demultiplex workflow
             }
 
-    NANOPLOT_UBAM(DORADO_BASECALL.out.ubam)    // Run Nanoplot on the output of Dorado directly using Min QS of 10
-
     SAMTOOLS_QSFILTER(ch_basecall_out)
 
+    // Add pass and fail to meta in tuples for output naming
 
-    SAMTOOLS_TOFASTQ_PASS(SAMTOOLS_QSFILTER.out.ubam_pass)
-    SAMTOOLS_TOFASTQ_FAIL(SAMTOOLS_QSFILTER.out.ubam_fail)
+    ch_ubam_pass = SAMTOOLS_QSFILTER.out.ubam_pass
+        .map { meta, _barcode, ubam ->
+            def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
+            def meta_full   = meta.id + '_' + meta_suffix
+            tuple(id:meta_full, meta_full, ubam)
+            }
+
+    ch_ubam_fail = SAMTOOLS_QSFILTER.out.ubam_fail
+        .map { meta, _barcode, ubam ->
+            def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
+            def meta_full   = meta.id + '_' + meta_suffix
+            tuple(id:meta_full, meta_full, ubam)
+            }
+
+    SAMTOOLS_TOFASTQ_PASS(ch_ubam_pass)
+    SAMTOOLS_TOFASTQ_FAIL(ch_ubam_fail)
+
+    SEQKIT_STATS_PASS(SAMTOOLS_TOFASTQ_PASS.out.fq)              // Read stats for passed reads
+    SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
+
 
     //
     // Collate and save software versions
@@ -56,6 +76,9 @@ workflow BASECALL_SIMPLEX {
 
 
     emit:
+    fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
+    stats_pass     = SEQKIT_STATS_PASS.out.stats
+    stats_fail     = SEQKIT_STATS_FAIL.out.stats
     versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
 
 }

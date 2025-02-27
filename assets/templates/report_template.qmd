@@ -1,0 +1,31 @@
+---
+title: "MPGI-Nanopore-Analysis"
+author: "Nicholas Geoffrion"
+date: now
+date-format: YYYY-MM-DDTHH:mm:ssZ
+format: 
+    html:
+        theme: simplex
+        self-contained: true
+        title-block-banner: "#00008B"
+        title-block-banner-color: "#FFFFFF"
+        cap-location: bottom
+        page-layout: full
+        toc: true
+        toc-depth: 4
+params:
+  report_title: "Default Workflow"
+  report_description: "A cool analysis of X using y"
+---
+
+
+```{css}
+/*| echo: false */
+caption {
+  margin: auto;
+  text-align: justify;
+}
+```
+
+# `r params$report_title`
+

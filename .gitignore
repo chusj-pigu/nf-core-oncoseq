@@ -7,3 +7,6 @@ testing/
 testing*
 *.pyc
 null/
+tests
+test_out
+.nf-test.log
