@@ -259,6 +259,15 @@
             "type": "boolean",
             "default": true,
             "description": "Option for finetuning time ressources allocation for minimap2. Set to false if a big genome is to be aligned (human whole genome 30X)"
+        },
+        "adaptive": {
+            "type": "boolean",
+            "default": true,
+            "description": "Run in adaptive sampling mode. Cannot be set with cfdna mode."
+        },
+        "cfdna": {
+            "type": "boolean",
+            "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling mode."
         }
     }
 }
