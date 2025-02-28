@@ -3,16 +3,16 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { DORADO_BASECALL                           } from '../modules/local/dorado/main.nf'
-include { SAMTOOLS_QSFILTER                         } from '../modules/local/samtools/main.nf'
-include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_PASS } from '../modules/local/samtools/main.nf'
-include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_FAIL } from '../modules/local/samtools/main.nf'
-include { SEQKIT_STATS as SEQKIT_STATS_PASS         } from '../modules/local/seqkit/main.nf'
-include { SEQKIT_STATS as SEQKIT_STATS_FAIL         } from '../modules/local/seqkit/main.nf'
+include { DORADO_BASECALL                           } from '../../../modules/local/dorado/main.nf'
+include { SAMTOOLS_QSFILTER                         } from '../../../modules/local/samtools/main.nf'
+include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_PASS } from '../../../modules/local/samtools/main.nf'
+include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_FAIL } from '../../../modules/local/samtools/main.nf'
+include { SEQKIT_STATS as SEQKIT_STATS_PASS         } from '../../../modules/local/seqkit/main.nf'
+include { SEQKIT_STATS as SEQKIT_STATS_FAIL         } from '../../../modules/local/seqkit/main.nf'
 include { paramsSummaryMap                          } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc                      } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML                    } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText                    } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { paramsSummaryMultiqc                      } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText                    } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -3,15 +3,15 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { MINIMAP2_ALIGN         } from '../modules/local/minimap2/main.nf'
-include { SAMTOOLS_TOBAM         } from '../modules/local/samtools/main.nf'
-include { SAMTOOLS_SORT_INDEX    } from '../modules/local/samtools/main.nf'
-include { MOSDEPTH_GENERAL       } from '../modules/local/mosdepth/main.nf'
-include { QUARTO_TABLE           } from '../modules/local/quarto/main.nf'
+include { MINIMAP2_ALIGN         } from '../../../modules/local/minimap2/main.nf'
+include { SAMTOOLS_TOBAM         } from '../../../modules/local/samtools/main.nf'
+include { SAMTOOLS_SORT_INDEX    } from '../../../modules/local/samtools/main.nf'
+include { MOSDEPTH_GENERAL       } from '../../../modules/local/mosdepth/main.nf'
+include { QUARTO_TABLE           } from '../../../modules/local/quarto/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
