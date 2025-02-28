@@ -15,22 +15,15 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { BASECALL_SIMPLEX        } from './workflows/basecall_simplex'
-include { BASECALL_MULTIPLEX      } from './workflows/basecall_multiplex'
-include { MAPPING                 } from './workflows/mapping'
+include { ADAPTIVE                } from './workflows/adaptive'
+include { CFDNA                   } from './workflows/cfdna'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    NAMED WORKFLOWS FOR PIPELINE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-//TODO mpgi: add option to start from pod5, fastq and aligned bam if we want to skip basecall and mapping
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_ONCOSEQ_SIMPLEX {
+workflow NFCORE_ONCOSEQ_ADAPTIVE {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -41,14 +34,10 @@ workflow NFCORE_ONCOSEQ_SIMPLEX {
     //
     // WORKFLOW: Run pipeline
     //
-    BASECALL_SIMPLEX (
-        samplesheet
-    )
-
-    MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
+    ADAPTIVE(samplesheet,ref)
 }
 
-workflow NFCORE_ONCOSEQ_MULTIPLEX{
+workflow NFCORE_ONCOSEQ_CFDNA {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -60,11 +49,7 @@ workflow NFCORE_ONCOSEQ_MULTIPLEX{
     //
     // WORKFLOW: Run pipeline
     //
-    BASECALL_MULTIPLEX (
-        samplesheet,
-        demux
-    )
-    MAPPING(BASECALL_MULTIPLEX.out.fastq,ref)
+    CFDNA(samplesheet,demux,ref)
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -103,14 +88,14 @@ workflow {
     // WORKFLOW: Run main workflow
     //
 
-    if ( params.demux != null ) {
-        NFCORE_ONCOSEQ_MULTIPLEX (
+    if ( params.adaptive) {
+        NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
             ch_ref
         )
-    } else {
-        NFCORE_ONCOSEQ_SIMPLEX (
+    } else if ( params.cfdna ) {
+        NFCORE_ONCOSEQ_ADAPTIVE (
         ch_input,
         ch_ref
     )

@@ -1,7 +1,7 @@
 include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_multiplex'
 include { MAPPING            } from '../subworkflows/local/mapping/mapping'
 
-workflow CFNDA {
+workflow CFDNA {
 
     take:
     samplesheet // channel: samplesheet read in from --input
