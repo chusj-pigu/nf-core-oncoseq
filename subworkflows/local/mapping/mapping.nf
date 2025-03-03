@@ -78,6 +78,7 @@ workflow MAPPING {
 
 
     emit:
+    bam              = SAMTOOLS_SORT_INDEX.out.sortedbamidx
     mosdepth_summary = MOSDEPTH_GENERAL.out.summary
     versions         = ch_collated_versions              // channel: [ path(versions.yml) ]
 
