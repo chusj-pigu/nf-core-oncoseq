@@ -28,13 +28,14 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     take:
     samplesheet // channel: samplesheet read in from --input
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
+    bed         // channel: from path read from params.bed, bed file used for adaptive sampling
 
     main:
 
     //
     // WORKFLOW: Run pipeline
     //
-    ADAPTIVE(samplesheet,ref)
+    ADAPTIVE(samplesheet,ref,bed)
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
@@ -84,21 +85,24 @@ workflow {
 
     ch_ref = Channel.fromPath(params.ref)
 
+    ch_bed = Channel.fromPath(params.bed)
+
     //
     // WORKFLOW: Run main workflow
     //
 
     if ( params.adaptive) {
+        NFCORE_ONCOSEQ_ADAPTIVE (
+            ch_input,
+            ch_ref,
+            ch_bed
+        )
+    } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
             ch_ref
         )
-    } else if ( params.cfdna ) {
-        NFCORE_ONCOSEQ_ADAPTIVE (
-        ch_input,
-        ch_ref
-    )
     }
     //
     // SUBWORKFLOW: Run completion tasks
