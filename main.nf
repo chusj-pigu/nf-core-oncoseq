@@ -89,16 +89,16 @@ workflow {
     //
 
     if ( params.adaptive) {
+        NFCORE_ONCOSEQ_ADAPTIVE (
+            ch_input,
+            ch_ref
+        )
+    } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
             ch_ref
         )
-    } else if ( params.cfdna ) {
-        NFCORE_ONCOSEQ_ADAPTIVE (
-        ch_input,
-        ch_ref
-    )
     }
     //
     // SUBWORKFLOW: Run completion tasks
