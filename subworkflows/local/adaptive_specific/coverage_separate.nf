@@ -3,11 +3,13 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SAMTOOLS_SPLIT_BY_BED  } from '../../../modules/local/samtools/main.nf'
-include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { SAMTOOLS_SPLIT_BY_BED          } from '../../../modules/local/samtools/main.nf'
+include { CRAMINO_STATS as CRAMINO_BG    } from '../../../modules/local/cramino/main.nf'
+include { CRAMINO_STATS as CRAMINO_PANEL } from '../../../modules/local/cramino/main.nf'
+include { paramsSummaryMap               } from 'plugin/nf-schema'
+include { paramsSummaryMultiqc           } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText         } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,6 +32,9 @@ workflow COVERAGE_SEPARATE {
         .combine(bed)                       // Keep padding in bed file
 
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
+
+    CRAMINO_BG(SAMTOOLS_SPLIT_BY_BED.out.bg)
+    CRAMINO_PANEL(SAMTOOLS_SPLIT_BY_BED.out.panel)
 
     //
     // Collate and save software versions
