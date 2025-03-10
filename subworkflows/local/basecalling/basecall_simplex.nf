@@ -37,14 +37,14 @@ workflow BASECALL_SIMPLEX {
     // Add pass and fail to meta in tuples for output naming
 
     ch_ubam_pass = SAMTOOLS_QSFILTER.out.ubam_pass
-        .map { meta, _barcode, ubam ->
+        .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
             def meta_full   = meta.id + '_' + meta_suffix
             tuple(id:meta_full, ubam)
             }
 
     ch_ubam_fail = SAMTOOLS_QSFILTER.out.ubam_fail
-        .map { meta, _barcode, ubam ->
+        .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
             def meta_full   = meta.id + '_' + meta_suffix
             tuple(id:meta_full, ubam)

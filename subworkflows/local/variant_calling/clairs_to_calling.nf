@@ -49,21 +49,23 @@ workflow CLAIRS_TO_CALLING {
 
     CLAIRS_TO_CALL(ch_input_clairs)
 
+    ref_ch.view { path -> println "Path: $path" }
+
     // Choose database for annotation according to reference
-    ch_databases = ref_ch.map { path ->
-        if (path.contains('hg38') || path == params.genomes.GRCh38.fasta) {
-            'GRCh38.p14'
-        } else if (path.contains('hg19') || path == params.genomes.GRCh37.fasta) {
-            'GRCh37.p13'
-        } else {
-            throw new IllegalArgumentException("Currently, this workflow only supports Small variant calling with reference genomes GRCh38 or GRCh37")
-        }
-    }
+    // ch_databases = ref_ch.map { path ->
+    //     if (path.contains('hg38') || path == params.genomes.GRCh38.fasta) {
+    //         'GRCh38.p14'
+    //     } else if (path.contains('hg19') || path == params.genomes.GRCh37.fasta) {
+    //         'GRCh37.p13'
+    //     } else {
+    //         throw new IllegalArgumentException("Currently, this workflow only supports Small variant calling with reference genomes GRCh38 or GRCh37")
+    //     }
+    // }
 
-    ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
-        .combine(ch_databases)
+    // ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
+    //     .combine(ch_databases)
 
-    SNPEFF_ANNOTATE(ch_snp_annotate)
+    // SNPEFF_ANNOTATE(ch_snp_annotate)
 
 
     //
