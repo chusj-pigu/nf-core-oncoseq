@@ -56,7 +56,7 @@ workflow BASECALL_MULTIPLEX {
         .combine(SAMTOOLS_QSFILTER.out.ubam_pass, by:0)
         .map { barcode, sample, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
             tuple([id: sample], ubam) }
-        .map { meta,, ubam ->
+        .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add pass to meta in tuples for output naming
             def meta_full   = meta.id + '_' + meta_suffix
             tuple(id:meta_full, ubam)

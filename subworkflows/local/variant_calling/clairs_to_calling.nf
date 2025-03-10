@@ -4,7 +4,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLAIRS_TO_CALL         } from '../../../modules/local/clairsto/main.nf'
-inclde  { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
+include  { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
 include { SAMTOOLS_FAIDX         } from '../../../modules/local/samtools/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -48,6 +48,22 @@ workflow CLAIRS_TO_CALLING {
         .combine(model)
 
     CLAIRS_TO_CALL(ch_input_clairs)
+
+    // Choose database for annotation according to reference
+    ch_databases = ref_ch.map { path ->
+        if (path.contains('hg38') || path == params.genomes.GRCh38.fasta) {
+            'GRCh38.p14'
+        } else if (path.contains('hg19') || path == params.genomes.GRCh37.fasta) {
+            'GRCh37.p13'
+        } else {
+            throw new IllegalArgumentException("Currently, this workflow only supports Small variant calling with reference genomes GRCh38 or GRCh37")
+        }
+    }
+
+    ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
+        .combine(ch_databases)
+
+    SNPEFF_ANNOTATE(ch_snp_annotate)
 
 
     //

@@ -32,7 +32,7 @@ workflow BASECALL_SIMPLEX {
 
     DORADO_BASECALL(ch_samplesheet)
 
-    SAMTOOLS_QSFILTER(ch_basecall_out)
+    SAMTOOLS_QSFILTER(DORADO_BASECALL.out.ubam)
 
     // Add pass and fail to meta in tuples for output naming
 
