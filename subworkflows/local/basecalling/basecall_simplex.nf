@@ -32,11 +32,6 @@ workflow BASECALL_SIMPLEX {
 
     DORADO_BASECALL(ch_samplesheet)
 
-    ch_basecall_out = DORADO_BASECALL.out.ubam
-        .map { meta, ubam ->
-            tuple(meta, meta.id, ubam)         // Make a mock barcode variable as sample_id (meta) to regularize with demultiplex workflow
-            }
-
     SAMTOOLS_QSFILTER(ch_basecall_out)
 
     // Add pass and fail to meta in tuples for output naming
@@ -45,14 +40,14 @@ workflow BASECALL_SIMPLEX {
         .map { meta, _barcode, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
             def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, meta_full, ubam)
+            tuple(id:meta_full, ubam)
             }
 
     ch_ubam_fail = SAMTOOLS_QSFILTER.out.ubam_fail
         .map { meta, _barcode, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
             def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, meta_full, ubam)
+            tuple(id:meta_full, ubam)
             }
 
     SAMTOOLS_TOFASTQ_PASS(ch_ubam_pass)

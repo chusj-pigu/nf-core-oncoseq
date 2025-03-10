@@ -4,6 +4,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLAIRS_TO_CALL         } from '../../../modules/local/clairsto/main.nf'
+inclde  { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
 include { SAMTOOLS_FAIDX         } from '../../../modules/local/samtools/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -47,6 +48,7 @@ workflow CLAIRS_TO_CALLING {
         .combine(model)
 
     CLAIRS_TO_CALL(ch_input_clairs)
+
 
     //
     // Collate and save software versions
