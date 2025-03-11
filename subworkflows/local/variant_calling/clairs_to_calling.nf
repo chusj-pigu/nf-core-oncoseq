@@ -49,23 +49,30 @@ workflow CLAIRS_TO_CALLING {
 
     CLAIRS_TO_CALL(ch_input_clairs)
 
-    ref_ch.view { path -> println "Path: $path" }
+    // Branch ref channel to create database channel
+    ch_databases = ref_ch.branch {
+        hg38: it.name.matches('(?i).*(hg38|GRCh38).*')
+            return 'GRCh38.p14'
+        hg19: it.name.matches('(?i).*(hg19|GRCh37).*')
+            return 'GRCh37.p13'
+        other: true
+            return 'Error'
+    }
 
-    // Choose database for annotation according to reference
-    // ch_databases = ref_ch.map { path ->
-    //     if (path.contains('hg38') || path == params.genomes.GRCh38.fasta) {
-    //         'GRCh38.p14'
-    //     } else if (path.contains('hg19') || path == params.genomes.GRCh37.fasta) {
-    //         'GRCh37.p13'
-    //     } else {
-    //         throw new IllegalArgumentException("Currently, this workflow only supports Small variant calling with reference genomes GRCh38 or GRCh37")
-    //     }
-    // }
-
-    // ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
-    //     .combine(ch_databases)
-
-    // SNPEFF_ANNOTATE(ch_snp_annotate)
+    // Generate error if reference is not hg38 nor hg19
+    ch_error = ch_databases.other.map { 
+        throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
+    }
+    
+    if (ch_databases.hg38) {
+        ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
+            .combine(ch_databases.hg38)
+        SNPEFF_ANNOTATE(ch_snp_annotate)
+    } else if (ch_databases.hg19) {
+        ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
+            .combine(ch_databases.hg19)
+        SNPEFF_ANNOTATE(ch_snp_annotate)
+    }
 
 
     //
