@@ -63,13 +63,25 @@ workflow CLAIRS_TO_CALLING {
     ch_error = ch_databases.other.map { 
         throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
     }
+
+    // Function to add type (indel/snv) to meta and for annotation
+    def annotateMeta = { meta, output, type ->
+        def meta_vcf = meta.id + "_${type}"
+        tuple(id:meta_vcf, output)
+    }
     
     if (ch_databases.hg38) {
-        ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
+        ch_snp_annotate = CLAIRS_TO_CALL.out.indel
+            .map { meta, output -> annotateMeta(meta, output, 'indel') }
+            .mix(CLAIRS_TO_CALL.out.snv
+                .map { meta, output -> annotateMeta(meta, output, 'snv') })
             .combine(ch_databases.hg38)
         SNPEFF_ANNOTATE(ch_snp_annotate)
     } else if (ch_databases.hg19) {
-        ch_snp_annotate = CLAIRS_TO_CALL.out.vcf
+        ch_snp_annotate = CLAIRS_TO_CALL.out.indel
+            .map { meta, output -> annotateMeta(meta, output, 'indel') }
+            .mix(CLAIRS_TO_CALL.out.snv
+                .map { meta, output -> annotateMeta(meta, output, 'snv') })
             .combine(ch_databases.hg19)
         SNPEFF_ANNOTATE(ch_snp_annotate)
     }
