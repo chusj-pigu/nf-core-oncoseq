@@ -22,3 +22,7 @@
 	path = modules/local/seqkit
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = seqkit
+[submodule "modules/local/ontime"]
+	path = modules/local/ontime
+	url = git@github.com:chusj-pigu/wf-modules.git
+	branch = ontime
