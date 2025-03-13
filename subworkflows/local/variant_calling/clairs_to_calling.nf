@@ -4,7 +4,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLAIRS_TO_CALL         } from '../../../modules/local/clairsto/main.nf'
-include  { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
+include { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
 include { SAMTOOLS_FAIDX         } from '../../../modules/local/samtools/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -60,7 +60,7 @@ workflow CLAIRS_TO_CALLING {
     }
 
     // Generate error if reference is not hg38 nor hg19
-    ch_error = ch_databases.other.map { 
+    ch_error = ch_databases.other.map {
         throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
     }
 
@@ -69,7 +69,7 @@ workflow CLAIRS_TO_CALLING {
         def meta_vcf = meta.id + "_${type}"
         tuple(id:meta_vcf, output)
     }
-    
+
     if (ch_databases.hg38) {
         ch_snp_annotate = CLAIRS_TO_CALL.out.indel
             .map { meta, output -> annotateMeta(meta, output, 'indel') }
