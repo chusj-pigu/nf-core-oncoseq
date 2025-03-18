@@ -36,49 +36,40 @@ workflow BASECALL_MULTIPLEX {
 
     DORADO_DEMULTIPLEX(DORADO_BASECALL.out.ubam)
 
-    demultiplex_out_ch = DORADO_DEMULTIPLEX.out.demux_ubam      // Capture the output channel
+    demultiplex_out_ch = DORADO_DEMULTIPLEX.out.demux_ubam
 
     split_bams_ch = demultiplex_out_ch
         .groupTuple()
         .flatMap{ meta, ubam_files ->
             ubam_files.collect { ubam ->
-            // Use the baseName of the BAM file
+            // Extract barcodes from ubam file name
                 def ubam_base = ubam.baseName.replaceFirst(/^.*?(barcode\d{2}|unclassified).*$/, '$1')
-            // Create a tuple with the extracted baseName and BAM file
-                tuple(meta, ubam_base, ubam)
+            // Create a tuple with the extracted barcode and ubam file
+                tuple(id:ubam_base, ubam)
                 }
             }
 
     SAMTOOLS_QSFILTER(split_bams_ch)
 
-    // We remove the higher level sample_id used for basecalling
-    ch_barcode_qsfilt_pass = SAMTOOLS_QSFILTER.out.ubam_pass
-        .map { _meta, barcode, ubam ->
-            tuple(barcode, ubam) }
-
-    ch_barcode_qsfilt_fail = SAMTOOLS_QSFILTER.out.ubam_fail
-        .map { _meta, barcode, ubam ->
-            tuple(barcode, ubam) }
-
     // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
     ch_new_sample_ids_pass = ch_demux
-        .combine(ch_barcode_qsfilt_pass, by:0)
-        .map { barcode, sample, ubam ->
-            tuple([id: sample], barcode, ubam) }
-        .map { meta, _barcode, ubam ->
+        .combine(SAMTOOLS_QSFILTER.out.ubam_pass, by:0)
+        .map { barcode, sample, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
+            tuple([id: sample], ubam) }
+        .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add pass to meta in tuples for output naming
             def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, meta_full, ubam)
+            tuple(id:meta_full, ubam)
             }
 
     ch_new_sample_ids_fail = ch_demux
-        .combine(ch_barcode_qsfilt_fail, by:0)
-        .map { barcode, sample, ubam ->
-            tuple([id: sample], barcode, ubam) }
-        .map { meta, _barcode, ubam ->
+        .combine(SAMTOOLS_QSFILTER.out.ubam_fail, by:0)
+        .map { barcode, sample, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
+            tuple([id: sample], ubam) }
+        .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add fail to meta in tuples for output naming
             def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, meta_full, ubam)
+            tuple(id:meta_full, ubam)
             }
 
     SAMTOOLS_TOFASTQ_PASS(ch_new_sample_ids_pass)
@@ -103,8 +94,8 @@ workflow BASECALL_MULTIPLEX {
 
     emit:
     fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
-    stats_pass     = SEQKIT_STATS_PASS.out.stats
-    stats_fail     = SEQKIT_STATS_FAIL.out.stats
+    stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
+    stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
     versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
 
 }
