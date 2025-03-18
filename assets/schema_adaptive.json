@@ -1,0 +1,30 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/nf-core/oncoseq/master/assets/schema_input.json",
+    "title": "nf-core/oncoseq pipeline - params.input schema",
+    "description": "Schema for the file provided with params.input",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "sample": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Sample name must be provided and cannot contain spaces",
+                "meta": ["id"]
+            },
+            "bed": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "errorMessage": "Absolute path to bed file path must be provided"
+            },
+            "padding": {
+                "type": "number",
+                "pattern": "^\\d+$",
+                "errorMessage": "Padding used around region of interest must be provided for each bed file (in bp)"
+            }
+        },
+        "required": ["sample", "bed", "padding"]
+    }
+}

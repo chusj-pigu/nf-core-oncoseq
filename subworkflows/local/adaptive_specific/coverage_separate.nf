@@ -7,6 +7,7 @@ include { SAMTOOLS_SPLIT_BY_BED          } from '../../../modules/local/samtools
 include { CRAMINO_STATS as CRAMINO_BG    } from '../../../modules/local/cramino/main.nf'
 include { CRAMINO_STATS as CRAMINO_PANEL } from '../../../modules/local/cramino/main.nf'
 include { MOSDEPTH_ADAPTIVE              } from '../../../modules/local/mosdepth/main.nf'
+include { REMOVE_PADDING                 } from '../../../modules/local/adaptive_specific/main.nf'
 include { paramsSummaryMap               } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc           } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -29,36 +30,47 @@ workflow COVERAGE_SEPARATE {
 
     ch_versions = Channel.empty()
 
-    ch_split_in = bam
-        .combine(bed)                       // Keep padding in bed file
+    // For now, we keep padding in bed file
+    ch_split_in = params.adaptive_samplesheet == null ?
+        bam.combine(bed.map{ meta,bed,padding -> bed }) :  // Combine if same bed file is used for all samples (drop proxy meta value and padding)
+        bam.join(bed.map{ meta,bed,padding -> tuple(meta,bed) })       // Join if different bed files are used depending on samples (drop padding)
 
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 
     CRAMINO_BG(SAMTOOLS_SPLIT_BY_BED.out.bg)
     CRAMINO_PANEL(SAMTOOLS_SPLIT_BY_BED.out.panel)
 
+    // Remove padding from bed file for further coverage computations
+    REMOVE_PADDING(bed)
+
     // Create channels for running mosdepth with different filters for each sample
 
+    def addFilterAndCombine(meta, bam, bai, filter_type, bed_channel, flag, qual) {
+        def meta_filt = meta.id + '_' + filter_type  // Add filter type to meta
+        def filtered_channel = Channel.from(tuple(id: meta_filt, bam, bai))
+
+    // Conditional logic to combine or join with bed channel
+        def result_channel = params.adaptive_samplesheet == null ?
+            filtered_channel.combine(bed_channel.flatten.last()) :              // Drop proxy meta value
+            filtered_channel.join(bed_channel)
+
+    // Add flag and qual to the resulting tuples
+        result_channel.map { meta_filt, bam, bai, bed ->
+            tuple(meta_filt, bam, bai, bed, flag, qual)
+        }
+    }
+
     // All alignments (No filters on MAPQ)
-
-    ch_nofilt_mosdepth = SAMTOOLS_SPLIT_BY_BED.out.panel
-        .map { meta, bam, bai ->
-            def meta_filt = meta.id + '_' + 'nofilter'                      // Add variable in meta to identify filter used
-            tuple(id:meta_filt, bam, bai) }
-
+    ch_nofilt = addFilterAndCombine(SAMTOOLS_SPLIT_BY_BED.out.panel, 'nofilter', REMOVE_PADDING.out.bed, 1540, 0)
     // Primary alignments only
-
-    ch_primary_mosdepth = SAMTOOLS_SPLIT_BY_BED.out.panel
-        .map { meta, bam, bai ->
-            def meta_filt = meta.id + '_' + 'primary'                      // Add variable in meta to identify filter used
-            tuple(id:meta_filt, bam, bai) }
-
+    ch_primary = addFilterAndCombine(SAMTOOLS_SPLIT_BY_BED.out.panel, 'primary', REMOVE_PADDING.out.bed, 1796, 0)
     // Unique alignments only (MAPQ = 60)
+    ch_unique = addFilterAndCombine(SAMTOOLS_SPLIT_BY_BED.out.panel, 'unique', REMOVE_PADDING.out.bed, 1796, 60)
 
-    ch_unique_mosdepth = SAMTOOLS_SPLIT_BY_BED.out.panel
-        .map { meta, bam, bai ->
-            def meta_filt = meta.id + '_' + 'unique'                      // Add variable in meta to identify filter used
-            tuple(id:meta_filt, bam, bai) }
+    mosdepth_in = ch_nofilt
+        .mix(ch_primary,ch_unique)
+
+    MOSDEPTH_ADAPTIVE(mosdepth_in)
 
     //
     // Collate and save software versions

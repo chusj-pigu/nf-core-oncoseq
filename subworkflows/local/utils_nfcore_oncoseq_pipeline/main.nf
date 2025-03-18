@@ -34,6 +34,9 @@ workflow PIPELINE_INITIALISATION {
     input             //  string: Path to input samplesheet
     ubam_samplesheet  // string: Path to ubam samplesheet
     demux_samplesheet // string: Path to demux samplesheet
+    adaptive_samplesheet // string: Path to adaptive samplesheet ( not null if different for samples)
+    input_bed                 // string: path to input bed file (not null if the same for all sample)
+    input_padding
 
     main:
 
@@ -138,7 +141,28 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_demux }
     }
 
+    if (params.adaptive_samplesheet != null) {
+        Channel
+            .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .map {
+                meta, bed, padding ->
+                    tuple(meta, file(bed), padding)
+            }
+            groupTuple(by:1)
+            .set { ch_bed }
+    } else {
+        Channel
+            .fromPath(input_bed)
+            .map {
+                bed ->
+                    tuple(id:'all', bed, input_padding)
+            }
+            .set { ch_bed }
+    }
+
+
     emit:
+    bed_sheet   = ch_bed
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     versions    = ch_versions

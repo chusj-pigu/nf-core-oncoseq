@@ -72,7 +72,10 @@ workflow {
         params.outdir,
         params.input,
         params.ubam_samplesheet,
-        params.demux_samplesheet
+        params.demux_samplesheet,
+        params.adaptive_samplesheet,
+        params.bed,
+        params.padding
     )
 
     // Load Channels from parameters:
