@@ -30,13 +30,14 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     chr_list
     model
+    clin_database
 
     main:
 
     //
     // WORKFLOW: Run pipeline
     //
-    ADAPTIVE(samplesheet,ref,chr_list,model)
+    ADAPTIVE(samplesheet,ref,chr_list,model,clin_database)
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
@@ -89,6 +90,7 @@ workflow {
     // Channels for SNP calling
     ch_chr_list = Channel.of(params.chr_list)
     ch_clairs_model = Channel.of(params.clairsto_model)
+    ch_clin_database = Channel.fromPath(params.clin_database)
 
     //
     // WORKFLOW: Run main workflow
@@ -99,7 +101,8 @@ workflow {
         ch_input,
         ch_ref,
         ch_chr_list,
-        ch_clairs_model
+        ch_clairs_model,
+        ch_clin_database
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (

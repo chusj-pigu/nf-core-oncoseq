@@ -4,8 +4,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLAIRS_TO_CALL         } from '../../../modules/local/clairsto/main.nf'
-include { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
 include { SAMTOOLS_FAIDX         } from '../../../modules/local/samtools/main.nf'
+include { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
+include { SNPSIFT_ANNOTATE       } from '../../../modules/local/snpeff/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -26,6 +27,7 @@ workflow CLAIRS_TO_CALLING {
     ref_ch   // channel: from path read from params.ref or used directly on the command line with --genome GRCh38 for example with AWS
     chr_list    // channel: list of chromosomes to include for variant calling read from params.chr_list
     model       // channel: basecalling model
+    clinic_database
     main:
 
     ch_versions = Channel.empty()
@@ -36,10 +38,13 @@ workflow CLAIRS_TO_CALLING {
         .map { meta, _bamfile, _bai, ref ->
             tuple(meta,ref) }                   // We only need to run it once because we use the same reference for all samples
 
-    SAMTOOLS_FAIDX(ch_faidx_in)
+    if (params.ref_idx == null) {
 
-    ref_idx_ch = SAMTOOLS_FAIDX.out.fasta_index
-        .map { _meta, fasta_index -> fasta_index }           // Remove meta from tuple so we can join it with all samples
+        SAMTOOLS_FAIDX(ch_faidx_in)
+
+        ref_idx_ch = SAMTOOLS_FAIDX.out.fasta_index
+            .map { _meta, fasta_index -> fasta_index }           // Remove meta from tuple so we can join it with all samples
+    }
 
     ch_input_clairs = bam
         .combine(ref_ch)
@@ -85,6 +90,13 @@ workflow CLAIRS_TO_CALLING {
             .combine(ch_databases.hg19)
         SNPEFF_ANNOTATE(ch_snp_annotate)
     }
+
+    ch_database = clinic_database.toList()
+
+    ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
+        .combine(ch_database)
+    
+    SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 
 
     //

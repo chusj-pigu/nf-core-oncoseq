@@ -9,6 +9,7 @@ workflow ADAPTIVE {
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     chr_list
     model
+    clin_database
 
     main:
 
@@ -21,5 +22,5 @@ workflow ADAPTIVE {
 
     MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
 
-    CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model)
+    CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
 }
