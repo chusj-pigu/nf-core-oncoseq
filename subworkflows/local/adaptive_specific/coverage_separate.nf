@@ -38,6 +38,7 @@ workflow COVERAGE_SEPARATE {
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 
     CRAMINO_BG(SAMTOOLS_SPLIT_BY_BED.out.bg)
+
     CRAMINO_PANEL(SAMTOOLS_SPLIT_BY_BED.out.panel)
 
     // Remove padding from bed file for further coverage computations
@@ -71,6 +72,14 @@ workflow COVERAGE_SEPARATE {
         .mix(ch_primary,ch_unique)
 
     MOSDEPTH_ADAPTIVE(mosdepth_in)
+
+    ch_coverage_bg = CRAMINO_BG.out.stats
+        .map { meta, table ->
+        // Read the file content as a list of lines
+            def lines = table.readLines()
+            def coverage = lines[5].tokenize('\t')[1].toDouble()    // Last line and only take mean coverage column (4th)
+            coverage
+        }
 
     //
     // Collate and save software versions
