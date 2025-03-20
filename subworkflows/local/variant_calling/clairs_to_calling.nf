@@ -105,17 +105,23 @@ workflow CLAIRS_TO_CALLING {
 
     ch_vcf_snv_to_concat = SNPEFF_ANNOTATE.out.vcf
         .map { meta, vcf ->
-            def meta_restore = meta.id.replace('snv|indel', '') 
+            def meta_restore = meta.id.replace('indel', 'snp').replace('snv', 'snp')
             tuple(id:meta_restore, vcf) 
             }
         .groupTuple()
+        .map { meta, vcfs -> 
+            tuple(meta, vcfs[0], vcfs[1])       // Flatten the vcf
+        }
 
     ch_vcf_clinvar_to_concat = SNPSIFT_ANNOTATE.out.vcf
         .map { meta, vcf ->
-            def meta_restore = meta.id.replace('snv|indel', '')
+            def meta_restore = meta.id.replace('snv', 'clinvar').replace('indel', 'clinvar')
             tuple(id:meta_restore, vcf) 
             }
         .groupTuple()
+        .map { meta, vcfs -> 
+            tuple(meta, vcfs[0], vcfs[1])       // Flatten the vcf
+        }
 
     ch_bcftools_in = ch_vcf_snv_to_concat
         .mix(ch_vcf_clinvar_to_concat)
