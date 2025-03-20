@@ -36,7 +36,7 @@ workflow MAPPING {
             def meta_prefix = meta.id.replace('_pass', '')
             tuple(id:meta_prefix, reads)
             }
-        .combine(ref_ch)
+        .combine(ref_ch.first())
 
     MINIMAP2_ALIGN(ch_mapping_in)
 

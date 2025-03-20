@@ -7,6 +7,7 @@ include { CLAIRS_TO_CALL         } from '../../../modules/local/clairsto/main.nf
 include { SAMTOOLS_FAIDX         } from '../../../modules/local/samtools/main.nf'
 include { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE       } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_CONCAT        } from '../../../modules/local/bcftools/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -38,16 +39,18 @@ workflow CLAIRS_TO_CALLING {
         .map { meta, _bamfile, _bai, ref ->
             tuple(meta,ref) }                   // We only need to run it once because we use the same reference for all samples
 
-    if (params.ref_idx == null) {
+    if (ref_ch.first() == ref_ch.last()) {
 
         SAMTOOLS_FAIDX(ch_faidx_in)
 
         ref_idx_ch = SAMTOOLS_FAIDX.out.fasta_index
             .map { _meta, fasta_index -> fasta_index }           // Remove meta from tuple so we can join it with all samples
+    } else {
+        ref_idx_ch = ref_ch.last()
     }
 
     ch_input_clairs = bam
-        .combine(ref_ch)
+        .combine(ref_ch.first())
         .combine(ref_idx_ch)
         .combine(chr_list)
         .combine(model)
@@ -55,7 +58,7 @@ workflow CLAIRS_TO_CALLING {
     CLAIRS_TO_CALL(ch_input_clairs)
 
     // Branch ref channel to create database channel
-    ch_databases = ref_ch.branch {
+    ch_databases = ref_ch.first().branch {
         hg38: it.name.matches('(?i).*(hg38|GRCh38).*')
             return 'GRCh38.p14'
         hg19: it.name.matches('(?i).*(hg19|GRCh37).*')
@@ -98,6 +101,26 @@ workflow CLAIRS_TO_CALLING {
     
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 
+    // Remove indel and snv from meta to group them by sample_id
+
+    ch_vcf_snv_to_concat = SNPEFF_ANNOTATE.out.vcf
+        .map { meta, vcf ->
+            def meta_restore = meta.id.replace('snv|indel', '') 
+            tuple(id:meta_restore, vcf) 
+            }
+        .groupTuple()
+
+    ch_vcf_clinvar_to_concat = SNPSIFT_ANNOTATE.out.vcf
+        .map { meta, vcf ->
+            def meta_restore = meta.id.replace('snv|indel', '')
+            tuple(id:meta_restore, vcf) 
+            }
+        .groupTuple()
+
+    ch_bcftools_in = ch_vcf_snv_to_concat
+        .mix(ch_vcf_clinvar_to_concat)
+
+    BCFTOOLS_CONCAT(ch_bcftools_in)
 
     //
     // Collate and save software versions
