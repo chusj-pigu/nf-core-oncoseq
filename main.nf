@@ -75,7 +75,8 @@ workflow {
         params.demux_samplesheet,
         params.adaptive_samplesheet,
         params.bed,
-        params.padding
+        params.padding,
+        params.low_fidelity
     )
 
     // Load Channels from parameters:

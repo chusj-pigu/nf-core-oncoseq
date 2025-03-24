@@ -8,6 +8,8 @@ include { CRAMINO_STATS as CRAMINO_BG    } from '../../../modules/local/cramino/
 include { CRAMINO_STATS as CRAMINO_PANEL } from '../../../modules/local/cramino/main.nf'
 include { MOSDEPTH_ADAPTIVE              } from '../../../modules/local/mosdepth/main.nf'
 include { REMOVE_PADDING                 } from '../../../modules/local/adaptive_specific/main.nf'
+include { PIGZ_BED                       } from '../../../modules/local/adaptive_specific/main.nf'
+include { COVERAGE_PLOT                  } from '../../../modules/local/adaptive_specific/main.nf'
 include { paramsSummaryMap               } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc           } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -32,8 +34,8 @@ workflow COVERAGE_SEPARATE {
 
     // For now, we keep padding in bed file
     ch_split_in = params.adaptive_samplesheet == null ?
-        bam.combine(bed.map{ meta,bed,padding -> bed }) :  // Combine if same bed file is used for all samples (drop proxy meta value and padding)
-        bam.join(bed.map{ meta,bed,padding -> tuple(meta,bed) })       // Join if different bed files are used depending on samples (drop padding)
+        bam.combine(bed.map{ meta,bed,padding,low_fidelity -> bed }) :  // Combine if same bed file is used for all samples (drop proxy meta value and padding)
+        bam.join(bed.map{ meta,bed,padding,low_fidelity -> tuple(meta,bed) })       // Join if different bed files are used depending on samples (drop padding)
 
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 
@@ -78,8 +80,42 @@ workflow COVERAGE_SEPARATE {
         // Read the file content as a list of lines
             def lines = table.readLines()
             def coverage = lines[5].tokenize('\t')[1].toDouble()    // Last line and only take mean coverage column (4th)
-            coverage
+            tuple(meta,coverage)
         }
+
+    // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
+
+    PIGZ_BED(MOSDEPTH_ADAPTIVE.out)
+
+    ch_nofilt_bed_out = PIGZ_BED.out.bed
+        .filter { meta, bed -> meta.id.contains('nofilter') }
+        .map { meta, bed ->
+            def meta_sample = meta.id.replace('_nofilter', '')
+            tuple(id:meta_sample,bed) }
+
+    ch_primary_bed_out = PIGZ_BED.out.bed
+        .filter { meta, bed -> meta.id.contains('primary') }
+        .map { meta, bed ->
+            def meta_sample = meta.id.replace('_primary', '')
+            tuple(id:meta_sample,bed) }
+
+    ch_unique_bed_out = PIGZ_BED.out.bed
+        .filter { meta, bed -> meta.id.contains('unique') }
+        .map { meta, bed ->
+            def meta_sample = meta.id.replace('_unique', '')
+            tuple(id:meta_sample,bed) }
+
+    // Now we join all the variables by sample_id (meta)
+
+    ch_bed_joined = ch_nofilt_bed_out
+        .join(ch_primary_bed_out)
+        .join(ch_unique_bed_out)
+        .join(ch_coverage_bg)
+    ch_coverage_plot_in = params.adaptive_samplesheet == null ?
+        ch_bed_joined.combine(bed.map{ meta,bed,padding,low_fidelity -> low_fidelity }) :  // Combine if same bed file is used for all samples (drop proxy meta value and padding)
+        ch_bed_joined.join(bed.map{ meta,bed,padding,low_fidelity -> tuple(meta,low_fidelity) })
+
+    COVERAGE_PLOT(ch_coverage_plot_in)
 
     //
     // Collate and save software versions

@@ -36,7 +36,8 @@ workflow PIPELINE_INITIALISATION {
     demux_samplesheet // string: Path to demux samplesheet
     adaptive_samplesheet // string: Path to adaptive samplesheet ( not null if different for samples)
     input_bed                 // string: path to input bed file (not null if the same for all sample)
-    input_padding
+    input_padding               // Padding around ROI (parameter padding)
+    list_low_fidelity                // List of low fidelity genes to discard for coverage calculations (parameter low_fidelity)
 
     main:
 
@@ -145,8 +146,14 @@ workflow PIPELINE_INITIALISATION {
         Channel
             .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
             .map {
-                meta, bed, padding ->
-                    tuple(meta, file(bed), padding)
+                meta, bed, padding, low_fidelity ->
+                if(!low_fidelity) {
+                    return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+                } else if(low_fidelity == null) {
+                    return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+                } else {
+                    return(tuple(meta, file(bed), padding, file(low_fidelity)))
+                }
             }
             groupTuple(by:1)
             .set { ch_bed }
@@ -155,7 +162,7 @@ workflow PIPELINE_INITIALISATION {
             .fromPath(input_bed)
             .map {
                 bed ->
-                    tuple(id:'all', bed, input_padding)
+                    tuple(id:'all', bed, input_padding, list_low_fidelity)
             }
             .set { ch_bed }
     }

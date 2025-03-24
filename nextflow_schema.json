@@ -268,6 +268,19 @@
         "cfdna": {
             "type": "boolean",
             "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling mode."
+        },
+        "adaptive_samplesheet": {
+            "type": "string",
+            "description": "Samplesheet to specify which bed file was used for which sample in adaptive mode"
+        },
+        "low_fidelity": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOLIST",
+            "description": "Path to text file containing list of genes of low fidelity for adaptive sampling (default is empty list)"
+        },
+        "padding": {
+            "type": "integer",
+            "description": "Padding around region of interest for adaptive sampling"
         }
     }
 }

@@ -23,6 +23,10 @@
                 "type": "number",
                 "pattern": "^\\d+$",
                 "errorMessage": "Padding used around region of interest must be provided for each bed file (in bp)"
+            },
+            "low_fidelity": {
+                "type": "string",
+                "format": "file-path"
             }
         },
         "required": ["sample", "bed", "padding"]
