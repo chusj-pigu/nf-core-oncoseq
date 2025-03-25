@@ -48,9 +48,10 @@ workflow COVERAGE_SEPARATE {
 
     // Create channels for running mosdepth with different filters for each sample
 
-    def addFilterAndCombine(meta, bam, bai, filter_type, bed_channel, flag, qual) {
-        def meta_filt = meta.id + '_' + filter_type  // Add filter type to meta
-        def filtered_channel = Channel.from(tuple(id: meta_filt, bam, bai))
+    def addFilterAndCombine(process_out, filter_type, bed_channel, flag, qual) {
+        def meta = process_out[0]
+        def meta_filt = meta[0] + '_' + filter_type  // Add filter type to meta
+        def filtered_channel = Channel.from(tuple(id: meta_filt, process_out[1], process_out[2]))
 
     // Conditional logic to combine or join with bed channel
         def result_channel = params.adaptive_samplesheet == null ?
