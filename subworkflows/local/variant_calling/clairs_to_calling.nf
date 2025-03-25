@@ -3,15 +3,17 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CLAIRS_TO_CALL         } from '../../../modules/local/clairsto/main.nf'
-include { SAMTOOLS_FAIDX         } from '../../../modules/local/samtools/main.nf'
-include { SNPEFF_ANNOTATE        } from '../../../modules/local/snpeff/main.nf'
-include { SNPSIFT_ANNOTATE       } from '../../../modules/local/snpeff/main.nf'
-include { BCFTOOLS_CONCAT        } from '../../../modules/local/bcftools/main.nf'
-include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/main.nf'
+include { SAMTOOLS_FAIDX               } from '../../../modules/local/samtools/main.nf'
+include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
+include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_BGZIP as BGZIP_SNP  } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_BGZIP as BGZIP_CLIN } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_CONCAT              } from '../../../modules/local/bcftools/main.nf'
+include { paramsSummaryMap             } from 'plugin/nf-schema'
+include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -101,9 +103,12 @@ workflow CLAIRS_TO_CALLING {
     
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 
+    BGZIP_SNP(SNPEFF_ANNOTATE.out.vcf)
+    BGZIP_CLIN(SNPSIFT_ANNOTATE.out.vcf)
+
     // Remove indel and snv from meta to group them by sample_id
 
-    ch_vcf_snv_to_concat = SNPEFF_ANNOTATE.out.vcf
+    ch_vcf_snv_to_concat = BGZIP_SNP.out.vcf
         .map { meta, vcf ->
             def meta_restore = meta.id.replace('indel', 'snp').replace('snv', 'snp')
             tuple(id:meta_restore, vcf) 
@@ -113,7 +118,7 @@ workflow CLAIRS_TO_CALLING {
             tuple(meta, vcfs[0], vcfs[1])       // Flatten the vcf
         }
 
-    ch_vcf_clinvar_to_concat = SNPSIFT_ANNOTATE.out.vcf
+    ch_vcf_clinvar_to_concat = BGZIP_CLIN.out.vcf
         .map { meta, vcf ->
             def meta_restore = meta.id.replace('snv', 'clinvar').replace('indel', 'clinvar')
             tuple(id:meta_restore, vcf) 
