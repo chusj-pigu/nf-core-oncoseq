@@ -80,9 +80,13 @@ workflow {
     // Load Channels from parameters:
 
     // Combine the samplesheet with the model :
-    ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
-    ch_input = PIPELINE_INITIALISATION.out.samplesheet
-        .combine(ch_model)
+    if (params.skip_basecalling) {
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
+    } else {
+        ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
+            .combine(ch_model)
+    }
 
     // Channels for mapping
     ch_ref = Channel.fromPath(params.ref)

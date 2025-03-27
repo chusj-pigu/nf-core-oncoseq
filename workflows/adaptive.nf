@@ -16,11 +16,20 @@ workflow ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-    BASECALL_SIMPLEX (
-        samplesheet
-    )
 
-    MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
+    if (params.skip_basecalling) {
+        MAPPING(samplesheet,ref)
 
-    CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
+        CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
+        
+    } else {
+
+        BASECALL_SIMPLEX (
+            samplesheet
+        )
+
+        MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
+
+        CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
+    }
 }

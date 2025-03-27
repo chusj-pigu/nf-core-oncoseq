@@ -88,21 +88,41 @@ workflow PIPELINE_INITIALISATION {
         Channel
             .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, pod5 ->
-                    tuple(meta.id,meta,file(pod5))
+                meta, input ->
+                    tuple(meta.id,meta,file(input))
             }
             .groupTuple()
             .map { samplesheet ->
                 validateInputSamplesheet(samplesheet)
             }
             .map {
-                meta, pod5 ->
-                    return [ meta, pod5.flatten() ]
+                meta, input ->
+                    return [ meta, input.flatten() ]
             }
-            .set { ch_pod5 }
+            .set { ch_input }
 
-        ch_samplesheet = ch_pod5
+        ch_samplesheet = ch_input
             .join(ch_ubam)
+    } else if (!params.skip_basecalling) {
+        Channel
+            .fromPath("${projectDir}/assets/NO_UBAM")
+            .set { ch_ubam }
+        Channel
+            .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
+            .map {
+                meta, input ->
+                    tuple(meta.id,meta,file(input))
+            }
+            .groupTuple()
+            .map { samplesheet ->
+                validateInputSamplesheet(samplesheet)
+            }
+            .map {
+                meta, input ->
+                    return [ meta, input.flatten() ]
+            }
+            .combine( ch_ubam )
+            .set { ch_samplesheet }
     } else {
         Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
@@ -110,18 +130,17 @@ workflow PIPELINE_INITIALISATION {
         Channel
             .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, pod5 ->
-                    tuple(meta.id,meta,file(pod5))
+                meta, input ->
+                    tuple(meta.id,meta,file(input))
             }
             .groupTuple()
             .map { samplesheet ->
                 validateInputSamplesheet(samplesheet)
             }
             .map {
-                meta, pod5 ->
-                    return [ meta, pod5.flatten() ]
+                meta, input ->
+                    return [ meta, input.flatten() ]
             }
-            .combine( ch_ubam )
             .set { ch_samplesheet }
     }
 
@@ -198,14 +217,14 @@ workflow PIPELINE_COMPLETION {
 //
 // Validate channels from input samplesheet
 //
-def validateInputSamplesheet(input) {
-    def (metas, pod5) = input[1..2]
+def validateInputSamplesheet(file) {
+    def (metas, input) = file[1..2]
 
-    return [ metas[0], pod5 ]
+    return [ metas[0], input ]
 }
 
-def validateUbamSamplesheet(input) {
-    def (metas, ubam) = input[1..2]
+def validateUbamSamplesheet(file) {
+    def (metas, ubam) = file[1..2]
 
     return [ metas[0], ubam ]
 }
