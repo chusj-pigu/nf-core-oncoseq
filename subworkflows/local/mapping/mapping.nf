@@ -64,23 +64,22 @@ workflow MAPPING {
     //     "Mosdepth_coverage",
     //     "mosdepth-general")
 
-    //
-    // Collate and save software versions
-    //
-    softwareVersionsToYAML(ch_versions)
-        .collectFile(
-            storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'oncoseq_software_'  + 'versions.yml',
-            sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    ch_versions = MINIMAP2_ALIGN.out.versions
+        .mix(SAMTOOLS_TOBAM.out.versions)
+        .mix(SAMTOOLS_SORT_INDEX.out.versions)
+        .mix(CRAMINO_STATS.out.versions)
 
 
 
     emit:
     bam              = SAMTOOLS_SORT_INDEX.out.sortedbamidx
     coverage         = CRAMINO_STATS.out.stats
-    versions         = ch_collated_versions              // channel: [ path(versions.yml) ]
+    versions         = ch_versions              // channel: [ path(versions.yml) ]
 
 }
 

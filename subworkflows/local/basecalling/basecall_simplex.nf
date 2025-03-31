@@ -57,16 +57,17 @@ workflow BASECALL_SIMPLEX {
     SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
 
 
-    //
-    // Collate and save software versions
-    //
-    softwareVersionsToYAML(ch_versions)
-        .collectFile(
-            storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'oncoseq_software_'  + 'versions.yml',
-            sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    ch_versions = DORADO_BASECALL.out.versions
+        .mix(SAMTOOLS_QSFILTER.out.versions)
+        .mix(SAMTOOLS_TOFASTQ_PASS.out.versions)
+        .mix(SAMTOOLS_TOFASTQ_FAIL.out.versions)
+        .mix(SEQKIT_STATS_PASS.out.versions)
+        .mix(SEQKIT_STATS_FAIL.out.versions)
 
 
 
@@ -74,7 +75,7 @@ workflow BASECALL_SIMPLEX {
     fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
     stats_pass     = SEQKIT_STATS_PASS.out.stats
     stats_fail     = SEQKIT_STATS_FAIL.out.stats
-    versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
+    versions       = ch_versions              
 
 }
 

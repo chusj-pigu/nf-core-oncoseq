@@ -100,21 +100,26 @@ workflow CLAIRS_TO_CALLING {
     
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 
-    //
-    // Collate and save software versions
-    //
-    softwareVersionsToYAML(ch_versions)
-        .collectFile(
-            storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'oncoseq_software_'  + 'versions.yml',
-            sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    ch_versions = CLAIRS_TO_CALL.out.versions
+
+    if (ref_ch.first() == ref_ch.last()) {
+        ch_versions = ch_versions
+            .mix(SAMTOOLS_FAIDX.out.versions)
+            .mix(SNPEFF_ANNOTATE.out.versions)
+    } else {
+        ch_versions = ch_versions
+            .mix(SNPEFF_ANNOTATE.out.versions)
+    }
 
 
 
     emit:
-    versions         = ch_collated_versions              // channel: [ path(versions.yml) ]
+    versions         = ch_versions            // channel: [ path(versions.yml) ]
 
 }
 
