@@ -26,11 +26,11 @@
 	path = modules/local/clairsto
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = clairsto
-[submodule "modules/local/cramino"]
-	path = modules/local/cramino
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = cramino
 [submodule "modules/local/snpeff"]
 	path = modules/local/snpeff
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = snpeff
+[submodule "modules/local/cramino"]
+	path = modules/local/cramino
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = cramino
