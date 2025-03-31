@@ -95,8 +95,8 @@ workflow BASECALL_MULTIPLEX {
 
     emit:
     fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
-    stats_pass     = SEQKIT_STATS_PASS.out.stats
-    stats_fail     = SEQKIT_STATS_FAIL.out.stats
+    stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
+    stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
     versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
 
 }
