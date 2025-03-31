@@ -1,0 +1,28 @@
+nextflow_process {
+
+    name "Test Process SNPEFF_ANNOTATE"
+    script "modules/local/snpeff/main.nf"
+    process "SNPEFF_ANNOTATE"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                // define parameters here. Example:
+                // outdir = "tests/results"
+            }
+            process {
+                """
+                // define inputs of the process here. Example:
+                input[0] = tuple [id:"sample1"], file("/workspaces/nf-core-oncoseq/test_data/snpEff/test.chr22.vcf"), "GRCh37.75"
+                """
+            }
+        }
+
+        then {
+            assert process.success
+        }
+
+    }
+
+}

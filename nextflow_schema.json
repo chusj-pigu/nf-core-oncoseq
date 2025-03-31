@@ -222,10 +222,6 @@
             "default": 10,
             "description": "Minimum phred score to filter reads with"
         },
-        "model": {
-            "type": "string",
-            "description": "Basecalling model to use"
-        },
         "m_bases": {
             "type": "string",
             "description": "Modifications model to usefor basecalling"
@@ -268,6 +264,24 @@
         "cfdna": {
             "type": "boolean",
             "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling mode."
+        },
+        "clairsto_model": {
+            "type": "string",
+            "description": "ClairS_TO model to use for SNP calling",
+            "default": "ont_r10_dorado_sup_5khz_ssrs"
+        },
+        "ref_index": {
+            "type": "string",
+            "description": "Path to index of reference used for mapping"
+        },
+        "chr_list": {
+            "type": "string",
+            "description": "List of chromosomes to include in SNP analysis by ClairS_TO",
+            "default": "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY"
+        },
+        "model": {
+            "type": "string",
+            "description": "Basecalling model to use with Dorado. If --model-path is not specified, has to be specified."
         }
     }
 }

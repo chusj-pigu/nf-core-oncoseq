@@ -13,13 +13,13 @@
                 "errorMessage": "Sample name must be provided and cannot contain spaces",
                 "meta": ["id"]
             },
-            "pod5": {
+            "input": {
                 "type": "string",
                 "format": "path",
                 "exists": true,
-                "errorMessage": "pod5 file path must be provided"
+                "errorMessage": "pod5 or fastq file path must be provided"
             }
         },
-        "required": ["sample", "pod5"]
+        "required": ["sample", "input"]
     }
 }
