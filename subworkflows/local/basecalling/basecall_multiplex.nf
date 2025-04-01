@@ -84,7 +84,7 @@ workflow BASECALL_MULTIPLEX {
         COLLECT VERSIONS
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
-    ch_version = DORADO_BASECALL.out.versions
+    ch_versions = DORADO_BASECALL.out.versions
         .mix(DORADO_DEMULTIPLEX.out.versions)
         .mix(SAMTOOLS_QSFILTER.out.versions)
         .mix(SAMTOOLS_TOFASTQ_PASS.out.versions)
@@ -97,7 +97,7 @@ workflow BASECALL_MULTIPLEX {
     fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
     stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
     stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
-    versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
+    versions       = ch_versions              // channel: [ path(versions.yml) ]
 
 }
 
