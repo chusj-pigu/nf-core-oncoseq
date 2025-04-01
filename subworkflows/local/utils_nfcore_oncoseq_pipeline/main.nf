@@ -183,8 +183,8 @@ workflow PIPELINE_INITIALISATION {
                     tuple(bed, input_padding, list_low_fidelity)
             }
             .combine(ch_samplesheet)
-            .map { bed, padding, low_fidelity, meta, _pod5, _ubam ->             // Re-use the sample_id as meta
-                tuple(meta, bed, padding, low_fidelity) }
+            .map { samplesheet ->             // Re-use the sample_id as meta
+                validateAdaptiveSamplesheet(samplesheet) }
             .set { ch_bed }
     }
 
@@ -261,6 +261,13 @@ def validateUbamSamplesheet(file) {
 
     return [ metas[0], ubam ]
 }
+
+def validateAdaptiveSamplesheet(file) {
+    def (bed, padding, low_fidelity, metas, _pod5, _ubam) = file[1..6]
+
+    return [ metas[0], bed, padding, low_fidelity ]
+}
+
 //
 // Generate methods description for MultiQC
 //
