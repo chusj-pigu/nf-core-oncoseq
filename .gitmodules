@@ -22,6 +22,10 @@
 	path = modules/local/seqkit
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = seqkit
+[submodule "modules/local/clairsto"]
+	path = modules/local/clairsto
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = clairsto
 [submodule "modules/local/cramino"]
 	path = modules/local/cramino
 	url = https://github.com/chusj-pigu/wf-modules

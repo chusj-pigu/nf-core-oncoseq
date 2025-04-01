@@ -31,7 +31,7 @@ workflow PIPELINE_INITIALISATION {
     monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
-    input             //  string: Path to input samplesheet
+    input_sheet             //  string: Path to input samplesheet
     ubam_samplesheet  // string: Path to ubam samplesheet
     demux_samplesheet // string: Path to demux samplesheet
     adaptive_samplesheet // string: Path to adaptive samplesheet ( not null if different for samples)
@@ -87,36 +87,51 @@ workflow PIPELINE_INITIALISATION {
             }
             .set { ch_ubam }
         Channel
-            .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, pod5 ->
-                    tuple(meta.id,meta,file(pod5))
+                meta, input ->
+                    tuple(meta.id,meta,file(input))
             }
             .groupTuple()
             .map {
-                meta, pod5 ->
-                    return [ meta, pod5.flatten() ]
+                meta, input ->
+                    return [ meta, input.flatten() ]
             }
-            .set { ch_pod5 }
+            .set { ch_input }
 
-        ch_samplesheet = ch_pod5
+        ch_samplesheet = ch_input
             .join(ch_ubam)
+    } else if (!params.skip_basecalling) {
+        Channel
+            .fromPath("${projectDir}/assets/NO_UBAM")
+            .set { ch_ubam }
+        Channel
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map {
+                meta, input ->
+                    tuple(meta.id,meta,file(input))
+            }
+            .groupTuple()
+            .map {
+                meta, input ->
+                    return [ meta, input.flatten() ]
+            }
+            .set { ch_samplesheet }
     } else {
         Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
             .set { ch_ubam }
         Channel
-            .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, pod5 ->
-                    tuple(meta.id,meta,file(pod5))
+                meta, input ->
+                    tuple(meta.id,meta,file(input))
             }
             .groupTuple()
             .map {
-                meta, pod5 ->
-                    return [ meta, pod5.flatten() ]
+                meta, input ->
+                    return [ meta, input.flatten() ]
             }
-            .combine( ch_ubam )
             .set { ch_samplesheet }
     }
 

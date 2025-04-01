@@ -32,27 +32,22 @@ workflow BASECALL_SIMPLEX {
 
     DORADO_BASECALL(ch_samplesheet)
 
-    ch_basecall_out = DORADO_BASECALL.out.ubam
-        .map { meta, ubam ->
-            tuple(meta, meta.id, ubam)         // Make a mock barcode variable as sample_id (meta) to regularize with demultiplex workflow
-            }
-
-    SAMTOOLS_QSFILTER(ch_basecall_out)
+    SAMTOOLS_QSFILTER(DORADO_BASECALL.out.ubam)
 
     // Add pass and fail to meta in tuples for output naming
 
     ch_ubam_pass = SAMTOOLS_QSFILTER.out.ubam_pass
-        .map { meta, _barcode, ubam ->
+        .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
             def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, meta_full, ubam)
+            tuple(id:meta_full, ubam)
             }
 
     ch_ubam_fail = SAMTOOLS_QSFILTER.out.ubam_fail
-        .map { meta, _barcode, ubam ->
+        .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
             def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, meta_full, ubam)
+            tuple(id:meta_full, ubam)
             }
 
     SAMTOOLS_TOFASTQ_PASS(ch_ubam_pass)
@@ -62,16 +57,17 @@ workflow BASECALL_SIMPLEX {
     SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
 
 
-    //
-    // Collate and save software versions
-    //
-    softwareVersionsToYAML(ch_versions)
-        .collectFile(
-            storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'oncoseq_software_'  + 'versions.yml',
-            sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    ch_versions = DORADO_BASECALL.out.versions
+        .mix(SAMTOOLS_QSFILTER.out.versions)
+        .mix(SAMTOOLS_TOFASTQ_PASS.out.versions)
+        .mix(SAMTOOLS_TOFASTQ_FAIL.out.versions)
+        .mix(SEQKIT_STATS_PASS.out.versions)
+        .mix(SEQKIT_STATS_FAIL.out.versions)
 
 
 
@@ -79,12 +75,6 @@ workflow BASECALL_SIMPLEX {
     fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
     stats_pass     = SEQKIT_STATS_PASS.out.stats
     stats_fail     = SEQKIT_STATS_FAIL.out.stats
-    versions       = ch_collated_versions              // channel: [ path(versions.yml) ]
+    versions       = ch_versions              
 
 }
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
