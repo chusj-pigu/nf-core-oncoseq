@@ -10,3 +10,4 @@ null/
 tests
 test_out
 .nf-test.log
+test_data/adaptive/*

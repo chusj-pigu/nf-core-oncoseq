@@ -11,7 +11,7 @@ process REMOVE_PADDING {
 
     input:
     tuple val(meta),
-        path(bed)
+        path(bed),
         val(padding)
 
     output:
@@ -21,11 +21,12 @@ process REMOVE_PADDING {
 
     script:
     def prefix = task.ext.prefix ?: "${bed}.baseName"
+    def output_name = "${prefix}_nopadding.bed"
     """
-    awk -F'\t' \\
-        'BEGIN {OFS="\t"} \\
-        { $2 = $2 + ${padding}; $3 = $3 - ${padding}; print }' \\
-        ${bed} > ${prefix}_nopadding.bed
+    awk -F'\\t' '
+        BEGIN {OFS="\\t"}
+        { \$2 = \$2 + $padding; \$3 = \$3 - $padding; print }
+    ' $bed > $output_name
     """
 }
 

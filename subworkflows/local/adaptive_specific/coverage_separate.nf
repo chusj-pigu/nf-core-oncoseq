@@ -28,14 +28,18 @@ workflow COVERAGE_SEPARATE {
     take:
     bam                     // channel: from mapping workflow, tuple with bam and bai
     bed                     // channel: from path read from params.bed, bed file used for adaptive sampling
+
     main:
 
     ch_versions = Channel.empty()
 
     // For now, we keep padding in bed file
-    ch_split_in = params.adaptive_samplesheet == null ?
-        bam.combine(bed.map{ meta,bed,padding,low_fidelity -> bed }) :  // Combine if same bed file is used for all samples (drop proxy meta value and padding)
-        bam.join(bed.map{ meta,bed,padding,low_fidelity -> tuple(meta,bed) })       // Join if different bed files are used depending on samples (drop padding)
+    ch_bed = bed
+        .map { meta,bedfile,_padding,_low_fidelity ->
+            tuple(meta,bedfile) }
+
+    ch_split_in = bam
+        .join(ch_bed)      // Join if different bed files are used depending on samples (drop padding)
 
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 
@@ -44,32 +48,45 @@ workflow COVERAGE_SEPARATE {
     CRAMINO_PANEL(SAMTOOLS_SPLIT_BY_BED.out.panel)
 
     // Remove padding from bed file for further coverage computations
-    REMOVE_PADDING(bed)
+    ch_bed_pad = bed
+        .map { meta,bedfile,padding,_low_fidelity ->
+            tuple(meta,bedfile,padding) }
+    REMOVE_PADDING(ch_bed_pad)
 
-    // Create channels for running mosdepth with different filters for each sample
+    // Create channels for running mosdepth with different filters for each sample by creating a new meta variable containing filter type,
+        // joining the bed file without the padding and then adding the flag and MAPQ filters to the tuple
+    // No filters on alignments:
 
-    def addFilterAndCombine(process_out, filter_type, bed_channel, flag, qual) {
-        def meta = process_out[0]
-        def meta_filt = meta[0] + '_' + filter_type  // Add filter type to meta
-        def filtered_channel = Channel.from(tuple(id: meta_filt, process_out[1], process_out[2]))
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .map { meta, bedfile ->
+            def meta_filter = meta.id + '_nofilter'
+                tuple(id:meta_filter, bedfile) }
 
-    // Conditional logic to combine or join with bed channel
-        def result_channel = params.adaptive_samplesheet == null ?
-            filtered_channel.combine(bed_channel.flatten.last()) :              // Drop proxy meta value
-            filtered_channel.join(bed_channel)
+    ch_nofilt = SAMTOOLS_SPLIT_BY_BED.out.panel
+        .map { meta, bamfile, bai ->
+            def meta_filter = meta.id + '_nofilter'
+                tuple(id:meta_filter, bamfile, bai) }
+        .join(ch_bed_nopad)
+        .map { meta_filt, bamfile, bai, bedfile ->
+            tuple(meta_filt, bamfile, bai, bedfile, 1540, 0) }
 
-    // Add flag and qual to the resulting tuples
-        result_channel.map { meta_filt, bam, bai, bed ->
-            tuple(meta_filt, bam, bai, bed, flag, qual)
-        }
-    }
+    // Primary alignments only:
+    ch_primary = SAMTOOLS_SPLIT_BY_BED.out.panel
+        .map { meta, bamfile, bai ->
+            def meta_filter = meta.id + '_primary'
+                tuple(id:meta_filter, bamfile, bai) }
+        .join(ch_bed_nopad)
+        .map { meta_filt, bamfile, bai, bedfile ->
+            tuple(meta_filt, bamfile, bai, bedfile, 1796, 0) }
 
-    // All alignments (No filters on MAPQ)
-    ch_nofilt = addFilterAndCombine(SAMTOOLS_SPLIT_BY_BED.out.panel, 'nofilter', REMOVE_PADDING.out.bed, 1540, 0)
-    // Primary alignments only
-    ch_primary = addFilterAndCombine(SAMTOOLS_SPLIT_BY_BED.out.panel, 'primary', REMOVE_PADDING.out.bed, 1796, 0)
-    // Unique alignments only (MAPQ = 60)
-    ch_unique = addFilterAndCombine(SAMTOOLS_SPLIT_BY_BED.out.panel, 'unique', REMOVE_PADDING.out.bed, 1796, 60)
+    // Unique alignments only:
+    ch_unique = SAMTOOLS_SPLIT_BY_BED.out.panel
+        .map { meta, bamfile, bai ->
+            def meta_filter = meta.id + '_unique'
+                tuple(id:meta_filter, bamfile, bai) }
+        .join(ch_bed_nopad)
+        .map { meta_filt, bamfile, bai, bedfile ->
+            tuple(meta_filt, bamfile, bai, bedfile, 1796, 60) }
 
     mosdepth_in = ch_nofilt
         .mix(ch_primary,ch_unique)
@@ -83,28 +100,27 @@ workflow COVERAGE_SEPARATE {
             def coverage = lines[5].tokenize('\t')[1].toDouble()    // Last line and only take mean coverage column (4th)
             tuple(meta,coverage)
         }
-
     // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
 
-    PIGZ_BED(MOSDEPTH_ADAPTIVE.out)
+    PIGZ_BED(MOSDEPTH_ADAPTIVE.out.bed)
 
     ch_nofilt_bed_out = PIGZ_BED.out.bed
-        .filter { meta, bed -> meta.id.contains('nofilter') }
-        .map { meta, bed ->
+        .filter { meta, bedfile -> meta.id.contains('nofilter') }
+        .map { meta, bedfile ->
             def meta_sample = meta.id.replace('_nofilter', '')
-            tuple(id:meta_sample,bed) }
+            tuple(id:meta_sample,bedfile) }
 
     ch_primary_bed_out = PIGZ_BED.out.bed
-        .filter { meta, bed -> meta.id.contains('primary') }
-        .map { meta, bed ->
+        .filter { meta, bedfile -> meta.id.contains('primary') }
+        .map { meta, bedfile ->
             def meta_sample = meta.id.replace('_primary', '')
-            tuple(id:meta_sample,bed) }
+            tuple(id:meta_sample,bedfile) }
 
     ch_unique_bed_out = PIGZ_BED.out.bed
-        .filter { meta, bed -> meta.id.contains('unique') }
-        .map { meta, bed ->
+        .filter { meta, bedfile -> meta.id.contains('unique') }
+        .map { meta, bedfile ->
             def meta_sample = meta.id.replace('_unique', '')
-            tuple(id:meta_sample,bed) }
+            tuple(id:meta_sample,bedfile) }
 
     // Now we join all the variables by sample_id (meta)
 
@@ -112,11 +128,9 @@ workflow COVERAGE_SEPARATE {
         .join(ch_primary_bed_out)
         .join(ch_unique_bed_out)
         .join(ch_coverage_bg)
-    ch_coverage_plot_in = params.adaptive_samplesheet == null ?
-        ch_bed_joined.combine(bed.map{ meta,bed,padding,low_fidelity -> low_fidelity }) :  // Combine if same bed file is used for all samples (drop proxy meta value and padding)
-        ch_bed_joined.join(bed.map{ meta,bed,padding,low_fidelity -> tuple(meta,low_fidelity) })
+        .join(bed.map{ meta,_bedfile,_padding,low_fidelity -> tuple(meta,low_fidelity) })
 
-    COVERAGE_PLOT(ch_coverage_plot_in)
+    COVERAGE_PLOT(ch_bed_joined)
 
     //
     // Collate and save software versions
@@ -132,6 +146,7 @@ workflow COVERAGE_SEPARATE {
 
 
     emit:
+    //bam              = SAMTOOLS_SPLIT_BY_BED.out.panel
     versions         = ch_collated_versions              // channel: [ path(versions.yml) ]
 
 }

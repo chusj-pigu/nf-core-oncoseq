@@ -81,9 +81,6 @@ workflow PIPELINE_INITIALISATION {
                     tuple(meta.id,meta,file(ubam))
             }
             .groupTuple()
-            .map { samplesheet ->
-                validateUbamSamplesheet(samplesheet)
-            }
             .map {
                 meta, ubam ->
                     return [ meta, ubam.flatten() ]
@@ -96,9 +93,6 @@ workflow PIPELINE_INITIALISATION {
                     tuple(meta.id,meta,file(pod5))
             }
             .groupTuple()
-            .map { samplesheet ->
-                validateInputSamplesheet(samplesheet)
-            }
             .map {
                 meta, pod5 ->
                     return [ meta, pod5.flatten() ]
@@ -118,9 +112,6 @@ workflow PIPELINE_INITIALISATION {
                     tuple(meta.id,meta,file(pod5))
             }
             .groupTuple()
-            .map { samplesheet ->
-                validateInputSamplesheet(samplesheet)
-            }
             .map {
                 meta, pod5 ->
                     return [ meta, pod5.flatten() ]
@@ -162,8 +153,11 @@ workflow PIPELINE_INITIALISATION {
             .fromPath(input_bed)
             .map {
                 bed ->
-                    tuple(id:'all', bed, input_padding, list_low_fidelity)
+                    tuple(bed, input_padding, list_low_fidelity)
             }
+            .combine(ch_samplesheet)
+            .map { bed, padding, low_fidelity, meta, _pod5, _ubam ->             // Re-use the sample_id as meta
+                tuple(meta, bed, padding, low_fidelity) }
             .set { ch_bed }
     }
 
@@ -225,21 +219,6 @@ workflow PIPELINE_COMPLETION {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-//
-// Validate channels from input samplesheet
-//
-def validateInputSamplesheet(input) {
-    def (metas, pod5) = input[1..2]
-
-    return [ metas[0], pod5 ]
-}
-
-def validateUbamSamplesheet(input) {
-    def (metas, ubam) = input[1..2]
-
-    return [ metas[0], ubam ]
-}
 //
 // Generate methods description for MultiQC
 //

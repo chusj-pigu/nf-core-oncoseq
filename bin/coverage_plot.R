@@ -15,7 +15,7 @@ option_list <- list(
     make_option(c("-b", "--bcov"), type = "integer", default = NULL,
                             help = "Background coverage [default: %default]", metavar = "NUMBER"),
     make_option(c("-l", "--lowgenes"), type = "character", default = NULL,
-                            help = "Path to text file containing list of low fidelity genes separated by a newline" [default: %default], metavar = "FILE"),
+                            help = "Path to text file containing list of low fidelity genes separated by a newline [default: %default]", metavar = "FILE"),
     make_option(c("-o", "--output"), type = "character", default = "output.pdf",
                             help = "Output pdf name [default: %default]", metavar = "FILE")
 )
@@ -24,7 +24,6 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list = option_list))
 
 # ---- Read the bed files ----
-genes <- readLines(opt$genes)
 
 full_bed_file <- opt$nofilt
 prim_bed_file <- opt$primary
