@@ -111,10 +111,10 @@ workflow {
         NFCORE_ONCOSEQ_ADAPTIVE (
         ch_input,
         ch_ref,
-        ch_bed,
         ch_chr_list,
         ch_clairs_model,
-        ch_clin_database
+        ch_clin_database,
+        ch_bed,
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
