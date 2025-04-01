@@ -81,6 +81,9 @@ workflow PIPELINE_INITIALISATION {
                     tuple(meta.id,meta,file(ubam))
             }
             .groupTuple()
+            .map { samplesheet ->
+                validateUbamSamplesheet(samplesheet)
+            }
             .map {
                 meta, ubam ->
                     return [ meta, ubam.flatten() ]
@@ -93,6 +96,9 @@ workflow PIPELINE_INITIALISATION {
                     tuple(meta.id,meta,file(input))
             }
             .groupTuple()
+            .map { samplesheet ->
+                validateInputSamplesheet(samplesheet)
+            }
             .map {
                 meta, input ->
                     return [ meta, input.flatten() ]
@@ -112,6 +118,9 @@ workflow PIPELINE_INITIALISATION {
                     tuple(meta.id,meta,file(input))
             }
             .groupTuple()
+            .map { samplesheet ->
+                validateInputSamplesheet(samplesheet)
+            }
             .map {
                 meta, input ->
                     return [ meta, input.flatten() ]
@@ -128,6 +137,9 @@ workflow PIPELINE_INITIALISATION {
                     tuple(meta.id,meta,file(input))
             }
             .groupTuple()
+            .map { samplesheet ->
+                validateInputSamplesheet(samplesheet)
+            }
             .map {
                 meta, input ->
                     return [ meta, input.flatten() ]
@@ -234,6 +246,21 @@ workflow PIPELINE_COMPLETION {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+//
+// Validate channels from input samplesheet
+//
+def validateInputSamplesheet(file) {
+    def (metas, input) = file[1..2]
+
+    return [ metas[0], input ]
+}
+
+def validateUbamSamplesheet(file) {
+    def (metas, ubam) = file[1..2]
+
+    return [ metas[0], ubam ]
+}
 //
 // Generate methods description for MultiQC
 //
