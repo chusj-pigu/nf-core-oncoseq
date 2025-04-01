@@ -96,8 +96,6 @@ workflow {
     // Channels for mapping
     ch_ref = Channel.fromPath(params.ref)
 
-    // Channels for adaptive specific
-    ch_bed = Channel.fromPath(params.bed)
     // Channels for SNP calling
     ch_chr_list = Channel.of(params.chr_list)
     ch_clairs_model = Channel.of(params.clairsto_model)
@@ -111,10 +109,10 @@ workflow {
         NFCORE_ONCOSEQ_ADAPTIVE (
         ch_input,
         ch_ref,
-        ch_bed,
         ch_chr_list,
         ch_clairs_model,
-        ch_clin_database
+        ch_clin_database,
+        PIPELINE_INITIALISATION.out.bed_sheet,
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
