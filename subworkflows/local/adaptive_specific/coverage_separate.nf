@@ -3,17 +3,13 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SAMTOOLS_SPLIT_BY_BED          } from '../../../modules/local/samtools/main.nf'
-include { CRAMINO_STATS as CRAMINO_BG    } from '../../../modules/local/cramino/main.nf'
-include { CRAMINO_STATS as CRAMINO_PANEL } from '../../../modules/local/cramino/main.nf'
-include { MOSDEPTH_ADAPTIVE              } from '../../../modules/local/mosdepth/main.nf'
-include { REMOVE_PADDING                 } from '../../../modules/local/adaptive_specific/main.nf'
-include { PIGZ_BED                       } from '../../../modules/local/adaptive_specific/main.nf'
-include { COVERAGE_PLOT                  } from '../../../modules/local/adaptive_specific/main.nf'
-include { paramsSummaryMap               } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc           } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText         } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { SAMTOOLS_SPLIT_BY_BED } from '../../../modules/local/samtools/main.nf'
+include { CRAMINO_STATS         } from '../../../modules/local/cramino/main.nf'
+include { MOSDEPTH_ADAPTIVE     } from '../../../modules/local/mosdepth/main.nf'
+include { REMOVE_PADDING        } from '../../../modules/local/adaptive_specific/main.nf'
+include { PIGZ_BED              } from '../../../modules/local/adaptive_specific/main.nf'
+include { COVERAGE_PLOT         } from '../../../modules/local/adaptive_specific/main.nf'
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -43,9 +39,20 @@ workflow COVERAGE_SEPARATE {
 
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 
-    CRAMINO_BG(SAMTOOLS_SPLIT_BY_BED.out.bg)
+    ch_cramino_bg = SAMTOOLS_SPLIT_BY_BED.out.bg
+        .map { meta, bamfile, bai ->
+            def meta_type = meta.id + '_background'
+                tuple(id:meta_type, bamfile, bai) }
 
-    CRAMINO_PANEL(SAMTOOLS_SPLIT_BY_BED.out.panel)
+    ch_cramino_panel = SAMTOOLS_SPLIT_BY_BED.out.panel
+        .map { meta, bamfile, bai ->
+            def meta_type = meta.id + '_panel'
+                tuple(id:meta_type, bamfile, bai) }
+
+    ch_cramino_in = ch_cramino_bg
+        .mix(ch_cramino_panel)
+
+    CRAMINO_STATS(ch_cramino_in)
 
     // Remove padding from bed file for further coverage computations
     ch_bed_pad = bed
@@ -103,12 +110,14 @@ workflow COVERAGE_SEPARATE {
 
     MOSDEPTH_ADAPTIVE(mosdepth_in)
 
-    ch_coverage_bg = CRAMINO_BG.out.stats
+    ch_coverage_bg = CRAMINO_STATS.out.stats
+        .filter { meta, table -> meta.id.contains('background') }
         .map { meta, table ->
         // Read the file content as a list of lines
+            def meta_restore = meta.id.replace('_background', '')    // restore meta to sample_id
             def lines = table.readLines()
             def coverage = lines[5].tokenize('\t')[1].toDouble()    // Last line and only take mean coverage column (4th)
-            tuple(meta,coverage)
+            tuple(id:meta_restore,coverage)
         }
     // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
 
@@ -146,16 +155,14 @@ workflow COVERAGE_SEPARATE {
     // Collate and save software versions
     //
     ch_versions = SAMTOOLS_SPLIT_BY_BED.out.versions
-        .mix(CRAMINO_BG.out.versions)
-        .mix(CRAMINO_PANEL.out.versions)
+        .mix(CRAMINO_STATS.out.versions)
         .mix(MOSDEPTH_ADAPTIVE.out.versions)
         .mix(COVERAGE_PLOT.out.versions)
 
 
 
     emit:
-    coverage_panel      = CRAMINO_PANEL.out.stats              // TODO: QUARTO REPORT
-    coverage_background = CRAMINO_BG.out.stats                  // TODO: QUARTO REPORT
+    coverage_separated  = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
     coverage_plot       = COVERAGE_PLOT.out.cov_plot           // TODO: QUARTO REPORT
     versions            = ch_versions              
 
