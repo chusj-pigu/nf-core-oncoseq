@@ -39,7 +39,7 @@ process PIGZ_BED {
     label 'process_low_cpu'
     label 'process_very_low_memory'
 
-    tag '$meta.id'
+    tag "$meta.id"
 
     input:
     tuple val(meta),

@@ -263,9 +263,9 @@ def validateUbamSamplesheet(file) {
 }
 
 def validateAdaptiveSamplesheet(file) {
-    def (bed, padding, low_fidelity, metas, _pod5, _ubam) = file[1..6]
+    def (bed, padding, low_fidelity, input_files) = file[0..4]
 
-    return [ metas[0], bed, padding, low_fidelity ]
+    return [ input_files, bed, padding, low_fidelity ]
 }
 
 //

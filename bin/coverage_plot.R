@@ -39,44 +39,44 @@ process_bed <- function(input_bed) {
   bed <- read.delim(input_bed, header = FALSE) %>%
     dplyr::rename(chr = V1, start = V2, end = V3, gene = V4, coverage = V5) %>%
     arrange(chr,start,end) %>%
-    rename_with(~ gsub(".*_(.*)\\.regions\\.bed$", "\\1", input_bed), coverage) %>%
-    mutate(gene = gsub("^\\d{3}_.+?_", "", gene)) %>%
+    rename_with(~ gsub(".*_(.*)\\.bed", "\\1", input_bed), coverage) %>%
+    mutate(gene = gsub("^\\d{4}_.+?_", "", gene)) %>%
     mutate(gene = ifelse(duplicated(gene), paste(gene, chr, sep = "_"), gene))
-
+  
   return(bed)
 }
 
 detect_outliers_high <- function(bed) {
-
+  
   outliers <- bed_all %>%
     filter(!gene %in% genes_low_fidelity) %>%
     filter(!chr == "chrX" & !chr == "chrY") %>%
     mutate(zscore = (mapq60-mean(mapq60))/sd(mapq60)) %>%
     filter(zscore > 2.75) %>%
     pull(gene)
-
+  
   return(outliers)
-
+  
 }
 
 detect_outliers_low <- function(bed) {
-
+  
   outliers <- bed_all %>%
     filter(!gene %in% genes_low_fidelity) %>%
     filter(!chr == "chrX" & !chr == "chrY") %>%
     mutate(zscore = (mapq60-mean(mapq60))/sd(mapq60)) %>%
     filter(zscore < -2.75) %>%
     pull(gene)
-
+  
   return(outliers)
-
+  
 }
 
 normalize_bed <- function(bed, maximum) {
-
+  
   # Normalize outliers in coverage
   high_coverage_limit <- (ceiling(maximum / 10) * 10)
-
+  
   bed <- bed %>%
     mutate(nofilter = case_when(
       nofilter > high_coverage_limit & primary > high_coverage_limit ~ (ceiling(maximum / 10) * 10),
@@ -92,7 +92,7 @@ normalize_bed <- function(bed, maximum) {
       mapq60 > high_coverage_limit ~ (ceiling(maximum / 10) * 10),
       TRUE ~ mapq60
     ))
-
+  
   # Add fidelity variable for coloring
   bed <- bed %>%
     mutate(fidelity = ifelse(gene %in% genes_low_fidelity, "Low fidelity", ifelse(gene %in% outliers_high, "Possible increased copy number", ifelse(gene %in% outliers_low, "Possible decreased copy number", "Normal (-2.75 < zscore < 2.75)"))))
@@ -104,17 +104,18 @@ df_long <- function(bed) {
     mutate(primary = primary - mapq60) %>%
     mutate(nofilter = nofilter - mapq60 - primary) %>%
     pivot_longer(c(nofilter:mapq60), names_to = "set", values_to = "coverage")
-
+  
   #Rename the sets with more informative names
   bed$set <- gsub("nofilter", "no filter", bed$set)
   bed$set <- gsub("primary", "primary only", bed$set)
-
+  bed$set <- gsub("mapq60", "unique", bed$set)
+  
   return(bed)
 }
 
 # Function to dynamically identify and annotate genes with coverage > 2× median
 generate_ann_out <- function(bed_long, bed_all) {
-
+  
   ann <- bed_all %>%
     filter(gene %in% genes_high) %>%
     pivot_longer(c(nofilter:mapq60), names_to = "set", values_to = "coverage") %>%
@@ -125,11 +126,11 @@ generate_ann_out <- function(bed_long, bed_all) {
     group_by_at(vars(chr:ann)) %>%
     summarise(coverage = max(coverage)) %>%
     ungroup()
-
+  
   ann$set <- gsub("nofilter", "no filter", ann$set)
-
+  
   return(ann)
-
+  
 }
 
 # Make annotation to label median and background coverage
@@ -144,33 +145,33 @@ general_ann <- function(bed) {
     group_by(chr) %>%
     slice(which.max(end)) %>%
     mutate(coverage = round(bg_cov), ann = paste0("Background (", round(bg_cov), "X)"))
-
+  
   bed <- rbind(bed1,bed2) %>%
-    mutate(set = factor(set, levels = c("mapq60", "primary only", "no filter"))) %>%
+    mutate(set = factor(set, levels = c("unique", "primary only", "no filter"))) %>%
     mutate(chr = factor(chr, levels = str_sort(unique(chr), numeric = TRUE))) %>%
     mutate(gene = factor(gene, levels = unique(gene)))
-
+  
   return(bed)
-
+  
 }
 
 # Function to generate a coverage plot
 generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
   # Calculate axis parameters
   axis_ticks <- seq(0, (ceiling(maximum / 10) * 10), length.out = 5)
-
+  
   # Reorder chromosomes for plotting
-
+  
   bed <- bed %>%
-    mutate(set = factor(set, levels = c("no filter", "primary only", "mapq60"))) %>%
+    mutate(set = factor(set, levels = c("no filter", "primary only", "unique"))) %>%
     mutate(chr = factor(chr, levels = str_sort(unique(chr), numeric = TRUE))) %>%
     mutate(gene = factor(gene, levels = unique(gene)))
-
+  
   ann_out <- ann_out %>%
-    mutate(set = factor(set, levels = c("no filter", "primary only", "mapq60"))) %>%
+    mutate(set = factor(set, levels = c("no filter", "primary only", "unique"))) %>%
     mutate(chr = factor(chr, levels = str_sort(unique(chr), numeric = TRUE))) %>%
     mutate(gene = factor(gene, levels = unique(gene)))
-
+  
   # Plot and save as PDF
   pdf(output_pdf, width = 22, height = 14)
   print( ggplot() +
@@ -198,9 +199,9 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
            ) +
            scale_y_continuous(limits = c(0, max(axis_ticks)), breaks = axis_ticks) +
            scale_fill_manual(values = c("lavenderblush4","orangered3" ,"turquoise4", "#DDAA33FF"), breaks = c("Normal (-2.75 < zscore < 2.75)", "Possible increased copy number", "Possible decreased copy number", "Low fidelity")) +
-           scale_alpha_manual(values = c(0.33,0.66,1), breaks = c("no filter", "primary only", "mapq60")) +
+           scale_alpha_manual(values = c(0.33,0.66,1), breaks = c("no filter", "primary only", "unique")) +
            coord_cartesian(expand = FALSE, clip = "off") +
-           labs(y = "Mean coverage", alpha = "Alignement type filter", fill = "", title = sub("^(.*)_.*$", "\\1", full_bed_file)) )
+           labs(y = "Mean coverage", alpha = "Alignement type filter", fill = "", title = paste(sub("^(.*)_.*$", "\\1", full_bed_file), " (mean coverage:", round(mean), "X)")))
   dev.off()
 }
 # Usage ####
@@ -208,7 +209,7 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
 ## Join input bed files together in a list
 input <- c(full_bed_file, prim_bed_file, mapq60_bed_file)
 bed_list <- lapply(input, process_bed)
-names(bed_list) <- gsub(".*_(.*)\\.regions\\.bed$", "\\1", input)
+names(bed_list) <- gsub(".*_(.*)\\.bed", "\\1", input)
 
 # Store median for pirmary alignment only as a variable for future usage
 median <- median(bed_list[["primary"]]$primary)
