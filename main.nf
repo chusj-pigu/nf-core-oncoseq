@@ -28,6 +28,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     take:
     samplesheet // channel: samplesheet read in from --input
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
+    bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     chr_list
     model
     clin_database
@@ -37,7 +38,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-    ADAPTIVE(samplesheet,ref,chr_list,model,clin_database)
+    ADAPTIVE(samplesheet,ref,bed,chr_list,model,clin_database)
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
@@ -74,7 +75,11 @@ workflow {
         params.outdir,
         params.input,
         params.ubam_samplesheet,
-        params.demux_samplesheet
+        params.demux_samplesheet,
+        params.adaptive_samplesheet,
+        params.bed,
+        params.padding,
+        params.low_fidelity
     )
 
     // Load Channels from parameters:
@@ -106,7 +111,8 @@ workflow {
         ch_ref,
         ch_chr_list,
         ch_clairs_model,
-        ch_clin_database
+        ch_clin_database,
+        PIPELINE_INITIALISATION.out.bed_sheet,
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (

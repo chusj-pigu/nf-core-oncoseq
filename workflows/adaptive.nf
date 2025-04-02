@@ -1,6 +1,7 @@
-include { BASECALL_SIMPLEX } from '../subworkflows/local/basecalling/basecall_simplex'
-include { MAPPING          } from '../subworkflows/local/mapping/mapping'
+include { BASECALL_SIMPLEX  } from '../subworkflows/local/basecalling/basecall_simplex'
+include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
+include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
 workflow ADAPTIVE {
 
@@ -10,6 +11,7 @@ workflow ADAPTIVE {
     chr_list
     model
     clin_database
+    bed         // channel: from path read from params.bed, bed file used for adaptive sampling
 
     main:
 
@@ -21,7 +23,9 @@ workflow ADAPTIVE {
         MAPPING(samplesheet,ref)
 
         CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
-        
+
+        COVERAGE_SEPARATE(MAPPING.out.bam,bed)
+
     } else {
 
         BASECALL_SIMPLEX (
@@ -31,5 +35,7 @@ workflow ADAPTIVE {
         MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
 
         CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
+
+        COVERAGE_SEPARATE(MAPPING.out.bam,bed)
     }
 }

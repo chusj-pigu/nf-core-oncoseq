@@ -93,11 +93,11 @@ workflow CLAIRS_TO_CALLING {
         SNPEFF_ANNOTATE(ch_snp_annotate)
     }
 
-    ch_database = clinic_database.toList()
+    ch_clin_db = clinic_database.toList()
 
     ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
-        .combine(ch_database)
-    
+        .combine(ch_clin_db)
+
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 
     /*

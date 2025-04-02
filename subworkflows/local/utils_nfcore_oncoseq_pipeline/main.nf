@@ -31,9 +31,13 @@ workflow PIPELINE_INITIALISATION {
     monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
-    input             //  string: Path to input samplesheet
+    input_sheet             //  string: Path to input samplesheet
     ubam_samplesheet  // string: Path to ubam samplesheet
     demux_samplesheet // string: Path to demux samplesheet
+    adaptive_samplesheet // string: Path to adaptive samplesheet ( not null if different for samples)
+    input_bed                 // string: path to input bed file (not null if the same for all sample)
+    input_padding               // Padding around ROI (parameter padding)
+    list_low_fidelity                // List of low fidelity genes to discard for coverage calculations (parameter low_fidelity)
 
     main:
 
@@ -86,7 +90,7 @@ workflow PIPELINE_INITIALISATION {
             }
             .set { ch_ubam }
         Channel
-            .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
                 meta, input ->
                     tuple(meta.id,meta,file(input))
@@ -108,7 +112,7 @@ workflow PIPELINE_INITIALISATION {
             .fromPath("${projectDir}/assets/NO_UBAM")
             .set { ch_ubam }
         Channel
-            .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
                 meta, input ->
                     tuple(meta.id,meta,file(input))
@@ -121,14 +125,13 @@ workflow PIPELINE_INITIALISATION {
                 meta, input ->
                     return [ meta, input.flatten() ]
             }
-            .combine( ch_ubam )
             .set { ch_samplesheet }
     } else {
         Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
             .set { ch_ubam }
         Channel
-            .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
                 meta, input ->
                     tuple(meta.id,meta,file(input))
@@ -157,7 +160,37 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_demux }
     }
 
+    if (params.adaptive_samplesheet != null) {
+        Channel
+            .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .map {
+                meta, bed, padding, low_fidelity ->
+                if(!low_fidelity) {
+                    return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+                } else if(low_fidelity == null) {
+                    return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+                } else {
+                    return(tuple(meta, file(bed), padding, file(low_fidelity)))
+                }
+            }
+            groupTuple(by:1)
+            .set { ch_bed }
+    } else {
+        Channel
+            .fromPath(input_bed)
+            .map {
+                bed ->
+                    tuple(bed, input_padding, list_low_fidelity)
+            }
+            .combine(ch_samplesheet)
+            .map { samplesheet ->             // Re-use the sample_id as meta
+                validateAdaptiveSamplesheet(samplesheet) }
+            .set { ch_bed }
+    }
+
+
     emit:
+    bed_sheet   = ch_bed
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     versions    = ch_versions
@@ -228,6 +261,13 @@ def validateUbamSamplesheet(file) {
 
     return [ metas[0], ubam ]
 }
+
+def validateAdaptiveSamplesheet(file) {
+    def (bed, padding, low_fidelity, input_files) = file[0..4]
+
+    return [ input_files, bed, padding, low_fidelity ]
+}
+
 //
 // Generate methods description for MultiQC
 //

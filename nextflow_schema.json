@@ -215,7 +215,7 @@
         },
         "ref": {
             "type": "string",
-            "description": "Path to reference to use for mapping"
+            "description": "Path to reference to use for mapping, can be a glob to include reference index to speed up SNP calling"
         },
         "minqs": {
             "type": "integer",
@@ -270,10 +270,6 @@
             "description": "ClairS_TO model to use for SNP calling",
             "default": "ont_r10_dorado_sup_5khz_ssrs"
         },
-        "ref_index": {
-            "type": "string",
-            "description": "Path to index of reference used for mapping"
-        },
         "chr_list": {
             "type": "string",
             "description": "List of chromosomes to include in SNP analysis by ClairS_TO",
@@ -282,6 +278,28 @@
         "model": {
             "type": "string",
             "description": "Basecalling model to use with Dorado. If --model-path is not specified, has to be specified."
+        },
+        "adaptive_samplesheet": {
+            "type": "string",
+            "description": "Samplesheet to specify which bed file was used for which sample in adaptive mode"
+        },
+        "low_fidelity": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOLIST",
+            "description": "Path to text file containing list of genes of low fidelity for adaptive sampling (default is empty list)"
+        },
+        "padding": {
+            "type": "integer",
+            "description": "Padding around region of interest for adaptive sampling"
+        },
+        "skip_basecalling": {
+            "type": "boolean",
+            "description": "Option to skip basecalling and start with fastq files in the samplesheet input column"
+        },
+        "clin_database": {
+            "type": "string",
+            "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)"
         }
-    }
+    },
+    "required": ["clin_database", "ref"]
 }
