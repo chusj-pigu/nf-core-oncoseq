@@ -145,18 +145,18 @@ workflow COVERAGE_SEPARATE {
     //
     // Collate and save software versions
     //
-    softwareVersionsToYAML(ch_versions)
-        .collectFile(
-            storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'oncoseq_software_'  + 'versions.yml',
-            sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
+    ch_versions = SAMTOOLS_SPLIT_BY_BED.out.versions
+        .mix(CRAMINO_BG.out.versions)
+        .mix(CRAMINO_PANEL.out.versions)
+        .mix(MOSDEPTH_ADAPTIVE.out.versions)
+        .mix(COVERAGE_PLOT.out.versions)
 
 
 
     emit:
-    //bam              = SAMTOOLS_SPLIT_BY_BED.out.panel
-    versions         = ch_collated_versions              // channel: [ path(versions.yml) ]
+    coverage_panel      = CRAMINO_PANEL.out.stats              // TODO: QUARTO REPORT
+    coverage_background = CRAMINO_BG.out.stats                  // TODO: QUARTO REPORT
+    coverage_plot       = COVERAGE_PLOT.out.cov_plot           // TODO: QUARTO REPORT
+    versions            = ch_versions              
 
 }

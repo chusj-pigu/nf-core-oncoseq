@@ -78,7 +78,7 @@ workflow MAPPING {
 
     emit:
     bam              = SAMTOOLS_SORT_INDEX.out.sortedbamidx
-    coverage         = CRAMINO_STATS.out.stats
+    coverage         = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
     versions         = ch_versions              // channel: [ path(versions.yml) ]
 
 }

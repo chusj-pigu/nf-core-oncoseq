@@ -213,6 +213,10 @@ names(bed_list) <- gsub(".*_(.*)\\.bed", "\\1", input)
 
 # Store median for pirmary alignment only as a variable for future usage
 median <- median(bed_list[["primary"]]$primary)
+mean <- bed_list[["primary"]] %>%
+    filter(!gene %in% genes_low_fidelity) %>%
+    pull(primary) %>%
+    mean()
 
 # Join bed_files into one dataframe:
 bed_all <- bed_list[[1]] %>%

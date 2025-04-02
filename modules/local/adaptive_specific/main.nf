@@ -83,6 +83,8 @@ process COVERAGE_PLOT {
     tuple val(meta),
         path("*.pdf"),
         emit: cov_plot
+    path "versions.yml",
+        emit: versions
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
