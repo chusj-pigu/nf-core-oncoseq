@@ -10,3 +10,5 @@ null/
 tests
 test_out
 .nf-test.log
+scratch/
+scratch*
