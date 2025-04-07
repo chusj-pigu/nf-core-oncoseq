@@ -28,13 +28,17 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     take:
     samplesheet // channel: samplesheet read in from --input
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
+    bed         // channel: from path read from params.bed, bed file used for adaptive sampling
+    chr_list
+    model
+    clin_database
 
     main:
 
     //
     // WORKFLOW: Run pipeline
     //
-    ADAPTIVE(samplesheet,ref)
+    ADAPTIVE(samplesheet,ref,bed,chr_list,model,clin_database)
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
@@ -71,18 +75,31 @@ workflow {
         params.outdir,
         params.input,
         params.ubam_samplesheet,
-        params.demux_samplesheet
+        params.demux_samplesheet,
+        params.adaptive_samplesheet,
+        params.bed,
+        params.padding,
+        params.low_fidelity
     )
 
     // Load Channels from parameters:
 
     // Combine the samplesheet with the model :
-    ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+    if (params.skip_basecalling) {
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
+    } else {
+        ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
+            .combine(ch_model)
+    }
 
-    ch_input = PIPELINE_INITIALISATION.out.samplesheet
-        .combine(ch_model)
-
+    // Channels for mapping
     ch_ref = Channel.fromPath(params.ref)
+
+    // Channels for SNP calling
+    ch_chr_list = Channel.of(params.chr_list)
+    ch_clairs_model = Channel.of(params.clairsto_model)
+    ch_clin_database = Channel.fromPath(params.clin_database)
 
     //
     // WORKFLOW: Run main workflow
@@ -90,8 +107,12 @@ workflow {
 
     if ( params.adaptive) {
         NFCORE_ONCOSEQ_ADAPTIVE (
-            ch_input,
-            ch_ref
+        ch_input,
+        ch_ref,
+        ch_chr_list,
+        ch_clairs_model,
+        ch_clin_database,
+        PIPELINE_INITIALISATION.out.bed_sheet,
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (

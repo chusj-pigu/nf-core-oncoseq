@@ -6,7 +6,7 @@
 include { MINIMAP2_ALIGN         } from '../../../modules/local/minimap2/main.nf'
 include { SAMTOOLS_TOBAM         } from '../../../modules/local/samtools/main.nf'
 include { SAMTOOLS_SORT_INDEX    } from '../../../modules/local/samtools/main.nf'
-include { MOSDEPTH_GENERAL       } from '../../../modules/local/mosdepth/main.nf'
+include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'
 include { QUARTO_TABLE           } from '../../../modules/local/quarto/main.nf'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -36,27 +36,27 @@ workflow MAPPING {
             def meta_prefix = meta.id.replace('_pass', '')
             tuple(id:meta_prefix, reads)
             }
-        .combine(ref_ch)
+        .combine(ref_ch.first())
 
     MINIMAP2_ALIGN(ch_mapping_in)
 
     SAMTOOLS_TOBAM(MINIMAP2_ALIGN.out.sam)
     SAMTOOLS_SORT_INDEX(SAMTOOLS_TOBAM.out.bamfile)
 
-    MOSDEPTH_GENERAL(SAMTOOLS_SORT_INDEX.out.sortedbamidx)
+    CRAMINO_STATS(SAMTOOLS_SORT_INDEX.out.sortedbamidx)
 
-    // Take mean coverage only from summary file of mosdepth to reduce file size loaded into R:
-    ch_mosdepth_coverage = MOSDEPTH_GENERAL.out.summary
-        .map { meta, table ->
-        // Read the file content as a list of lines
-            def lines = table.readLines()
-            def coverage = lines[-1].tokenize('\t')[3].toDouble()    // Last line and only take mean coverage column (4th)
-            tuple(meta, coverage)
-        }
-        .collectFile { item ->
-            def sample_id = item[0].id // Extract 'sample1' from [id: 'sample1']
-            [ "coverage.txt", sample_id + '\t' + item[1] + '\n']
-        }
+    // // Take mean coverage only from summary file of mosdepth to reduce file size loaded into R:
+    // ch_mosdepth_coverage = MOSDEPTH_GENERAL.out.summary
+    //     .map { meta, table ->
+    //     // Read the file content as a list of lines
+    //         def lines = table.readLines()
+    //         def coverage = lines[-1].tokenize('\t')[3].toDouble()    // Last line and only take mean coverage column (4th)
+    //         tuple(meta, coverage)
+    //     }
+    //     .collectFile { item ->
+    //         def sample_id = item[0].id // Extract 'sample1' from [id: 'sample1']
+    //         [ "coverage.txt", sample_id + '\t' + item[1] + '\n']
+    //     }
 
     // QUARTO_TABLE( ch_mosdepth_coverage_table,
     //     "Mean coverage",
@@ -64,22 +64,22 @@ workflow MAPPING {
     //     "Mosdepth_coverage",
     //     "mosdepth-general")
 
-    //
-    // Collate and save software versions
-    //
-    softwareVersionsToYAML(ch_versions)
-        .collectFile(
-            storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'oncoseq_software_'  + 'versions.yml',
-            sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    ch_versions = MINIMAP2_ALIGN.out.versions
+        .mix(SAMTOOLS_TOBAM.out.versions)
+        .mix(SAMTOOLS_SORT_INDEX.out.versions)
+        .mix(CRAMINO_STATS.out.versions)
 
 
 
     emit:
-    mosdepth_summary = MOSDEPTH_GENERAL.out.summary
-    versions         = ch_collated_versions              // channel: [ path(versions.yml) ]
+    bam              = SAMTOOLS_SORT_INDEX.out.sortedbamidx
+    coverage         = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
+    versions         = ch_versions              // channel: [ path(versions.yml) ]
 
 }
 
