@@ -7,6 +7,8 @@ include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/m
 include { SAMTOOLS_FAIDX               } from '../../../modules/local/samtools/main.nf'
 include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
+include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX               } from '../../../modules/local/bcftools/main.nf'
 include { paramsSummaryMap             } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -32,24 +34,29 @@ workflow CLAIRS_TO_CALLING {
 
     ch_versions = Channel.empty()
 
-    ch_faidx_in = bam
-        .combine(ref_ch)
-        .first()
-        .map { meta, _bamfile, _bai, ref ->
-            tuple(meta,ref) }                   // We only need to run it once because we use the same reference for all samples
+    ch_ref = ref_ch.first()
+    ch_ref_idx = ref_ch.last()
 
-    if (ref_ch.first() == ref_ch.last()) {
+    if (ch_ref == ch_ref_idx) {
+
+        ch_faidx_in = bam
+            .combine(ch_ref)
+            .map { meta, _bamfile, _bai, ref ->
+                tuple(meta,ref) }
 
         SAMTOOLS_FAIDX(ch_faidx_in)
 
         ref_idx_ch = SAMTOOLS_FAIDX.out.fasta_index
             .map { _meta, fasta_index -> fasta_index }           // Remove meta from tuple so we can join it with all samples
+        ch_ref_out = ch_ref
+            .combine(ref_idx_ch)                            // Channel with fasta and index to use for other processes
     } else {
-        ref_idx_ch = ref_ch.last()
+        ref_idx_ch = ch_ref_idx
+        ch_ref_out = ref_ch                             // Channel with fasta and index to use for other processes
     }
 
     ch_input_clairs = bam
-        .combine(ref_ch.first())
+        .combine(ch_ref)
         .combine(ref_idx_ch)
         .combine(chr_list)
         .combine(model)
@@ -93,7 +100,7 @@ workflow CLAIRS_TO_CALLING {
         SNPEFF_ANNOTATE(ch_snp_annotate)
     }
 
-    ch_clin_db = clinic_database.toList()
+    ch_clin_db = clinic_database.toSortedList()
 
     ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
         .combine(ch_clin_db)
@@ -107,7 +114,7 @@ workflow CLAIRS_TO_CALLING {
     */
     ch_versions = CLAIRS_TO_CALL.out.versions
 
-    if (ref_ch.first() == ref_ch.last()) {
+     if (ref_ch.first() == ref_ch.last()) {
         ch_versions = ch_versions
             .mix(SAMTOOLS_FAIDX.out.versions)
             .mix(SNPEFF_ANNOTATE.out.versions)
@@ -116,9 +123,24 @@ workflow CLAIRS_TO_CALLING {
             .mix(SNPEFF_ANNOTATE.out.versions)
     }
 
+    // Add clinvar into meta_id of SNPSIFT output
 
+    ch_snipsift_out = SNPSIFT_ANNOTATE.out.vcf
+        .map { meta, vcf ->
+            def meta_type = meta.id + '_clinvar'
+                tuple(id:meta_type, vcf) }
+
+    ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
+        .mix(ch_snipsift_out)
+
+    // Compress and index vcf :
+
+    BGZIP_VCF(ch_vcf_final)
+    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
 
     emit:
+    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
+    ref              = ch_ref_out
     versions         = ch_versions            // channel: [ path(versions.yml) ]
 
 }
