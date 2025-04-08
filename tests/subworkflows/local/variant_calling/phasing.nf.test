@@ -1,0 +1,67 @@
+nextflow_workflow {
+
+    name "Test Workflow PHASING_VARIANTS"
+    script "subworkflows/local/variant_calling/phasing.nf"
+    workflow "PHASING_VARIANTS"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                // define parameters here. Example:
+                // outdir = "tests/results"
+            }
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                ch_bam = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/input/HCC1395_tumor_chr17_demo.bam")
+                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/input/HCC1395_tumor_chr17_demo.bam.bai")
+                ch_input0 = ch_bam
+                    .combine(ch_bai)
+                    .map { bam, bai ->
+                        tuple(id:'HCC1395',bam,bai)}
+
+                ch_ref = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa")
+                ch_ref_idx = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa.fai")
+                ch_input1 = ch_ref
+                    .combine(ch_ref_idx)
+
+                ch_snv_vcf_tbi = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_snv.vcf.gz.tbi")
+                ch_snv_vcf = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_snv.vcf.gz")
+                    .combine(ch_snv_vcf_tbi)
+                    .map { vcf, vcf_tbi ->
+                        tuple(id:'HCC1395_snv',vcf, vcf_tbi) }
+                ch_indel_vcf_tbi = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_indel.vcf.gz.tbi")
+                ch_indel_vcf = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_indel.vcf.gz")
+                    .combine(ch_indel_vcf_tbi)
+                    .map { vcf, vcf_tbi ->
+                        tuple(id:'HCC1395_indel',vcf, vcf_tbi) }
+                ch_snv_clin_vcf_tbi = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_snv_clinvar.vcf.gz.tbi")
+                ch_snv_clin_vcf = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_snv_clinvar.vcf.gz")
+                    .combine(ch_snv_clin_vcf_tbi)
+                    .map { vcf, vcf_tbi ->
+                        tuple(id:'HCC1395_snv_clinvar',vcf, vcf_tbi) }
+                ch_indel_clin_vcf_tbi = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_indel_clinvar.vcf.gz.tbi")
+                ch_indel_clin_vcf = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_indel_clinvar.vcf.gz")
+                    .combine(ch_indel_clin_vcf_tbi)
+                    .map { vcf, vcf_tbi ->
+                        tuple(id:'HCC1395_indel_clinvar',vcf, vcf_tbi) }
+                ch_input2 = ch_snv_vcf
+                    .mix(ch_indel_vcf)
+                    .mix(ch_snv_clin_vcf)
+                    .mix(ch_indel_clin_vcf)
+
+                input[0] = ch_input0
+                input[1] = ch_input1
+                input[2] = ch_input2
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}
