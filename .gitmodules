@@ -38,3 +38,7 @@
 	path = modules/local/bcftools
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = bcftools
+[submodule "modules/local/whatshap"]
+	path = modules/local/whatshap
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = whatshap
