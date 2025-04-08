@@ -87,9 +87,14 @@ workflow {
     // Combine the samplesheet with the model :
     if (params.skip_basecalling) {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
-    } else {
+    } else if (params.ubam_samplesheet == null ) {
         ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
+            .combine(PIPELINE_INITIALISATION.out.ubam_ch)
+            .combine(ch_model)
+    } else {
+        ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet              // Otherwise ubam_samplesheet is validated with schema
             .combine(ch_model)
     }
 

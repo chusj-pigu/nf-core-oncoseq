@@ -127,9 +127,8 @@ workflow PIPELINE_INITIALISATION {
             }
             .set { ch_samplesheet }
     } else {
-        Channel
+        ch_ubam = Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
-            .set { ch_ubam }
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
@@ -141,7 +140,7 @@ workflow PIPELINE_INITIALISATION {
                 validateInputSamplesheet(samplesheet)
             }
             .map {
-                meta, input ->
+                meta, input, ch_ubam ->
                     return [ meta, input.flatten() ]
             }
             .set { ch_samplesheet }
@@ -191,6 +190,7 @@ workflow PIPELINE_INITIALISATION {
 
     emit:
     bed_sheet   = ch_bed
+    ubam_ch     = ch_ubam
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     versions    = ch_versions
@@ -253,7 +253,7 @@ workflow PIPELINE_COMPLETION {
 def validateInputSamplesheet(file) {
     def (metas, input) = file[1..2]
 
-    return [ metas[0], input ]
+    return [ metas[0], input]
 }
 
 def validateUbamSamplesheet(file) {
