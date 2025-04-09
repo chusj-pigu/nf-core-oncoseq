@@ -100,6 +100,7 @@ workflow {
 
     // Channels for mapping
     ch_ref = Channel.fromPath(params.ref)
+        .toSortedList()
 
     // Channels for SNP calling
     ch_chr_list = Channel.of(params.chr_list)

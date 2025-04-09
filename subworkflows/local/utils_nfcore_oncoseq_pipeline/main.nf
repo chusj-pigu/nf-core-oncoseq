@@ -140,7 +140,7 @@ workflow PIPELINE_INITIALISATION {
                 validateInputSamplesheet(samplesheet)
             }
             .map {
-                meta, input, ch_ubam ->
+                meta, input ->
                     return [ meta, input.flatten() ]
             }
             .set { ch_samplesheet }

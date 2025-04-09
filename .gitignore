@@ -10,4 +10,5 @@ null/
 test_out
 .nf-test.log
 test_data/adaptive/*
+test_data/realistic_data/*
 .nf-test/

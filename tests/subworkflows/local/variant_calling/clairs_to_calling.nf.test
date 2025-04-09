@@ -14,10 +14,19 @@ nextflow_workflow {
             workflow {
                 """
                 // define inputs of the workflow here. Example:
-                input[0] = tuple id:"HCC1395", file("${projectDir}/test_data/input/HCC1395_tumor_chr17_demo.bam"), file("${projectDir}/test_data/input/HCC1395_tumor_chr17_demo.bam.bai")
-                input[1] = Channel.fromPath("${projectDir}/test_data/ref/GRCh38_no_alt_chr17.fa")
+                ch_bam = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/input/HCC1395_tumor_chr17_demo.bam")
+                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/input/HCC1395_tumor_chr17_demo.bam.bai")
+                ch_input0 = ch_bam
+                    .combine(ch_bai)
+                    .map { bam, bai ->
+                        tuple(id:'HCC1395',bam,bai)}
+
+                input[0] = ch_input0
+                input[1] = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.{fa,fa.fai}")
                 input[2] = Channel.of('chr17')
                 input[3] = Channel.of('ont_r10_dorado_sup_5khz_ssrs')
+                // Too big for github, to upload from ncbi 
+                input[4] = Channel.fromPath("${projectDir}/test_data/variant_calling/snpEff/hg38_clinvar.vcf.{gz,gz.tbi}")
                 """
             }
         }
