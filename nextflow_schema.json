@@ -213,10 +213,6 @@
             "type": "string",
             "description": "Kit used for barcoding"
         },
-        "ref": {
-            "type": "string",
-            "description": "Path to reference to use for mapping, needs to be a glob to include reference index"
-        },
         "minqs": {
             "type": "integer",
             "default": 10,
@@ -316,5 +312,5 @@
             "description": "Maximum amount of time any process can take"
         }
     },
-    "required": ["clin_database", "ref"]
+    "required": ["clin_database"]
 }
