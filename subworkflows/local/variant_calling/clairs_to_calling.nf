@@ -4,7 +4,6 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/main.nf'
-include { SAMTOOLS_FAIDX               } from '../../../modules/local/samtools/main.nf'
 include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
 include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
@@ -26,7 +25,7 @@ workflow CLAIRS_TO_CALLING {
 
     take:
     bam  // channel: from mapping workflow (tuple include bai)
-    ref_ch   // channel: from path read from params.ref or used directly on the command line with --genome GRCh38 for example with AWS
+    ref     // channel: from path read from params.ref or used directly on the command line with --genome GRCh38 for example with AWS
     chr_list    // channel: list of chromosomes to include for variant calling read from params.chr_list
     model       // channel: basecalling model
     clinic_database
@@ -34,37 +33,21 @@ workflow CLAIRS_TO_CALLING {
 
     ch_versions = Channel.empty()
 
-    ch_ref = ref_ch.first()
-    ch_ref_idx = ref_ch.last()
-
-    if (ch_ref == ch_ref_idx) {
-
-        ch_faidx_in = bam
-            .combine(ch_ref)
-            .map { meta, _bamfile, _bai, ref ->
-                tuple(meta,ref) }
-
-        SAMTOOLS_FAIDX(ch_faidx_in)
-
-        ref_idx_ch = SAMTOOLS_FAIDX.out.fasta_index
-            .map { _meta, fasta_index -> fasta_index }           // Remove meta from tuple so we can join it with all samples
-        ch_ref_out = ch_ref
-            .combine(ref_idx_ch)                            // Channel with fasta and index to use for other processes
-    } else {
-        ref_idx_ch = ch_ref_idx
-        ch_ref_out = ref_ch                             // Channel with fasta and index to use for other processes
-    }
+    ch_ref = ref
+        .map { ref_fasta, _ref_fai -> ref_fasta }
+    ch_ref_idx = ref
+        .map { _ref_fasta, ref_fai -> ref_fai }
 
     ch_input_clairs = bam
         .combine(ch_ref)
-        .combine(ref_idx_ch)
+        .combine(ch_ref_idx)
         .combine(chr_list)
         .combine(model)
 
     CLAIRS_TO_CALL(ch_input_clairs)
 
     // Branch ref channel to create database channel
-    ch_databases = ref_ch.first().branch {
+    ch_databases = ch_ref.branch {
         hg38: it.name.matches('(?i).*(hg38|GRCh38).*')
             return 'GRCh38.p14'
         hg19: it.name.matches('(?i).*(hg19|GRCh37).*')
@@ -107,22 +90,6 @@ workflow CLAIRS_TO_CALLING {
 
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 
-    /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        COLLECT VERSIONS
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    */
-    ch_versions = CLAIRS_TO_CALL.out.versions
-
-     if (ref_ch.first() == ref_ch.last()) {
-        ch_versions = ch_versions
-            .mix(SAMTOOLS_FAIDX.out.versions)
-            .mix(SNPEFF_ANNOTATE.out.versions)
-    } else {
-        ch_versions = ch_versions
-            .mix(SNPEFF_ANNOTATE.out.versions)
-    }
-
     // Add clinvar into meta_id of SNPSIFT output
 
     ch_snipsift_out = SNPSIFT_ANNOTATE.out.vcf
@@ -138,10 +105,19 @@ workflow CLAIRS_TO_CALLING {
     BGZIP_VCF(ch_vcf_final)
     BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
 
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    ch_versions = CLAIRS_TO_CALL.out.versions
+            .mix(SNPEFF_ANNOTATE.out.versions)
+            .mix(BGZIP_VCF.out.versions)
+            .mix(BCFTOOLS_INDEX.out.versions)
+
     emit:
     vcf              = BCFTOOLS_INDEX.out.vcf_tbi
-    ref              = ch_ref_out
-    versions         = ch_versions            // channel: [ path(versions.yml) ]
+    versions         = ch_versions
 
 }
 

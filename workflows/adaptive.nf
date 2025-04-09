@@ -27,7 +27,7 @@ workflow ADAPTIVE {
 
         COVERAGE_SEPARATE(MAPPING.out.bam,bed)
 
-        PHASING_VARIANTS(MAPPING.out.bam,CLAIRS_TO_CALLING.out.ref,CLAIRS_TO_CALLING.out.vcf)
+        PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
     } else {
 
@@ -41,6 +41,6 @@ workflow ADAPTIVE {
 
         COVERAGE_SEPARATE(MAPPING.out.bam,bed)
 
-        PHASING_VARIANTS(MAPPING.out.bam,CLAIRS_TO_CALLING.out.ref,CLAIRS_TO_CALLING.out.vcf)
+        PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
     }
 }
