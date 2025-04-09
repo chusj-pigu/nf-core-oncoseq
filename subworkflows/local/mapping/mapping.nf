@@ -30,13 +30,15 @@ workflow MAPPING {
 
     ch_versions = Channel.empty()
 
+    ch_ref = ref_ch
+        .map { ref, _ref_idx -> ref }
     // Before mapping, remove suffix "pass" in input from qc filtering in basecalling workflow:
     ch_mapping_in = fastq_ch
         .map { meta, reads ->
             def meta_prefix = meta.id.replace('_pass', '')
             tuple(id:meta_prefix, reads)
             }
-        .combine(ref_ch.first())
+        .combine(ch_ref)
 
     MINIMAP2_ALIGN(ch_mapping_in)
 
