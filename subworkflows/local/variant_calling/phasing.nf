@@ -119,6 +119,7 @@ workflow PHASING_VARIANTS {
     ch_versions = WHATSHAP_PHASE.out.versions
         .mix(WHATSHAP_HAPLOTAG.out.versions)
         .mix(WHATSHAP_STATS.out.versions)
+        .mix(BCFTOOLS_INDEX.out.versions)
 
     emit:
     phased_vcf       = WHATSHAP_PHASE.out.vcf_phased
