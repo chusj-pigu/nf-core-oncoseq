@@ -25,7 +25,7 @@ workflow CLAIRS_TO_CALLING {
 
     take:
     bam  // channel: from mapping workflow (tuple include bai)
-    ref     // channel: from path read from params.ref or used directly on the command line with --genome GRCh38 for example with AWS
+    ref     // channel: from input samplesheet
     chr_list    // channel: list of chromosomes to include for variant calling read from params.chr_list
     model       // channel: basecalling model
     clinic_database
@@ -34,24 +34,24 @@ workflow CLAIRS_TO_CALLING {
     ch_versions = Channel.empty()
 
     ch_ref = ref
-        .map { ref_fasta, _ref_fai -> ref_fasta }
-    ch_ref_idx = ref
-        .map { _ref_fasta, ref_fai -> ref_fai }
+        .map { meta, _ref, ref_fasta, ref_fai ->
+            tuple(meta, ref_fasta, ref_fai) }
 
     ch_input_clairs = bam
-        .combine(ch_ref)
-        .combine(ch_ref_idx)
+        .join(ch_ref)
         .combine(chr_list)
         .combine(model)
 
     CLAIRS_TO_CALL(ch_input_clairs)
 
+    ch_ref_type = ref
+        .map { meta, refid, _ref_fasta, _ref_fai ->
+            tuple(meta, refid) }
+
     // Branch ref channel to create database channel
-    ch_databases = ch_ref.branch {
-        hg38: it.name.matches('(?i).*(hg38|GRCh38).*')
-            return 'GRCh38.p14'
-        hg19: it.name.matches('(?i).*(hg19|GRCh37).*')
-            return 'GRCh37.p13'
+    ch_databases = ch_ref_type.branch {
+        hg38: { meta, refid -> refid.matches('hg38|GRCh38') }
+        hg19: { meta, refid -> refid.matches('hg19|GRCh37') }
         other: true
             return 'Error'
     }
@@ -61,27 +61,30 @@ workflow CLAIRS_TO_CALLING {
         throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
     }
 
-    // Function to add type (indel/snv) to meta and for annotation
-    def annotateMeta = { meta, output, type ->
-        def meta_vcf = meta.id + "_${type}"
-        tuple(id:meta_vcf, output)
-    }
+    ch_databases_hg38 = ch_databases.hg38
+        .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
+    ch_databases_hg19 = ch_databases.hg19
+        .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
 
-    if (ch_databases.hg38) {
-        ch_snp_annotate = CLAIRS_TO_CALL.out.indel
-            .map { meta, output -> annotateMeta(meta, output, 'indel') }
-            .mix(CLAIRS_TO_CALL.out.snv
-                .map { meta, output -> annotateMeta(meta, output, 'snv') })
-            .combine(ch_databases.hg38)
-        SNPEFF_ANNOTATE(ch_snp_annotate)
-    } else if (ch_databases.hg19) {
-        ch_snp_annotate = CLAIRS_TO_CALL.out.indel
-            .map { meta, output -> annotateMeta(meta, output, 'indel') }
-            .mix(CLAIRS_TO_CALL.out.snv
-                .map { meta, output -> annotateMeta(meta, output, 'snv') })
-            .combine(ch_databases.hg19)
-        SNPEFF_ANNOTATE(ch_snp_annotate)
-    }
+    ch_databases_ref = ch_databases_hg38
+        .mix(ch_databases_hg19)
+
+    ch_clairs_indel = CLAIRS_TO_CALL.out.indel
+        .join(ch_databases_ref)
+        .map { meta, output, database ->
+            def meta_type = meta.id + '_indel'
+                tuple(id:meta_type, output, database) }
+
+    ch_clairs_snv = CLAIRS_TO_CALL.out.snv
+        .join(ch_databases_ref)
+        .map { meta, output, database ->
+            def meta_type = meta.id + '_snv'
+                tuple(id:meta_type, output, database) }
+
+    ch_snp_annotate = ch_clairs_indel
+        .mix(ch_clairs_snv)
+
+    SNPEFF_ANNOTATE(ch_snp_annotate)
 
     ch_clin_db = clinic_database.toSortedList()
 

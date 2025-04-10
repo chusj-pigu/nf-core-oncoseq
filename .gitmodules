@@ -42,3 +42,7 @@
 	path = modules/local/whatshap
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = whatshap
+[submodule "modules/local/sniffles"]
+	path = modules/local/sniffles
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = sniffles

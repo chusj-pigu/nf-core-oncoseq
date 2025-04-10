@@ -25,20 +25,21 @@ workflow MAPPING {
 
     take:
     fastq_ch  // channel: from basecalling workflow or from --fastq if --skip_mapping is used
-    ref_ch   // channel: from path read from params.ref or used directly on the command line with --genome GRCh38 for example with AWS
+    ref   // channel: from input samplesheet
     main:
 
     ch_versions = Channel.empty()
 
-    ch_ref = ref_ch
-        .map { ref, _ref_idx -> ref }
+    ch_ref = ref
+        .map { meta, _ref, ref_fasta, _ref_fai ->
+            tuple(meta, ref_fasta) }
     // Before mapping, remove suffix "pass" in input from qc filtering in basecalling workflow:
     ch_mapping_in = fastq_ch
         .map { meta, reads ->
             def meta_prefix = meta.id.replace('_pass', '')
             tuple(id:meta_prefix, reads)
             }
-        .combine(ch_ref)
+        .join(ch_ref)
 
     MINIMAP2_ALIGN(ch_mapping_in)
 

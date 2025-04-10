@@ -7,6 +7,8 @@ include { BCFTOOLS_INDEX    } from '../../../modules/local/bcftools/main.nf'
 include { WHATSHAP_PHASE    } from '../../../modules/local/whatshap/main.nf'
 include { WHATSHAP_HAPLOTAG } from '../../../modules/local/whatshap/main.nf'
 include { WHATSHAP_STATS    } from '../../../modules/local/whatshap/main.nf'
+include { SAMTOOLS_INDEX    } from '../../../modules/local/samtools/main.nf'
+include { SAMTOOLS_FAIDX } from '../../../modules/local/samtools/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -20,9 +22,13 @@ workflow PHASING_VARIANTS {
 
     take:
     bam  // channel: from mapping workflow (tuple include bai)
-    ref_ch   // reference channel with index, output from clairs_to_calling workflow
+    ref     // channel : from input samplesheet
     vcf_ch
     main:
+
+    ch_ref = ref
+        .map { meta, _ref, ref_fasta, ref_fai ->
+            tuple(meta, ref_fasta, ref_fai) }
 
     // Remove snv and indel from meta of vcf and separate them in different channels:
     ch_snv_vcf = vcf_ch
@@ -52,28 +58,28 @@ workflow PHASING_VARIANTS {
     // Combined bam with vcf and ref, put clinvar, indel and snv back in meta to process all tuples together:
     ch_phase_snv_in = bam
         .join(ch_snv_vcf)
-        .combine(ref_ch)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref, ref_idx ->
+        .join(ch_ref)
+        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
             def meta_type = meta.id + '_snv'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref, ref_idx) }
+                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
     ch_phase_indel_in = bam
         .join(ch_indel_vcf)
-        .combine(ref_ch)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref, ref_idx ->
+        .join(ch_ref)
+        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
             def meta_type = meta.id + '_indel'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref, ref_idx) }
+                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
     ch_phase_clin_snv_in = bam
         .join(ch_snv_clinvar_vcf)
-        .combine(ref_ch)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref, ref_idx ->
+        .join(ch_ref)
+        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
             def meta_type = meta.id + '_snv_clinvar'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref, ref_idx) }
+                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
     ch_phase_clin_indel_in = bam
         .join(ch_indel_clinvar_vcf)
-        .combine(ref_ch)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref, ref_idx ->
+        .join(ch_ref)
+        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
             def meta_type = meta.id + '_indel_clinvar'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref, ref_idx) }
+                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
 
     ch_phase_in = ch_phase_snv_in
         .mix(ch_phase_indel_in,
@@ -94,18 +100,19 @@ workflow PHASING_VARIANTS {
     // Add bam, bai, ref and red_idx from ch_pased_in by replacing vcf to prepare channel input for WHATSHAP_HAPLOTAG:
 
     ch_phased_indexed_vcf = ch_phase_in
-        .map { meta, bamfile, bai, _vcf, _vcf_tbi, ref, ref_idx ->
+        .map { meta, bamfile, bai, _vcf, _vcf_tbi, ref_fasta, ref_idx ->
             def meta_phased = meta.id + '_phased'
-                tuple(id:meta_phased,bamfile, bai,ref, ref_idx)
+                tuple(id:meta_phased,bamfile, bai,ref_fasta, ref_idx)
         }
         .join(BCFTOOLS_INDEX.out.vcf_tbi)
-        .filter { meta, _bamfile, _bai, _ref, _ref_idx, _vcf, _vcf_tbi -> meta.id.endsWith('_snv_phased') }            // Only has to run once per sample (SNV calls are usually enough to produce haplotagged cram and gtf)
-        .map { meta, bamfile, bai, ref, ref_idx, vcf, vcf_tbi ->
+        .filter { meta, _bamfile, _bai, _ref_fasta, _ref_idx, _vcf, _vcf_tbi -> meta.id.endsWith('_snv_phased') }            // Only has to run once per sample (SNV calls are usually enough to produce haplotagged cram and gtf)
+        .map { meta, bamfile, bai, ref_fasta, ref_idx, vcf, vcf_tbi ->
             def meta_restore = meta.id.replace('_snv_phased', '')               // We want to name outputs according to sample_id only at this point
-                tuple(id:meta_restore,bamfile,bai,vcf,vcf_tbi,ref,ref_idx)
+                tuple(id:meta_restore,bamfile,bai,vcf,vcf_tbi,ref_fasta,ref_idx)
         }
 
     WHATSHAP_HAPLOTAG(ch_phased_indexed_vcf)
+    SAMTOOLS_INDEX(WHATSHAP_HAPLOTAG.out.bam_hap)
 
     ch_whatshap_stats_in = ch_phased_indexed_vcf
         .map { meta,_bamfile,_bai,vcf,vcf_tbi,_ref,_ref_idx ->
@@ -122,6 +129,7 @@ workflow PHASING_VARIANTS {
         .mix(BCFTOOLS_INDEX.out.versions)
 
     emit:
+    haptag_bam       = SAMTOOLS_INDEX.out.bamfile_index
     phased_vcf       = WHATSHAP_PHASE.out.vcf_phased
     versions         = ch_versions
 
