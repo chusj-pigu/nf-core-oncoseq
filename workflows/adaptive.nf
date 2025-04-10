@@ -4,6 +4,7 @@ include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 include { PHASING_VARIANTS  } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING        } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { CNV_CALLING       } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
 
 workflow ADAPTIVE {
 
@@ -28,9 +29,11 @@ workflow ADAPTIVE {
 
         COVERAGE_SEPARATE(MAPPING.out.bam,bed)
 
-        //PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+        PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
-        //SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+        SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+
+        CNV_CALLING(MAPPING.out.bam,ref)
 
     } else {
 
@@ -47,5 +50,7 @@ workflow ADAPTIVE {
         PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
         SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+
+        CNV_CALLING(MAPPING.out.bam,ref)
     }
 }

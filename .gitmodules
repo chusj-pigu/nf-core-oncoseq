@@ -46,3 +46,7 @@
 	path = modules/local/sniffles
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = sniffles
+[submodule "modules/local/qdnaseq"]
+	path = modules/local/qdnaseq
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = qdnaseq
