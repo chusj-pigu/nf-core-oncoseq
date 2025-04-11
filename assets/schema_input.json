@@ -18,8 +18,17 @@
                 "format": "path",
                 "exists": true,
                 "errorMessage": "pod5 or fastq file path must be provided"
+            },
+            "ref": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Reference type must be provided and be either hg38|GRCh38 or hg19|GRCh37"
+            },
+            "ref_path": {
+                "type": "string",
+                "errorMessage": "Glob of path to reference fasta and index file must be provided"
             }
         },
-        "required": ["sample", "input"]
+        "required": ["sample", "input", "ref", "ref_path"]
     }
 }

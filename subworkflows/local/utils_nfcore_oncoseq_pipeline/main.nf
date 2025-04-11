@@ -89,10 +89,11 @@ workflow PIPELINE_INITIALISATION {
                     return [ meta, ubam.flatten() ]
             }
             .set { ch_ubam }
+
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, input ->
+                meta, input, _ref, _ref_path ->
                     tuple(meta.id,meta,file(input))
             }
             .groupTuple()
@@ -107,6 +108,7 @@ workflow PIPELINE_INITIALISATION {
 
         ch_samplesheet = ch_input
             .join(ch_ubam)
+
     } else if (!params.skip_basecalling) {
         Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
@@ -114,7 +116,7 @@ workflow PIPELINE_INITIALISATION {
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, input ->
+                meta, input, _ref, _ref_path ->
                     tuple(meta.id,meta,file(input))
             }
             .groupTuple()
@@ -126,14 +128,14 @@ workflow PIPELINE_INITIALISATION {
                     return [ meta, input.flatten() ]
             }
             .set { ch_samplesheet }
+
     } else {
-        Channel
+        ch_ubam = Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
-            .set { ch_ubam }
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, input ->
+                meta, input, _ref, _ref_path ->
                     tuple(meta.id,meta,file(input))
             }
             .groupTuple()
@@ -189,10 +191,24 @@ workflow PIPELINE_INITIALISATION {
     }
 
 
+    Channel
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+        .map { meta, _input, ref, ref_path ->
+            tuple(meta.id,meta,ref,file(ref_path)) }
+        .groupTuple()
+        .map {
+                _meta_id, meta, ref, ref_path ->
+                    tuple(meta, ref.flatten(), ref_path.sort().flatten()).flatten()
+        }
+        .set { ch_ref }
+
+
     emit:
     bed_sheet   = ch_bed
+    ubam_ch     = ch_ubam
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
+    ref_ch      = ch_ref
     versions    = ch_versions
 }
 

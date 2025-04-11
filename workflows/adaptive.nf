@@ -2,6 +2,8 @@ include { BASECALL_SIMPLEX  } from '../subworkflows/local/basecalling/basecall_s
 include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
+include { PHASING_VARIANTS  } from  '../subworkflows/local/variant_calling/phasing.nf'
+include { SV_CALLING        } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 
 workflow ADAPTIVE {
 
@@ -26,6 +28,10 @@ workflow ADAPTIVE {
 
         COVERAGE_SEPARATE(MAPPING.out.bam,bed)
 
+        //PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+
+        //SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+
     } else {
 
         BASECALL_SIMPLEX (
@@ -37,5 +43,9 @@ workflow ADAPTIVE {
         CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
 
         COVERAGE_SEPARATE(MAPPING.out.bam,bed)
+
+        PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+
+        SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
     }
 }

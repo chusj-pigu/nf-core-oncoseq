@@ -12,4 +12,5 @@ test_out
 scratch/
 scratch*
 test_data/adaptive/*
+test_data/realistic_data/*
 .nf-test/

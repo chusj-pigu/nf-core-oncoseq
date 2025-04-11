@@ -4,9 +4,10 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/main.nf'
-include { SAMTOOLS_FAIDX               } from '../../../modules/local/samtools/main.nf'
 include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
+include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX               } from '../../../modules/local/bcftools/main.nf'
 include { paramsSummaryMap             } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -24,7 +25,7 @@ workflow CLAIRS_TO_CALLING {
 
     take:
     bam  // channel: from mapping workflow (tuple include bai)
-    ref_ch   // channel: from path read from params.ref or used directly on the command line with --genome GRCh38 for example with AWS
+    ref     // channel: from input samplesheet
     chr_list    // channel: list of chromosomes to include for variant calling read from params.chr_list
     model       // channel: basecalling model
     clinic_database
@@ -32,36 +33,25 @@ workflow CLAIRS_TO_CALLING {
 
     ch_versions = Channel.empty()
 
-    ch_faidx_in = bam
-        .combine(ref_ch)
-        .first()
-        .map { meta, _bamfile, _bai, ref ->
-            tuple(meta,ref) }                   // We only need to run it once because we use the same reference for all samples
-
-    if (ref_ch.first() == ref_ch.last()) {
-
-        SAMTOOLS_FAIDX(ch_faidx_in)
-
-        ref_idx_ch = SAMTOOLS_FAIDX.out.fasta_index
-            .map { _meta, fasta_index -> fasta_index }           // Remove meta from tuple so we can join it with all samples
-    } else {
-        ref_idx_ch = ref_ch.last()
-    }
+    ch_ref = ref
+        .map { meta, _ref, ref_fasta, ref_fai ->
+            tuple(meta, ref_fasta, ref_fai) }
 
     ch_input_clairs = bam
-        .combine(ref_ch.first())
-        .combine(ref_idx_ch)
+        .join(ch_ref)
         .combine(chr_list)
         .combine(model)
 
     CLAIRS_TO_CALL(ch_input_clairs)
 
+    ch_ref_type = ref
+        .map { meta, refid, _ref_fasta, _ref_fai ->
+            tuple(meta, refid) }
+
     // Branch ref channel to create database channel
-    ch_databases = ref_ch.first().branch {
-        hg38: it.name.matches('(?i).*(hg38|GRCh38).*')
-            return 'GRCh38.p14'
-        hg19: it.name.matches('(?i).*(hg19|GRCh37).*')
-            return 'GRCh37.p13'
+    ch_databases = ch_ref_type.branch {
+        hg38: { meta, refid -> refid.matches('hg38|GRCh38') }
+        hg19: { meta, refid -> refid.matches('hg19|GRCh37') }
         other: true
             return 'Error'
     }
@@ -71,34 +61,52 @@ workflow CLAIRS_TO_CALLING {
         throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
     }
 
-    // Function to add type (indel/snv) to meta and for annotation
-    def annotateMeta = { meta, output, type ->
-        def meta_vcf = meta.id + "_${type}"
-        tuple(id:meta_vcf, output)
-    }
+    ch_databases_hg38 = ch_databases.hg38
+        .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
+    ch_databases_hg19 = ch_databases.hg19
+        .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
 
-    if (ch_databases.hg38) {
-        ch_snp_annotate = CLAIRS_TO_CALL.out.indel
-            .map { meta, output -> annotateMeta(meta, output, 'indel') }
-            .mix(CLAIRS_TO_CALL.out.snv
-                .map { meta, output -> annotateMeta(meta, output, 'snv') })
-            .combine(ch_databases.hg38)
-        SNPEFF_ANNOTATE(ch_snp_annotate)
-    } else if (ch_databases.hg19) {
-        ch_snp_annotate = CLAIRS_TO_CALL.out.indel
-            .map { meta, output -> annotateMeta(meta, output, 'indel') }
-            .mix(CLAIRS_TO_CALL.out.snv
-                .map { meta, output -> annotateMeta(meta, output, 'snv') })
-            .combine(ch_databases.hg19)
-        SNPEFF_ANNOTATE(ch_snp_annotate)
-    }
+    ch_databases_ref = ch_databases_hg38
+        .mix(ch_databases_hg19)
 
-    ch_clin_db = clinic_database.toList()
+    ch_clairs_indel = CLAIRS_TO_CALL.out.indel
+        .join(ch_databases_ref)
+        .map { meta, output, database ->
+            def meta_type = meta.id + '_indel'
+                tuple(id:meta_type, output, database) }
+
+    ch_clairs_snv = CLAIRS_TO_CALL.out.snv
+        .join(ch_databases_ref)
+        .map { meta, output, database ->
+            def meta_type = meta.id + '_snv'
+                tuple(id:meta_type, output, database) }
+
+    ch_snp_annotate = ch_clairs_indel
+        .mix(ch_clairs_snv)
+
+    SNPEFF_ANNOTATE(ch_snp_annotate)
+
+    ch_clin_db = clinic_database.toSortedList()
 
     ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
         .combine(ch_clin_db)
 
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
+
+    // Add clinvar into meta_id of SNPSIFT output
+
+    ch_snipsift_out = SNPSIFT_ANNOTATE.out.vcf
+        .map { meta, vcf ->
+            def meta_type = meta.id + '_clinvar'
+                tuple(id:meta_type, vcf) }
+
+    ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
+        .mix(ch_snipsift_out)
+
+    // Compress and index vcf :
+
+    BGZIP_VCF(ch_vcf_final)
+    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,20 +114,13 @@ workflow CLAIRS_TO_CALLING {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
     ch_versions = CLAIRS_TO_CALL.out.versions
-
-    if (ref_ch.first() == ref_ch.last()) {
-        ch_versions = ch_versions
-            .mix(SAMTOOLS_FAIDX.out.versions)
             .mix(SNPEFF_ANNOTATE.out.versions)
-    } else {
-        ch_versions = ch_versions
-            .mix(SNPEFF_ANNOTATE.out.versions)
-    }
-
-
+            .mix(BGZIP_VCF.out.versions)
+            .mix(BCFTOOLS_INDEX.out.versions)
 
     emit:
-    versions         = ch_versions            // channel: [ path(versions.yml) ]
+    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
+    versions         = ch_versions
 
 }
 

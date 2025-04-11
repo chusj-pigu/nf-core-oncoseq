@@ -87,28 +87,30 @@ workflow {
     // Combine the samplesheet with the model :
     if (params.skip_basecalling) {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
-    } else {
+    } else if (params.ubam_samplesheet == null ) {
         ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
+            .combine(PIPELINE_INITIALISATION.out.ubam_ch)
+            .combine(ch_model)
+    } else {
+        ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet              // Otherwise ubam_samplesheet is validated with schema
             .combine(ch_model)
     }
 
-    // Channels for mapping
-    ch_ref = Channel.fromPath(params.ref)
-
-    // Channels for SNP calling
+   // Channels for SNP calling
     ch_chr_list = Channel.of(params.chr_list)
     ch_clairs_model = Channel.of(params.clairsto_model)
     ch_clin_database = Channel.fromPath(params.clin_database)
 
-    //
-    // WORKFLOW: Run main workflow
-    //
+
+   // WORKFLOW: Run main workflow
+
 
     if ( params.adaptive) {
         NFCORE_ONCOSEQ_ADAPTIVE (
         ch_input,
-        ch_ref,
+        PIPELINE_INITIALISATION.out.ref_ch,
         ch_chr_list,
         ch_clairs_model,
         ch_clin_database,
@@ -118,7 +120,7 @@ workflow {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
-            ch_ref
+            PIPELINE_INITIALISATION.out.ref_ch
         )
     }
     //

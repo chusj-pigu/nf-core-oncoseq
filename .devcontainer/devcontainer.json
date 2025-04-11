@@ -2,7 +2,7 @@
     "name": "nfcore",
     "image": "nfcore/gitpod:latest",
     "remoteUser": "gitpod",
-    "runArgs": ["--privileged"],
+    "runArgs": ["--privileged", "--gpus-all"],
 
     // Configure tool-specific properties.
     "customizations": {

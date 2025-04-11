@@ -213,10 +213,6 @@
             "type": "string",
             "description": "Kit used for barcoding"
         },
-        "ref": {
-            "type": "string",
-            "description": "Path to reference to use for mapping, can be a glob to include reference index to speed up SNP calling"
-        },
         "minqs": {
             "type": "integer",
             "default": 10,
@@ -299,7 +295,22 @@
         "clin_database": {
             "type": "string",
             "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)"
+        },
+        "max_memory": {
+            "type": "string",
+            "default": "16G",
+            "description": "Maximum memory any process can consume"
+        },
+        "max_cpus": {
+            "type": "integer",
+            "default": 4,
+            "description": "Maximum cpus any process can use"
+        },
+        "max_time": {
+            "type": "string",
+            "default": "4h",
+            "description": "Maximum amount of time any process can take"
         }
     },
-    "required": ["clin_database", "ref"]
+    "required": ["clin_database"]
 }
