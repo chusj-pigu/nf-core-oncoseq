@@ -73,14 +73,17 @@ cn_called <- callBins(cn_seg, method = 'cutoff', cutoffs=log2(c(deletion = cutof
 png_file <- paste(opt$prefix, 'cov.png', sep="_")
 png(png_file)
 plot(cn_called)
+dev.off()
 
 noise_png_file <- paste(opt$prefix, 'noise_plot.png', sep="_")
 png(noise_png_file)
 noisePlot(filt_read_counts)
+dev.off()
 
 isobar_png_file <- paste(opt$prefix, 'isobar_plot.png', sep="_")
 png(isobar_png_file)
 isobarPlot(filt_read_counts)
+dev.off()
 
 #write outputs
 bedout <- paste(opt$prefix, "calls.bed", sep="_")
