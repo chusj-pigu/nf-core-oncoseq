@@ -67,7 +67,6 @@ sample1,/path/to/pod5,hg38,path/to/hg38.fa*
 
 Each row represents the pod5 directory for one sample, and the reference to map it to.
 
--->
 
 Now, you can run the pipeline using:
 
@@ -105,7 +104,7 @@ For more details about the output files and reports, please refer to the
 | variants/{sample}_snv_phased.vcf.gz<br>variants/{sample}_snv_clinvar_phased.vcf.gz<br>variants/{sample}_indel_phased.vcf.gz<br>variants/{sample}_indel_clinvar_phased.vcf.gz | VCF files of phased SNV and indels called by [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO)  | If `--adaptive` mode is used |
 | variants/{sample}_sv.vcf.gz | VCF file of phased SV called by [Sniffles2](https://github.com/fritzsedlazeck/Sniffles) | If `--adaptive` mode is used |
 | variants/{sample}_cnv_calls.vcf.gz | VCF file of CNV called by [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html) | If `--adaptive` mode is used |
-| phasing/{sample}_haplotagged.bam<br>phasing/{sample}_haplotagged.bam | Aligned bam and index file including phasing HP tags added by [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html) | If `--adaptive` mode is used |
+| phasing/{sample}_haplotagged.bam<br>phasing/{sample}_haplotagged.bam.bai | Aligned bam and index file including phasing HP tags added by [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html) | If `--adaptive` mode is used |
 | phasing/{sample}.haploblocks.gtf | Gtf files containing phase blocks | If `--adaptive` mode is used |
 
 
