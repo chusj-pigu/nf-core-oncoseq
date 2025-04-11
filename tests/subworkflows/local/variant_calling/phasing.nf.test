@@ -21,10 +21,10 @@ nextflow_workflow {
                     .map { bam, bai ->
                         tuple(id:'HCC1395',bam,bai)}
 
-                ch_ref = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa")
-                ch_ref_idx = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa.fai")
-                ch_input1 = ch_ref
-                    .combine(ch_ref_idx)
+                ch_ref = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa*")
+                    .toSortedList()
+                    .map { ref, ref_fai ->
+                        tuple(id:"HCC1395", "GRCh38", ref, ref_fai) }
 
                 ch_snv_vcf_tbi = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_snv.vcf.gz.tbi")
                 ch_snv_vcf = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_snv.vcf.gz")
@@ -52,7 +52,7 @@ nextflow_workflow {
                     .mix(ch_indel_clin_vcf)
 
                 input[0] = ch_input0
-                input[1] = ch_input1
+                input[1] = ch_ref
                 input[2] = ch_input2
                 """
             }
