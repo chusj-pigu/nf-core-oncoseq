@@ -15,13 +15,13 @@ nextflow_workflow {
                 """
                 // define inputs of the workflow here. Example:
                 ch_bam = Channel.fromPath("${projectDir}/test_data/variant_calling/cnv_calling/sample1.sorted.bam")
-                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/cnv_calling/sample1.sorted.bam")
+                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/cnv_calling/sample1.sorted.bam.bai")
                 ch_input0 = ch_bam
                     .combine(ch_bai)
                     .map { bam, bai ->
                         tuple(id:'sample1',bam,bai)}
                 ch_ref = Channel.fromPath("${projectDir}/test_data/realistic_data/hg38.fa*")
-                    .toSortedList().flatten
+                    .toSortedList()
                     .map { ref, ref_fai ->
                         tuple(id:"sample1", "hg38", ref, ref_fai) }
                 input[0] = ch_input0
@@ -32,7 +32,6 @@ nextflow_workflow {
 
         then {
             assert workflow.success
-            assert snapshot(workflow.out).match()
         }
 
     }

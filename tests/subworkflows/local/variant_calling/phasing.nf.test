@@ -21,8 +21,8 @@ nextflow_workflow {
                     .map { bam, bai ->
                         tuple(id:'HCC1395',bam,bai)}
 
-                ch_ref = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.{fa,fa.fai}")
-                    .toSortedList().flatten
+                ch_ref = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa*")
+                    .toSortedList()
                     .map { ref, ref_fai ->
                         tuple(id:"HCC1395", "GRCh38", ref, ref_fai) }
 

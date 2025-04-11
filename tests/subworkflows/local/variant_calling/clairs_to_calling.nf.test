@@ -22,14 +22,14 @@ nextflow_workflow {
                         tuple(id:'HCC1395',bam,bai)}
 
                 input[0] = ch_input0
-                input[1] = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.{fa,fa.fai}")
-                    .toSortedList().flatten
+                input[1] = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa*")
+                    .toSortedList()
                     .map { ref, ref_fai ->
                         tuple(id:"HCC1395", "GRCh38", ref, ref_fai) }
                 input[2] = Channel.of('chr17')
                 input[3] = Channel.of('ont_r10_dorado_sup_5khz_ssrs')
                 // Too big for github, to upload from ncbi
-                input[4] = Channel.fromPath("${projectDir}/test_data/variant_calling/snpEff/hg38_clinvar.vcf.{gz,gz.tbi}")
+                input[4] = Channel.fromPath("${projectDir}/test_data/realistic_data/hg38_clinvar.vcf.{gz,gz.tbi}")
                 """
             }
         }
