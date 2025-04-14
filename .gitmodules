@@ -50,3 +50,7 @@
 	path = modules/local/qdnaseq
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = qdnaseq
+[submodule "modules/local/subchrom"]
+	path = modules/local/subchrom
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = subchrom
