@@ -33,7 +33,7 @@ workflow ADAPTIVE {
 
         SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
 
-        CNV_CALLING(MAPPING.out.bam,ref)
+        CNV_CALLING(MAPPING.out.bam,ref,COVERAGE_SEPARATE.out.bed_nopad)
 
     } else {
 
@@ -51,6 +51,6 @@ workflow ADAPTIVE {
 
         SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
 
-        CNV_CALLING(MAPPING.out.bam,ref)
+        CNV_CALLING(MAPPING.out.bam,ref,COVERAGE_SEPARATE.out.bed_nopad)
     }
 }
