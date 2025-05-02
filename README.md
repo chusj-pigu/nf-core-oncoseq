@@ -32,11 +32,11 @@
 <!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->
 1. Basecalling with [Dorado](https://github.com/nanoporetech/dorado), it's possible to skip this step by supplying fastq files and using `--skip_basecalling`
 2. Reads QC with [Seqkit](https://bioinf.shenwei.me/seqkit/)
-3. Alignment with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)
-4. Sorting and indexing with [samtools](https://www.htslib.org/)
 
 ### Adaptive mode:
 
+3. Alignment with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)
+4. Sorting and indexing with [samtools](https://www.htslib.org/)
 5. Separating the bam file between the background (off-panel) and region of interest (panel, including padding) with [samtools](https://www.htslib.org/)
 6. Coverage calculation for ROIs in Panel with [mosdepth](https://github.com/brentp/mosdepth) and background coverage calculation with [Cramino](https://github.com/wdecoster/cramino)
 7. Visualisation with [R](https://www.r-project.org/)
@@ -47,6 +47,27 @@
 10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
 11. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
 
+### WGS mode:
+
+3. Alignment with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)
+4. Sorting and indexing with [samtools](https://www.htslib.org/)
+
+#### Variant Calling
+5. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO) and annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
+6. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
+7. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+8. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+
+### cf-DNA mode (In Development):
+
+3. *TO COME* : Filter reads longer than 700 bp (if not a retinoblastoma) with [chopper](https://github.com/wdecoster/chopper)
+3. Alignment of filtered reads with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)
+4. Sorting and indexing with [samtools](https://www.htslib.org/)
+
+#### Variant Calling
+5. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+6. *TO COME* : Preparation of bins with [hmmcopy_utils](https://github.com/shahcompbio/hmmcopy_utils)
+7. *TO COME* : CNV calling with [IchorCNA](https://github.com/broadinstitute/ichorCNA)
 
 ## Usage
 
