@@ -259,12 +259,11 @@
         },
         "adaptive": {
             "type": "boolean",
-            "default": true,
-            "description": "Run in adaptive sampling mode. Cannot be set with cfdna mode."
+            "description": "Run in adaptive sampling mode. Cannot be set with cfdna or wgs mode."
         },
         "cfdna": {
             "type": "boolean",
-            "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling mode."
+            "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling or wgs mode."
         },
         "clairsto_model": {
             "type": "string",
@@ -315,6 +314,10 @@
             "type": "string",
             "default": "4h",
             "description": "Maximum amount of time any process can take"
+        },
+        "wgs": {
+            "type": "boolean",
+            "description": "Run in WGS DNA mode. Cannot be set with adaptive sampling of cell free DNA mode."
         }
     },
     "required": ["clin_database"]
