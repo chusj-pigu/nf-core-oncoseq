@@ -13,8 +13,11 @@ nextflow_workflow {
             workflow {
                 """
                 // define inputs of the workflow here. Example:
-                input[0] = tuple [id: "test_sample"], file("${projectDir}/test_data/alignments/sample1_mito_align.bam")
-                input[1] = tuple ["0h"], ["2h"]
+                input[0] = tuple(
+                [id: "test_sample"],
+                file("${projectDir}/test_data/alignments/sample1_mito_align.bam")
+                )
+                input[1] = tuple 0, 4
                 """
             }
         }
