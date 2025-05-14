@@ -20,7 +20,7 @@ process REMOVE_PADDING {
         emit: bed
 
     script:
-    def prefix = task.ext.prefix ?: "${bed}.baseName"
+    def prefix = task.ext.prefix ?: "${bed.baseName}"
     def output_name = "${prefix}_nopadding.bed"
     """
     awk -F'\\t' '
