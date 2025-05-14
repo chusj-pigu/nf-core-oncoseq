@@ -28,6 +28,8 @@ workflow ADAPTIVE {
 
         COVERAGE_SEPARATE(MAPPING.out.bam,bed)
 
+        // SPLIT_BAM(MAPPING.out.bam)
+
         //PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
         //SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
