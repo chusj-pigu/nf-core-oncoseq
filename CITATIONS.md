@@ -10,13 +10,68 @@
 
 ## Pipeline tools
 
-- [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+- [Bcftools](https://samtools.github.io/bcftools/bcftools.html)
 
-> Andrews, S. (2010). FastQC: A Quality Control Tool for High Throughput Sequence Data [Online].
+> Danecek, P., Bonfield, J. K., Liddle, J., Marshall, J., Ohan, V., Pollard, M. O., Whitwham, A., Keane, T., McCarthy, S. A., Davies, R. M., & Li, H. (2021). Twelve years of SAMtools and BCFtools. GigaScience, 10(2), giab008. https://doi.org/10.1093/gigascience/giab008
 
-- [MultiQC](https://pubmed.ncbi.nlm.nih.gov/27312411/)
+- [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO)
 
-> Ewels P, Magnusson M, Lundin S, Käller M. MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics. 2016 Oct 1;32(19):3047-8. doi: 10.1093/bioinformatics/btw354. Epub 2016 Jun 16. PubMed PMID: 27312411; PubMed Central PMCID: PMC5039924.
+> Chen, L., Zheng, Z., Su, J., Yu, X., Wong, A. O. K., Zhang, J., Lee, Y.-L., & Luo, R. (2025). ClairS-TO: A deep-learning method for long-read tumor-only somatic small variant calling. bioRxiv, 2025.03.10.642523. https://doi.org/10.1101/2025.03.10.642523
+
+- [Cramino](https://github.com/wdecoster/cramino)
+
+> De Coster, W., & Rademakers, R. (2023). NanoPack2: Population-scale evaluation of long-read sequencing data. Bioinformatics, 39(5), btad311. https://doi.org/10.1093/bioinformatics/btad311
+
+- [Dorado](https://dorado-docs.readthedocs.io/en/latest/)
+
+- [minimap2](https://github.com/lh3/minimap2)
+
+> Li, H. (2021). New strategies to improve minimap2 alignment accuracy. Bioinformatics, 37(23), 4572–4574. https://doi.org/10.1093/bioinformatics/btab705
+
+- [mosdepth](https://github.com/brentp/mosdepth)
+
+> Pedersen, B. S., & Quinlan, A. R. (2018). Mosdepth: Quick coverage calculation for genomes and exomes. Bioinformatics (Oxford, England), 34(5), 867–868. https://doi.org/10.1093/bioinformatics/btx699
+
+- [quarto](https://quarto.org/)
+
+- [Samtools](https://github.com/samtools/samtools)
+
+> Danecek, P., Bonfield, J. K., Liddle, J., Marshall, J., Ohan, V., Pollard, M. O., Whitwham, A., Keane, T., McCarthy, S. A., Davies, R. M., & Li, H. (2021). Twelve years of SAMtools and BCFtools. GigaScience, 10(2), giab008. https://doi.org/10.1093/gigascience/giab008
+
+- [seqkit](https://bioinf.shenwei.me/seqkit/)
+
+> Shen, W., Le, S., Li, Y., Hu, F. (2016). SeqKit: A Cross-Platform and Ultrafast Toolkit for FASTA/Q File Manipulation. PLoS ONE, 11(10), e0163962. https://doi.org/10.1371/journal.pone.0163962
+
+- [Sniffles](https://github.com/fritzsedlazeck/Sniffles)
+
+> Smolka, M., Paulin, L. F., Grochowski, C. M., Horner, D. W., Mahmoud, M., Behera, S., Kalef-Ezra, E., Gandhi, M., Hong, K., Pehlivan, D., Scholz, S. W., Carvalho, C. M. B., Proukakis, C., & Sedlazeck, F. J. (2024). Detection of mosaic and population-level structural variants with Sniffles2. Nature Biotechnology, 42(10), 1571–1580. https://doi.org/10.1038/s41587-023-02024-y
+
+- [SnpEff](https://pcingola.github.io/SnpEff/)
+
+> Cingolani, P., Patel, V. M., Coon, M., Nguyen, T., Land, S. J., Ruden, D. M., & Lu, X. (2012). Using Drosophila melanogaster as a Model for Genotoxic Chemical Mutational Studies with a New Program, SnpSift. Frontiers in Genetics, 3, 35. https://doi.org/10.3389/fgene.2012.00035
+
+- [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
+
+> Martin, M., Patterson, M., Garg, S., O Fischer, S., Pisanti, N., Klau, G. W., Schöenhuth, A., & Marschall, T. (2016). WhatsHap: Fast and accurate read-based phasing. bioRxiv, 085050. https://doi.org/10.1101/085050
+
+## R packages
+
+- [R](https://www.r-project.org/about.html)
+
+> R Core Team. (2021). R: A Language and Environment for Statistical Computing. R Foundation for Statistical Computing. https://www.R-project.org/
+
+- [optparse](https://CRAN.R-project.org/package=optparse)
+
+> Davis, T. L. (2024). optparse: Command Line Option Parser. https://CRAN.R-project.org/package=optparse
+
+- [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+
+> Scheinin, I., Sie, D., Bengtsson, H., Wiel, M. A. van de, Olshen, A. B., Thuijl, H. F. van, Essen, H. F. van, Eijk, P. P., Rustenburg, F., Meijer, G. A., Reijneveld, J. C., Wesseling, P., Pinkel, D., Albertson, D. G., & Ylstra, B. (2014). DNA copy number analysis of fresh and formalin-fixed specimens by shallow whole-genome sequencing with identification and exclusion of problematic regions in the genome assembly. Genome Research, 24, 2022–2032.
+
+- [tidyverse](https://tidyverse.tidyverse.org/articles/paper.html)
+
+> Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L. D., François, R., Grolemund, G., Hayes, A., Henry, L., Hester, J., Kuhn, M., Pedersen, T. L., Miller, E., Bache, S. M., Müller, K., Ooms, J., Robinson, D., Seidel, D. P., Spinu, V., … Yutani, H. (2019). Welcome to the tidyverse. Journal of Open Source Software, 4(43), 1686. https://doi.org/10.21105/joss.01686
+
 
 ## Software packaging/containerisation tools
 

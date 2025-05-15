@@ -17,6 +17,7 @@
 
 include { ADAPTIVE                } from './workflows/adaptive'
 include { CFDNA                   } from './workflows/cfdna'
+include { WGS                     } from './workflows/wgs'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
@@ -27,6 +28,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
 
     take:
     samplesheet // channel: samplesheet read in from --input
+    demux       // channel: demux_samplesheet read in from --demux_samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     chr_list
@@ -38,7 +40,15 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-    ADAPTIVE(samplesheet,ref,bed,chr_list,model,clin_database)
+    ADAPTIVE (
+        samplesheet,
+        demux,
+        ref,
+        bed,
+        chr_list,
+        model,
+        clin_database
+    )
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
@@ -53,8 +63,38 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     //
     // WORKFLOW: Run pipeline
     //
-    CFDNA(samplesheet,demux,ref)
+    CFDNA (
+        samplesheet,
+        demux,
+        ref
+    )
 }
+
+workflow NFCORE_ONCOSEQ_WGS {
+
+    take:
+    samplesheet // channel: samplesheet read in from --input
+    demux       // channel: demux_samplesheet read in from --demux_samplesheet
+    ref         // channel : reference for mapping, either empty if skipping mapping, or a path
+    chr_list
+    model
+    clin_database
+
+    main:
+
+    //
+    // WORKFLOW: Run pipeline
+    //
+    WGS (
+        samplesheet,
+        demux,
+        ref,
+        chr_list,
+        model,
+        clin_database
+    )
+}
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -110,6 +150,7 @@ workflow {
     if ( params.adaptive) {
         NFCORE_ONCOSEQ_ADAPTIVE (
         ch_input,
+        PIPELINE_INITIALISATION.out.demux_sheet,
         PIPELINE_INITIALISATION.out.ref_ch,
         ch_chr_list,
         ch_clairs_model,
@@ -121,6 +162,15 @@ workflow {
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
             PIPELINE_INITIALISATION.out.ref_ch
+        )
+    } else if ( params.wgs ) {
+        NFCORE_ONCOSEQ_WGS (
+        ch_input,
+        PIPELINE_INITIALISATION.out.demux_sheet,
+        PIPELINE_INITIALISATION.out.ref_ch,
+        ch_chr_list,
+        ch_clairs_model,
+        ch_clin_database
         )
     }
     //

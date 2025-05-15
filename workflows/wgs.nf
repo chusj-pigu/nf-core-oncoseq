@@ -1,13 +1,12 @@
-include { BASECALL_SIMPLEX  } from '../subworkflows/local/basecalling/basecall_simplex'
+include { BASECALL_SIMPLEX   } from '../subworkflows/local/basecalling/basecall_simplex'
 include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_multiplex'
-include { MAPPING           } from '../subworkflows/local/mapping/mapping'
-include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
-include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
-include { PHASING_VARIANTS  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING        } from  '../subworkflows/local/variant_calling/sv_calling.nf'
-include { CNV_CALLING       } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { MAPPING            } from '../subworkflows/local/mapping/mapping'
+include { CLAIRS_TO_CALLING  } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
+include { PHASING_VARIANTS   } from '../subworkflows/local/variant_calling/phasing.nf'
+include { SV_CALLING         } from '../subworkflows/local/variant_calling/sv_calling.nf'
+include { CNV_CALLING        } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 
-workflow ADAPTIVE {
+workflow WGS {
 
     take:
     samplesheet             // channel: samplesheet read in from --input
@@ -16,7 +15,6 @@ workflow ADAPTIVE {
     chr_list
     model
     clin_database
-    bed                     // channel: from path read from params.bed, bed file used for adaptive sampling
 
     main:
 
@@ -29,11 +27,6 @@ workflow ADAPTIVE {
         MAPPING (
             samplesheet,
             ref
-        )
-
-        COVERAGE_SEPARATE (
-            MAPPING.out.bam,
-            bed
         )
 
         CLAIRS_TO_CALLING (
@@ -63,7 +56,7 @@ workflow ADAPTIVE {
     } else {
 
         if (params.demux != null) {
-            
+
             BASECALL_MULTIPLEX (
                 samplesheet,
                 demux_samplesheet
@@ -74,7 +67,7 @@ workflow ADAPTIVE {
                 ref
             )
         } else {
-            
+
             BASECALL_SIMPLEX (
                 samplesheet
             )
@@ -84,11 +77,6 @@ workflow ADAPTIVE {
                 ref
             )
         }
-
-        COVERAGE_SEPARATE (
-            MAPPING.out.bam,
-            bed
-        )
 
         CLAIRS_TO_CALLING (
             MAPPING.out.bam,
@@ -112,6 +100,5 @@ workflow ADAPTIVE {
             MAPPING.out.bam,
             ref
         )
-
     }
 }

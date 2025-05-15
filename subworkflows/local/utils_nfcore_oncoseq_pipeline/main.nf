@@ -162,31 +162,37 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_demux }
     }
 
-    if (params.adaptive_samplesheet != null) {
-        Channel
-            .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
-            .map {
-                meta, bed, padding, low_fidelity ->
-                if(!low_fidelity) {
-                    return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
-                } else if(low_fidelity == null) {
-                    return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
-                } else {
-                    return(tuple(meta, file(bed), padding, file(low_fidelity)))
+
+    if (params.adaptive) {
+        if (params.adaptive_samplesheet != null) {
+            Channel
+                .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
+                .map {
+                    meta, bed, padding, low_fidelity ->
+                    if(!low_fidelity) {
+                        return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+                    } else if(low_fidelity == null) {
+                        return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+                    } else {
+                        return(tuple(meta, file(bed), padding, file(low_fidelity)))
+                    }
                 }
-            }
-            groupTuple(by:1)
-            .set { ch_bed }
-    } else {
-        Channel
-            .fromPath(input_bed)
-            .map {
-                bed ->
+                groupTuple(by:1)
+                .set { ch_bed }
+        } else {
+            Channel
+                .fromPath(input_bed)
+                .map {
+                    bed ->
                     tuple(bed, input_padding, list_low_fidelity)
-            }
-            .combine(ch_samplesheet)
-            .map { samplesheet ->             // Re-use the sample_id as meta
-                validateAdaptiveSamplesheet(samplesheet) }
+                }
+                .combine(ch_samplesheet)
+                .map { samplesheet ->             // Re-use the sample_id as meta
+                    validateAdaptiveSamplesheet(samplesheet) }
+                .set { ch_bed }
+        }
+    } else {
+        Channel.empty()
             .set { ch_bed }
     }
 
