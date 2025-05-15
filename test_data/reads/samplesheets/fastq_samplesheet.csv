@@ -1,0 +1,4 @@
+sample,input,ref,ref_path
+sample1,/data/Platform/2025/Analysis/oncoseq_dev/fastq_pass/barcode01/,hg38,"/data/refs/hg38.{fa,fa.fai}"
+sample2,/data/Platform/2025/Analysis/oncoseq_dev/fastq_pass/barcode02/,hg38,"/data/refs/hg38.{fa,fa.fai}"
+sample3,/data/Platform/2025/Analysis/oncoseq_dev/fastq_pass/barcode03/,hg38,"/data/refs/hg38.{fa,fa.fai}"
