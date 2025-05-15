@@ -1,60 +1,56 @@
-[submodule "modules/local/dorado"]
-	path = modules/local/dorado
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = dorado
-[submodule "modules/local/samtools"]
-	path = modules/local/samtools
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = samtools
-[submodule "modules/local/minimap2"]
-	path = modules/local/minimap2
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = minimap2
-[submodule "modules/local/quarto"]
-	path = modules/local/quarto
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = quarto
-[submodule "modules/local/mosdepth"]
-	path = modules/local/mosdepth
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = mosdepth
-[submodule "modules/local/seqkit"]
-	path = modules/local/seqkit
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = seqkit
-[submodule "modules/local/ontime"]
-	path = modules/local/ontime
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = ontime
-[minimap2 "modules/local/minimap2"]
-	path = modules/local/minimap2
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = minimap2
-[submodule "modules/local/clairsto"]
-	path = modules/local/clairsto
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = clairsto
-[submodule "modules/local/snpeff"]
-	path = modules/local/snpeff
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = snpeff
-[submodule "modules/local/cramino"]
-	path = modules/local/cramino
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = cramino
 [submodule "modules/local/bcftools"]
 	path = modules/local/bcftools
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = bcftools
-[submodule "modules/local/whatshap"]
-	path = modules/local/whatshap
+[submodule "modules/local/clairsto"]
+	path = modules/local/clairsto
 	url = https://github.com/chusj-pigu/wf-modules
-	branch = whatshap
-[submodule "modules/local/sniffles"]
-	path = modules/local/sniffles
+	branch = clairsto
+[submodule "modules/local/cramino"]
+	path = modules/local/cramino
 	url = https://github.com/chusj-pigu/wf-modules
-	branch = sniffles
+	branch = cramino
+[submodule "modules/local/dorado"]
+	path = modules/local/dorado
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = dorado
+[submodule "modules/local/minimap2"]
+	path = modules/local/minimap2
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = minimap2
+[submodule "modules/local/mosdepth"]
+	path = modules/local/mosdepth
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = mosdepth
+[submodule "modules/local/ontime"]
+	path = modules/local/ontime
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = ontime
 [submodule "modules/local/qdnaseq"]
 	path = modules/local/qdnaseq
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = qdnaseq
+[submodule "modules/local/quarto"]
+	path = modules/local/quarto
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = quarto
+[submodule "modules/local/samtools"]
+	path = modules/local/samtools
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = samtools
+[submodule "modules/local/seqkit"]
+	path = modules/local/seqkit
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = seqkit
+[submodule "modules/local/sniffles"]
+	path = modules/local/sniffles
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = sniffles
+[submodule "modules/local/snpeff"]
+	path = modules/local/snpeff
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = snpeff
+[submodule "modules/local/whatshap"]
+	path = modules/local/whatshap
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = whatshap
