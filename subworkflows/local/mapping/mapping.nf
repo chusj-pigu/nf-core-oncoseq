@@ -1,91 +1,116 @@
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
+    nf-core/oncoseq: Mapping Subworkflow
+    - Handles mapping of reads to reference using minimap2 and downstream processing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { MINIMAP2_ALIGN         } from '../../../modules/local/minimap2/main.nf'
-include { SAMTOOLS_TOBAM         } from '../../../modules/local/samtools/main.nf'
-include { SAMTOOLS_SORT_INDEX    } from '../../../modules/local/samtools/main.nf'
-include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'
-include { QUARTO_TABLE           } from '../../../modules/local/quarto/main.nf'
-include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN MAIN WORKFLOW
+    IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+include { MINIMAP2_ALIGN         } from '../../../modules/local/minimap2/main.nf'         // minimap2 alignment
+include { SAMTOOLS_TOBAM         } from '../../../modules/local/samtools/main.nf'         // Convert SAM to BAM
+include { SAMTOOLS_SORT_INDEX    } from '../../../modules/local/samtools/main.nf'         // Sort and index BAM
+include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'          // Coverage stats
+include { QUARTO_TABLE           } from '../../../modules/local/quarto/main.nf'           // Reporting (optional)
+include { paramsSummaryMap       } from 'plugin/nf-schema'                                // Parameter summary
+include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline' // MultiQC summary
+include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline' // Version reporting
+include { methodsDescriptionText } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline' // Methods for MultiQC
 
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    MAIN MAPPING WORKFLOW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 workflow MAPPING {
-
-    //TODO Add reports for coverage stats figure ?
-
+    // Input channels:
+    //   fastq_ch: Channel of tuples [meta, reads] (reads can be file or directory)
+    //   ref:      Channel of tuples [meta, ref, ref_fasta, ref_fai]
     take:
-    fastq_ch  // channel: from basecalling workflow or from --fastq if --skip_mapping is used
-    ref   // channel: from input samplesheet
+    fastq_ch  // Channel: from basecalling workflow or from --fastq if --skip_mapping is used
+    ref       // Channel: from input samplesheet
+
+
+
     main:
+    ch_versions = Channel.empty() // For collecting version info
 
-    ch_versions = Channel.empty()
+    // Only expand fastq_ch if skip_basecalling is true
+    if (params.skip_basecalling) {
+        fastq_ch
+            .map { meta, reads ->
+                // Ensure 'reads' is a list and flatten it
+                def dir_list = reads instanceof List ? reads.flatten() : [reads]
+                def dir = file(dir_list[0])
 
+                if (dir.isDirectory()) {
+                    // Collect all FASTQ files with common extensions
+                    def files = dir.listFiles().findAll { f ->
+                        f.name ==~ /.*\.(fastq|fq)(\.gz)?$/
+                    }
+                    return tuple(meta, files)
+                } else {
+                    return tuple(meta, [dir])
+                }
+            }
+            .set { fastq_ch }
+    }
+
+
+    // Prepare reference channel: extract meta and fasta path
     ch_ref = ref
         .map { meta, _ref, ref_fasta, _ref_fai ->
             tuple(meta, ref_fasta) }
-    // Before mapping, remove suffix "pass" in input from qc filtering in basecalling workflow:
+
+    // Prepare mapping input: clean up meta.id and join with reference
     ch_mapping_in = fastq_ch
         .map { meta, reads ->
             def meta_prefix = meta.id.replace('_pass', '')
             tuple(id:meta_prefix, reads)
-            }
+        }
         .join(ch_ref)
 
+    // Run minimap2 alignment
     MINIMAP2_ALIGN(ch_mapping_in)
 
+    // Convert SAM to BAM
     SAMTOOLS_TOBAM(MINIMAP2_ALIGN.out.sam)
+    // Sort and index BAM
     SAMTOOLS_SORT_INDEX(SAMTOOLS_TOBAM.out.bamfile)
-
+    // Compute coverage stats
     CRAMINO_STATS(SAMTOOLS_SORT_INDEX.out.sortedbamidx)
 
-    // // Take mean coverage only from summary file of mosdepth to reduce file size loaded into R:
-    // ch_mosdepth_coverage = MOSDEPTH_GENERAL.out.summary
-    //     .map { meta, table ->
-    //     // Read the file content as a list of lines
-    //         def lines = table.readLines()
-    //         def coverage = lines[-1].tokenize('\t')[3].toDouble()    // Last line and only take mean coverage column (4th)
-    //         tuple(meta, coverage)
-    //     }
-    //     .collectFile { item ->
-    //         def sample_id = item[0].id // Extract 'sample1' from [id: 'sample1']
-    //         [ "coverage.txt", sample_id + '\t' + item[1] + '\n']
-    //     }
-
-    // QUARTO_TABLE( ch_mosdepth_coverage_table,
-    //     "Mean coverage",
-    //     "T",
-    //     "Mosdepth_coverage",
-    //     "mosdepth-general")
-
     /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        COLLECT VERSIONS
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        (Optional) Example for coverage reporting with QUARTO_TABLE
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ch_mosdepth_coverage = MOSDEPTH_GENERAL.out.summary
+        .map { meta, table ->
+            def lines = table.readLines()
+            def coverage = lines[-1].tokenize('\t')[3].toDouble()
+            tuple(meta, coverage)
+        }
+        .collectFile { item ->
+            def sample_id = item[0].id
+            [ "coverage.txt", sample_id + '\t' + item[1] + '\n']
+        }
+    QUARTO_TABLE( ch_mosdepth_coverage_table, "Mean coverage", "T", "Mosdepth_coverage", "mosdepth-general")
     */
+
+    // Collect versions from all modules
     ch_versions = MINIMAP2_ALIGN.out.versions
         .mix(SAMTOOLS_TOBAM.out.versions)
         .mix(SAMTOOLS_SORT_INDEX.out.versions)
         .mix(CRAMINO_STATS.out.versions)
 
-
-
     emit:
-    bam              = SAMTOOLS_SORT_INDEX.out.sortedbamidx
-    coverage         = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
-    versions         = ch_versions              // channel: [ path(versions.yml) ]
-
+    bam      = SAMTOOLS_SORT_INDEX.out.sortedbamidx   // Final sorted BAM with index
+    coverage = CRAMINO_STATS.out.stats                // Coverage stats
+    versions = ch_versions                            // All tool versions
 }
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     THE END
