@@ -89,6 +89,7 @@ process COVERAGE_PLOT {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
+    touch ${prefix}_coverage_mapq.pdf
     coverage_plot.R \\
         -n ${nofilt_bed} \\
         -p ${primary_bed} \\
