@@ -2,8 +2,11 @@ include { BASECALL_SIMPLEX  } from '../subworkflows/local/basecalling/basecall_s
 include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
-include { PHASING_VARIANTS  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING        } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { PHASING_VARIANTS  } from '../subworkflows/local/variant_calling/phasing.nf'
+include { SV_CALLING        } from '../subworkflows/local/variant_calling/sv_calling.nf'
+include { SPLIT_BAMS_TIME   } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
+include { SPLIT_BAMS_TIME_FASTQ   } from '../subworkflows/local/time_series_evaluation/split_bams_fastq.nf'
+
 
 workflow ADAPTIVE {
 
@@ -22,13 +25,13 @@ workflow ADAPTIVE {
     //
 
     if (params.skip_basecalling) {
-        MAPPING(samplesheet,ref)
+        SPLIT_BAMS_TIME_FASTQ(samplesheet)
+
+        MAPPING(SPLIT_BAMS_TIME_FASTQ.out.ch_fastq_out,ref)
 
         CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
 
         COVERAGE_SEPARATE(MAPPING.out.bam,bed)
-
-        // SPLIT_BAM(MAPPING.out.bam)
 
         //PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
@@ -42,11 +45,16 @@ workflow ADAPTIVE {
 
         MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
 
-        CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
+        SPLIT_BAMS_TIME(MAPPING.out.bam, ref)
 
-        COVERAGE_SEPARATE(MAPPING.out.bam,bed)
+        SPLIT_BAMS_TIME.out.bam.view()
+        ref = (SPLIT_BAMS_TIME.out.ref)
 
-        PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+        CLAIRS_TO_CALLING(SPLIT_BAMS_TIME.out.bam,ref,chr_list,model,clin_database)
+
+        COVERAGE_SEPARATE(SPLIT_BAMS_TIME.out.bam,bed)
+
+        PHASING_VARIANTS(SPLIT_BAMS_TIME.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
         SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
     }
