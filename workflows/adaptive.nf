@@ -45,10 +45,15 @@ workflow ADAPTIVE {
 
         MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
 
-        SPLIT_BAMS_TIME(MAPPING.out.bam, ref)
+        SPLIT_BAMS_TIME(MAPPING.out.bam, ref, clin_database)
 
-        SPLIT_BAMS_TIME.out.bam.view()
+        // SPLIT_BAMS_TIME.out.bam.view()
+        // SPLIT_BAMS_TIME.out.ref.view()
+        // SPLIT_BAMS_TIME.out.clin_database.view()
+
         ref = (SPLIT_BAMS_TIME.out.ref)
+        clin_database = (SPLIT_BAMS_TIME.out.clin_database)
+
 
         CLAIRS_TO_CALLING(SPLIT_BAMS_TIME.out.bam,ref,chr_list,model,clin_database)
 

@@ -92,7 +92,11 @@ workflow CLAIRS_TO_CALLING {
         .join(ch_databases_ref)                      // Join variant calls with database information
         .map { meta, output, database ->
             def meta_type = meta.id + '_indel'       // Add variant type to sample ID for output file naming
-                tuple(id:meta_type, output, database) }
+            def new_meta = meta.clone()
+            new_meta.id = meta_type
+            // preserve meta.ts if present
+            if (meta.containsKey('ts')) new_meta.ts = meta.ts
+                tuple(new_meta, output, database) }
 
     // Prepare SNV variant calls for annotation
     // Only pass downstream if the VCF file exists
@@ -101,7 +105,10 @@ workflow CLAIRS_TO_CALLING {
         .join(ch_databases_ref)                      // Join variant calls with database information
         .map { meta, output, database ->
             def meta_type = meta.id + '_snv'         // Add variant type to sample ID for output file naming
-                tuple(id:meta_type, output, database) }
+            def new_meta = meta.clone()
+            new_meta.id = meta_type
+            if (meta.containsKey('ts')) new_meta.ts = meta.ts
+                tuple(new_meta, output, database) }
 
     // Combine indel and SNV channels for parallel annotation with SNPEff
     // Both variant types use the same annotation process
@@ -120,8 +127,10 @@ workflow CLAIRS_TO_CALLING {
     // Combines each annotated VCF with the clinical database (e.g., ClinVar)
     ch_snpsift_annotate = SNPEFF_ANNOTATE.out.vcf
         .combine(ch_clin_db)
-
-    ch_snpsift_annotate.view()
+        .map { vcf_tuple, clin_db ->
+            def (meta, vcf) = vcf_tuple
+            tuple(meta, vcf, clin_db)
+        }
 
     // Run SNPSift annotation to add clinical significance information to variants
     // Adds ClinVar, OMIM, or other clinical database annotations
