@@ -1,0 +1,42 @@
+nextflow_workflow {
+
+    name "Test Workflow CLAIR3_CALLING"
+    script "subworkflows/local/variant_calling/clair3_calling.nf"
+    workflow "CLAIR3_CALLING"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                // define parameters here. Example:
+                // outdir = "tests/results"
+            }
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                ch_bam = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/input/HG003_chr20_demo.bam")
+                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/input/HG003_chr20_demo.bam.bai")
+                ch_input0 = ch_bam
+                    .combine(ch_bai)
+                    .map { bam, bai ->
+                        tuple(id:'HG003',bam,bai)}
+
+                input[0] = ch_input0
+                input[1] = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/ref/GRCh38_no_alt_chr20.fa*")
+                    .toSortedList()
+                    .map { ref, ref_fai ->
+                        tuple(id:"HG003", "GRCh38", ref, ref_fai) }
+                input[2] = Channel.of('fast')
+                // Too big for github, to upload from ncbi
+                input[3] = Channel.fromPath("${projectDir}/test_data/realistic_data/hg38_clinvar.vcf.{gz,gz.tbi}")
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}
