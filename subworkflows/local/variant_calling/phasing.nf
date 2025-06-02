@@ -30,61 +30,34 @@ workflow PHASING_VARIANTS {
         .map { meta, _ref, ref_fasta, ref_fai ->
             tuple(meta, ref_fasta, ref_fai) }
 
-    // Remove snv and indel from meta of vcf and separate them in different channels:
+    // Put clinvar vcf into a different channel:
     ch_snv_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.endsWith('_snv') }
+        .filter { meta, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar') }
         .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_snv', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
-
-    ch_indel_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.endsWith('_indel') }
-        .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_indel', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
+            def meta_restore = meta.id.replaceAll('(_somatic|_germline)', '')
+                tuple(id:meta_restore, meta.id, vcf, vcf_tbi)}
 
     ch_snv_clinvar_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_snv_clinvar') }
+        .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_clinvar') }
         .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_snv_clinvar', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
+            def meta_restore = meta.id.replaceAll('(_somatic|_germline)_clinvar', '')
+                tuple(id:meta_restore, meta.id, vcf, vcf_tbi)}
 
-    ch_indel_clinvar_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_indel_clinvar') }
-        .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_indel_clinvar', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
 
-    // Combined bam with vcf and ref, put clinvar, indel and snv back in meta to process all tuples together:
+   // Combined bam with vcf and ref. Put clinvar, back in meta to process all tuples together:
     ch_phase_snv_in = bam
         .join(ch_snv_vcf)
         .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_snv'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
-    ch_phase_indel_in = bam
-        .join(ch_indel_vcf)
-        .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_indel'
+        .map { _meta, bamfile, bai, meta_type, vcf, vcf_tbi, ref_fasta, ref_idx ->
                 tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
     ch_phase_clin_snv_in = bam
         .join(ch_snv_clinvar_vcf)
         .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_snv_clinvar'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
-    ch_phase_clin_indel_in = bam
-        .join(ch_indel_clinvar_vcf)
-        .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_indel_clinvar'
+        .map { _meta, bamfile, bai, meta_type, vcf, vcf_tbi, ref_fasta, ref_idx ->
                 tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
 
     ch_phase_in = ch_phase_snv_in
-        .mix(ch_phase_indel_in,
-            ch_phase_clin_snv_in,
-            ch_phase_clin_indel_in)
+        .mix(ch_phase_clin_snv_in)
 
     WHATSHAP_PHASE(ch_phase_in)
 
@@ -105,9 +78,9 @@ workflow PHASING_VARIANTS {
                 tuple(id:meta_phased,bamfile, bai,ref_fasta, ref_idx)
         }
         .join(BCFTOOLS_INDEX.out.vcf_tbi)
-        .filter { meta, _bamfile, _bai, _ref_fasta, _ref_idx, _vcf, _vcf_tbi -> meta.id.endsWith('_snv_phased') }            // Only has to run once per sample (SNV calls are usually enough to produce haplotagged cram and gtf)
+        .filter { meta, _bamfile, _bai, _ref_fasta, _ref_idx, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar_phased') }            // Only has to run once per sample (SNV calls are usually enough to produce haplotagged cram and gtf)
         .map { meta, bamfile, bai, ref_fasta, ref_idx, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_snv_phased', '')               // We want to name outputs according to sample_id only at this point
+            def meta_restore = meta.id.replaceAll('_(somatic|germline)_phased', '')               // We want to name outputs according to sample_id only at this point
                 tuple(id:meta_restore,bamfile,bai,vcf,vcf_tbi,ref_fasta,ref_idx)
         }
 
