@@ -77,6 +77,9 @@ workflow CLAIR3_CALLING {
 
     ch_snp_annotate = CLAIR3_CALL.out.vcf
         .join(ch_databases_ref)
+        .map { meta, output, database ->
+            def meta_type = meta.id + '_germline'
+                tuple(id:meta_type, output, database) }
 
     SNPEFF_ANNOTATE(ch_snp_annotate)
 
