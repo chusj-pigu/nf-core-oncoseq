@@ -140,7 +140,6 @@ workflow {
     }
 
    // Channels for SNP calling
-    ch_chr_list = Channel.of(params.chr_list)
     ch_clairs_model = Channel.of(params.clairsto_model)
     ch_clin_database = Channel.fromPath(params.clin_database)
 
