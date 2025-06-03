@@ -42,7 +42,7 @@
 7. Visualisation with [R](https://www.r-project.org/)
 
 #### Variant Calling
-8. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO) and annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
+8. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO) and [Clair3](https://github.com/HKU-BAL/Clair3) and annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
 9. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
 10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
 11. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
