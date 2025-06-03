@@ -80,7 +80,7 @@ workflow PHASING_VARIANTS {
         .join(BCFTOOLS_INDEX.out.vcf_tbi)
         .filter { meta, _bamfile, _bai, _ref_fasta, _ref_idx, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar_phased') }            // Only has to run once per sample (SNV calls are usually enough to produce haplotagged cram and gtf)
         .map { meta, bamfile, bai, ref_fasta, ref_idx, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replaceAll('_(somatic|germline)_phased', '')               // We want to name outputs according to sample_id only at this point
+            def meta_restore = meta.id.replaceAll('_(somatic_snp|germline_snp)_phased', '')               // We want to name outputs according to sample_id only at this point
                 tuple(id:meta_restore,bamfile,bai,vcf,vcf_tbi,ref_fasta,ref_idx)
         }
 

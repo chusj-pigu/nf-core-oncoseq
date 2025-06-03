@@ -30,7 +30,7 @@ workflow CLAIRS_TO_CALLING {
     take:
     bam  // channel: from mapping workflow (tuple include bai)
     ref     // channel: from input samplesheet
-    model       // channel: basecalling model
+    model       // channel: model for calling SNP with ClairS-TO
     clinic_database
     main:
 
