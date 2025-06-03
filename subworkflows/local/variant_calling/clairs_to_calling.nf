@@ -7,7 +7,11 @@ include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/m
 include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
 include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX               } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_SNV   } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_INDEL } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_CONCAT              } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_SORT                } from '../../../modules/local/bcftools/main.nf'
 include { paramsSummaryMap             } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -26,7 +30,6 @@ workflow CLAIRS_TO_CALLING {
     take:
     bam  // channel: from mapping workflow (tuple include bai)
     ref     // channel: from input samplesheet
-    chr_list    // channel: list of chromosomes to include for variant calling read from params.chr_list
     model       // channel: basecalling model
     clinic_database
     main:
@@ -39,7 +42,6 @@ workflow CLAIRS_TO_CALLING {
 
     ch_input_clairs = bam
         .join(ch_ref)
-        .combine(chr_list)
         .combine(model)
 
     CLAIRS_TO_CALL(ch_input_clairs)
@@ -69,20 +71,47 @@ workflow CLAIRS_TO_CALLING {
     ch_databases_ref = ch_databases_hg38
         .mix(ch_databases_hg19)
 
-    ch_clairs_indel = CLAIRS_TO_CALL.out.indel
-        .join(ch_databases_ref)
-        .map { meta, output, database ->
-            def meta_type = meta.id + '_indel'
-                tuple(id:meta_type, output, database) }
 
-    ch_clairs_snv = CLAIRS_TO_CALL.out.snv
-        .join(ch_databases_ref)
-        .map { meta, output, database ->
+    // Add indel and snv to meta to name index correcty
+    ch_snv_to_index = CLAIRS_TO_CALL.out.snv
+        .map { meta, vcf ->
             def meta_type = meta.id + '_snv'
-                tuple(id:meta_type, output, database) }
+                tuple(id:meta_type, vcf) }
 
-    ch_snp_annotate = ch_clairs_indel
-        .mix(ch_clairs_snv)
+    ch_indel_to_index = CLAIRS_TO_CALL.out.indel
+        .map { meta, vcf ->
+            def meta_type = meta.id + '_indel'
+                tuple(id:meta_type, vcf) }
+
+    BCFTOOLS_INDEX_SNV(ch_snv_to_index)
+    BCFTOOLS_INDEX_INDEL(ch_indel_to_index)
+
+    // Restore original meta id to join indel with snv together
+    ch_snv_to_concat = BCFTOOLS_INDEX_SNV.out.vcf_tbi
+        .map { meta, vcf, tbx ->
+            def meta_restore = meta.id.replace('_snv', '')
+                tuple(id:meta_restore, vcf, tbx)
+        }
+
+    ch_indel_to_concat = BCFTOOLS_INDEX_INDEL.out.vcf_tbi
+        .map { meta, vcf, tbx ->
+            def meta_restore = meta.id.replace('_indel', '')
+                tuple(id:meta_restore, vcf, tbx)
+        }
+
+    // Merge SNV and INDEL together
+
+    ch_to_concat =  ch_snv_to_concat
+        .join(ch_indel_to_concat)
+
+    BCFTOOLS_CONCAT(ch_to_concat)
+    BCFTOOLS_SORT(BCFTOOLS_CONCAT.out.vcf)
+
+    ch_snp_annotate = BCFTOOLS_SORT.out.vcf
+        .join(ch_databases_ref)
+        .map { meta, output, database ->
+            def meta_type = meta.id + '_somatic_snp'
+                tuple(id:meta_type, output, database) }
 
     SNPEFF_ANNOTATE(ch_snp_annotate)
 
@@ -106,7 +135,7 @@ workflow CLAIRS_TO_CALLING {
     // Compress and index vcf :
 
     BGZIP_VCF(ch_vcf_final)
-    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
+    BCFTOOLS_INDEX_FINAL(BGZIP_VCF.out.vcf_gz)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -116,10 +145,10 @@ workflow CLAIRS_TO_CALLING {
     ch_versions = CLAIRS_TO_CALL.out.versions
             .mix(SNPEFF_ANNOTATE.out.versions)
             .mix(BGZIP_VCF.out.versions)
-            .mix(BCFTOOLS_INDEX.out.versions)
+            .mix(BCFTOOLS_INDEX_FINAL.out.versions)
 
     emit:
-    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
+    vcf              = BCFTOOLS_INDEX_FINAL.out.vcf_tbi
     versions         = ch_versions
 
 }

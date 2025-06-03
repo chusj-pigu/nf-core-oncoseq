@@ -31,9 +31,9 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
-    chr_list
-    model
-    clin_database
+    clairs_model  // channel: model for calling snp with ClairS-TO
+    basecall_model  // channel : basecalling model used with dorado
+    ch_clin_database            // channel : from path, vcf containing the ClinVar database for annotating vcf
 
     main:
 
@@ -45,9 +45,10 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
         demux,
         ref,
         bed,
-        chr_list,
-        model,
-        clin_database
+        clairs_model,
+        basecall_model,
+        ch_clin_database
+
     )
 }
 
@@ -76,9 +77,9 @@ workflow NFCORE_ONCOSEQ_WGS {
     samplesheet // channel: samplesheet read in from --input
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
-    chr_list
-    model
-    clin_database
+    clairs_model
+    basecall_model
+    ch_clin_database
 
     main:
 
@@ -89,9 +90,9 @@ workflow NFCORE_ONCOSEQ_WGS {
         samplesheet,
         demux,
         ref,
-        chr_list,
-        model,
-        clin_database
+        clairs_model,
+        basecall_model,
+        ch_clin_database
     )
 }
 
@@ -124,17 +125,17 @@ workflow {
 
     // Load Channels from parameters:
 
+    ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+
     // Combine the samplesheet with the model :
     if (params.skip_basecalling) {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
     } else if (params.ubam_samplesheet == null ) {
-        ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .combine(PIPELINE_INITIALISATION.out.ubam_ch)
             .combine(ch_model)
     } else {
-        ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
-        ch_input = PIPELINE_INITIALISATION.out.samplesheet              // Otherwise ubam_samplesheet is validated with schema
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .combine(ch_model)
     }
 
@@ -152,8 +153,8 @@ workflow {
         ch_input,
         PIPELINE_INITIALISATION.out.demux_sheet,
         PIPELINE_INITIALISATION.out.ref_ch,
-        ch_chr_list,
         ch_clairs_model,
+        ch_model,
         ch_clin_database,
         PIPELINE_INITIALISATION.out.bed_sheet,
         )
@@ -168,8 +169,8 @@ workflow {
         ch_input,
         PIPELINE_INITIALISATION.out.demux_sheet,
         PIPELINE_INITIALISATION.out.ref_ch,
-        ch_chr_list,
         ch_clairs_model,
+        ch_model,
         ch_clin_database
         )
     }
