@@ -22,7 +22,7 @@ nextflow_workflow {
                         tuple(id:'HG003',bam,bai)}
 
                 input[0] = ch_input0
-                input[1] = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/ref/GRCh38_no_alt_chr20.fa*")
+                input[1] = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/ref/GRCh38_no_alt_chr20.fa.gz*")
                     .toSortedList()
                     .map { ref, ref_fai ->
                         tuple(id:"HG003", "GRCh38", ref, ref_fai) }
