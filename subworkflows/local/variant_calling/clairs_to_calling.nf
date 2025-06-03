@@ -30,7 +30,6 @@ workflow CLAIRS_TO_CALLING {
     take:
     bam  // channel: from mapping workflow (tuple include bai)
     ref     // channel: from input samplesheet
-    chr_list    // channel: list of chromosomes to include for variant calling read from params.chr_list
     model       // channel: basecalling model
     clinic_database
     main:
@@ -43,7 +42,6 @@ workflow CLAIRS_TO_CALLING {
 
     ch_input_clairs = bam
         .join(ch_ref)
-        .combine(chr_list)
         .combine(model)
 
     CLAIRS_TO_CALL(ch_input_clairs)
@@ -112,7 +110,7 @@ workflow CLAIRS_TO_CALLING {
     ch_snp_annotate = BCFTOOLS_SORT.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
-            def meta_type = meta.id + '_somatic'
+            def meta_type = meta.id + '_somatic_snp'
                 tuple(id:meta_type, output, database) }
 
     SNPEFF_ANNOTATE(ch_snp_annotate)
@@ -139,19 +137,19 @@ workflow CLAIRS_TO_CALLING {
     BGZIP_VCF(ch_vcf_final)
     BCFTOOLS_INDEX_FINAL(BGZIP_VCF.out.vcf_gz)
 
-    // /*
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    //     COLLECT VERSIONS
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // */
-    // ch_versions = CLAIRS_TO_CALL.out.versions
-    //         .mix(SNPEFF_ANNOTATE.out.versions)
-    //         .mix(BGZIP_VCF.out.versions)
-    //         .mix(BCFTOOLS_INDEX.out.versions)
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    ch_versions = CLAIRS_TO_CALL.out.versions
+            .mix(SNPEFF_ANNOTATE.out.versions)
+            .mix(BGZIP_VCF.out.versions)
+            .mix(BCFTOOLS_INDEX_FINAL.out.versions)
 
-    // emit:
-    // vcf              = BCFTOOLS_INDEX.out.vcf_tbi
-    // versions         = ch_versions
+    emit:
+    vcf              = BCFTOOLS_INDEX_FINAL.out.vcf_tbi
+    versions         = ch_versions
 
 }
 

@@ -34,13 +34,13 @@ workflow PHASING_VARIANTS {
     ch_snv_vcf = vcf_ch
         .filter { meta, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar') }
         .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replaceAll('(_somatic|_germline)', '')
+            def meta_restore = meta.id.replaceAll('(_somatic_snp|_germline_snp)', '')
                 tuple(id:meta_restore, meta.id, vcf, vcf_tbi)}
 
     ch_snv_clinvar_vcf = vcf_ch
         .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_clinvar') }
         .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replaceAll('(_somatic|_germline)_clinvar', '')
+            def meta_restore = meta.id.replaceAll('(_somatic_snp|_germline_snp)_clinvar', '')
                 tuple(id:meta_restore, meta.id, vcf, vcf_tbi)}
 
 
