@@ -19,7 +19,7 @@ workflow CNV_CALLING {
     take:
     bam        // channel: from mapping workflow, includes index
     ref         // reference channel with index
-    bed         // bed file used for adaptive without padding (output from coverage_separate subworkflow)
+    vcf         // SNP vcf
     main:
 
     ch_ref_qdnaseq = ref
@@ -35,9 +35,13 @@ workflow CNV_CALLING {
         .map { meta, ref_id, ref_fasta, _ref_fai ->
             tuple(meta,ref_id, ref_fasta) }
 
-    ch_in_subchrom = bam
+    ch_in_subchrom = vcf
+        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('germline_snp') }       // Only keep the snp file created by clair3 annotated with SnpEff
+        .map { meta, vcf_file, _vcf_tbi ->
+            def meta_restore = meta.id.replaceAll('_germline_snp', '')       // Restore meta to be sample id only to join with ref
+                tuple(id:meta_restore, vcf_file) }
         .join(ch_ref_subchrom)
-        .join(bed)
+        .view()
 
     SUBCHROM_CALL_WGS(ch_in_subchrom)
 

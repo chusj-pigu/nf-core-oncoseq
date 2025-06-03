@@ -119,7 +119,6 @@ workflow CLAIRS_TO_CALLING {
 
     ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
         .combine(ch_clin_db)
-        .view()
 
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 

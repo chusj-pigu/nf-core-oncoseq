@@ -71,7 +71,8 @@ workflow ADAPTIVE {
 
         CNV_CALLING (
             MAPPING.out.bam,
-            ref
+            ref,
+            CLAIR3_CALLING.out.vcf
         )
 
     } else {
@@ -137,7 +138,8 @@ workflow ADAPTIVE {
 
         CNV_CALLING (
             MAPPING.out.bam,
-            ref
+            ref,
+            CLAIR3_CALLING.out.vcf
         )
 
     }
