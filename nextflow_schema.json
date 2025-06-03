@@ -259,22 +259,16 @@
         },
         "adaptive": {
             "type": "boolean",
-            "default": true,
-            "description": "Run in adaptive sampling mode. Cannot be set with cfdna mode."
+            "description": "Run in adaptive sampling mode. Cannot be set with cfdna or wgs mode."
         },
         "cfdna": {
             "type": "boolean",
-            "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling mode."
+            "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling or wgs mode."
         },
         "clairsto_model": {
             "type": "string",
             "description": "ClairS_TO model to use for SNP calling",
             "default": "ont_r10_dorado_sup_5khz_ssrs"
-        },
-        "chr_list": {
-            "type": "string",
-            "description": "List of chromosomes to include in SNP analysis by ClairS_TO",
-            "default": "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY"
         },
         "model": {
             "type": "string",
@@ -315,6 +309,10 @@
             "type": "string",
             "default": "4h",
             "description": "Maximum amount of time any process can take"
+        },
+        "wgs": {
+            "type": "boolean",
+            "description": "Run in WGS DNA mode. Cannot be set with adaptive sampling of cell free DNA mode."
         }
     },
     "required": ["clin_database"]
