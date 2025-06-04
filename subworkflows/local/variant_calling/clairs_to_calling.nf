@@ -123,13 +123,15 @@ workflow CLAIRS_TO_CALLING {
     // Ensures deterministic channel behavior when combining with multiple files
     ch_clin_db = clinic_database.toSortedList()
 
+    ch_clin_db.view()
+
     // Prepare SNPEff-annotated VCFs for additional clinical annotation with SNPSift
     // Combines each annotated VCF with the clinical database (e.g., ClinVar)
     ch_snpsift_annotate = SNPEFF_ANNOTATE.out.vcf
         .combine(ch_clin_db)
-        .map { vcf_tuple, clin_db ->
+        .map { vcf_tuple, clin_db, clin_db_idx ->
             def (meta, vcf) = vcf_tuple
-            tuple(meta, vcf, clin_db)
+            tuple(meta, vcf, clin_db, clin_db_idx)
         }
 
     // Run SNPSift annotation to add clinical significance information to variants
