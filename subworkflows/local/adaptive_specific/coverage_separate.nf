@@ -164,6 +164,6 @@ workflow COVERAGE_SEPARATE {
     emit:
     coverage_separated  = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
     coverage_plot       = COVERAGE_PLOT.out.cov_plot           // TODO: QUARTO REPORT
-    versions            = ch_versions              
+    versions            = ch_versions
 
 }

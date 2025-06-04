@@ -27,11 +27,23 @@ workflow ADAPTIVE {
     if (params.skip_basecalling) {
         SPLIT_BAMS_TIME_FASTQ(samplesheet)
 
-        MAPPING(SPLIT_BAMS_TIME_FASTQ.out.ch_fastq_out,ref)
+        MAPPING(
+            SPLIT_BAMS_TIME_FASTQ.out.ch_fastq_out,
+            ref
+            )
 
-        CLAIRS_TO_CALLING(MAPPING.out.bam,ref,chr_list,model,clin_database)
+        CLAIRS_TO_CALLING(
+            MAPPING.out.bam,
+            ref,
+            chr_list,
+            model,
+            clin_database
+            )
 
-        COVERAGE_SEPARATE(MAPPING.out.bam,bed)
+        COVERAGE_SEPARATE(
+            MAPPING.out.bam,
+            bed
+            )
 
         //PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
@@ -55,12 +67,17 @@ workflow ADAPTIVE {
         clin_database = (SPLIT_BAMS_TIME.out.clin_database)
 
 
-        CLAIRS_TO_CALLING(SPLIT_BAMS_TIME.out.bam,ref,chr_list,model,clin_database)
+        CLAIRS_TO_CALLING(
+            SPLIT_BAMS_TIME.out.bam,
+            ref,chr_list,
+            model,
+            clin_database
+            )
 
-        COVERAGE_SEPARATE(SPLIT_BAMS_TIME.out.bam,bed)
+        // COVERAGE_SEPARATE(SPLIT_BAMS_TIME.out.bam,bed)
 
-        PHASING_VARIANTS(SPLIT_BAMS_TIME.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+        // PHASING_VARIANTS(SPLIT_BAMS_TIME.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
-        SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+        // SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
     }
 }

@@ -18,6 +18,10 @@ nextflow_workflow {
                 file("${projectDir}/test_data/alignments/sample1_mito_align.bam")
                 )
                 input[1] = tuple 0, 4
+                input[2] = tuple(
+                    [id: "test_sample"],
+                    file("${projectDir}/test_data/clinvar/clinvar.vcf.gz")
+                )
                 """
             }
         }

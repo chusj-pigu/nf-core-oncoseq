@@ -13,8 +13,18 @@ nextflow_workflow {
             }
             workflow {
                 """
-                // define inputs of the workflow here. Example:
-                // input[0] = file("test-file.txt")
+                // define inputs of the workflow here
+                input[0] = tuple(
+                    [id: "test_sample"],
+                    file("${projectDir}/test_data/alignments/sample1_mito_align.bam"),
+                    file("${projectDir}/test_data/alignments/sample1_mito_align.bam.bai")
+                )
+                input[1] = tuple(
+                    [id: "test_sample"],
+                    file("${projectDir}/test_data/adaptive/2025-02-05-CHUSJ-Panel-20kb-LP.bed"),
+                    100,
+                    false
+                )
                 """
             }
         }
