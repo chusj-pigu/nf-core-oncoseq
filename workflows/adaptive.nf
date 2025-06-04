@@ -2,8 +2,9 @@ include { BASECALL_SIMPLEX  } from '../subworkflows/local/basecalling/basecall_s
 include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
-include { PHASING_VARIANTS  } from '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING        } from '../subworkflows/local/variant_calling/sv_calling.nf'
+include { PHASING_VARIANTS  } from  '../subworkflows/local/variant_calling/phasing.nf'
+include { SV_CALLING        } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { CNV_CALLING       } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { SPLIT_BAMS_TIME   } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
 include { SPLIT_BAMS_TIME_FASTQ   } from '../subworkflows/local/time_series_evaluation/split_bams_fastq.nf'
 
@@ -45,9 +46,11 @@ workflow ADAPTIVE {
             bed
             )
 
-        //PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+        PHASING_VARIANTS(MAPPING.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
-        //SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+        SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+
+        CNV_CALLING(MAPPING.out.bam,ref)
 
     } else {
 
@@ -73,6 +76,9 @@ workflow ADAPTIVE {
 
         // PHASING_VARIANTS(SPLIT_BAMS_TIME.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
+        SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+
+        CNV_CALLING(MAPPING.out.bam,ref)
         // SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
     }
 }

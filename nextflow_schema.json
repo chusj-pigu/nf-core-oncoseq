@@ -201,6 +201,11 @@
         }
     ],
     "properties": {
+        "qdnaseq_binsize": {
+            "type": "integer",
+            "description": "Bin size to use for CNV calling with QDNAseq (Kbp)",
+            "default": 500
+        },
         "ubam_samplesheet": {
             "type": "string",
             "description": "Samplesheet pointing to the ubam to restart basecalling from"
