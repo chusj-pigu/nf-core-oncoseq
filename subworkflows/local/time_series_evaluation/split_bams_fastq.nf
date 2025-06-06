@@ -40,7 +40,6 @@ workflow SPLIT_BAMS_TIME_FASTQ {
 
     timeseries = Channel.from(3, 6, 12, 24, 48)
         .map { x -> tuple(0, "${x}") }
-    timeseries.view()
 
     ch_fastq = ch_fastq
         .combine(timeseries)
@@ -49,7 +48,6 @@ workflow SPLIT_BAMS_TIME_FASTQ {
             new_meta.id = "${meta.id}_ts_${from}h_${to}h"
             tuple(new_meta, fastq, index, from, to)
         }
-    ch_fastq.view()
 
     ONTIME_RANGE_FILTER_FASTQ(
         ch_fastq
@@ -57,9 +55,6 @@ workflow SPLIT_BAMS_TIME_FASTQ {
 
     // Capture the output FASTQ files from the ONTIME_RANGE_FILTER_FASTQ module
     ch_fastq_out = ONTIME_RANGE_FILTER_FASTQ.out.fastq
-
-    // Debugging: View the contents of the output channel (can be removed in production)
-    ch_fastq_out.view()
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

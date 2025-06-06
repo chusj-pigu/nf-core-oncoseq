@@ -10,6 +10,7 @@
 */
 include { ONTIME_RANGE_FILTER } from '../../../modules/local/ontime/main.nf' // Module for filtering/splitting BAMs by time
 include { SAMTOOLS_SORT_INDEX } from '../../../modules/local/samtools/main.nf' // Module for sorting and indexing BAMs
+include { modifyMetaId } from '../utils_nfcore_oncoseq_pipeline' // Function for consistent metadata manipulation
 
 workflow SPLIT_BAMS_TIME {
     /*
@@ -35,7 +36,9 @@ workflow SPLIT_BAMS_TIME {
     */
     def createTimeInterval = { x -> tuple(0, "${x}") }
     
-    timeseries = Channel.from(3, 6, 12, 24, 48)
+    timeseries = Channel
+        .from(params.time_points.split(','))
+        .map { it.trim() } // optional: remove surrounding spaces
         .map(createTimeInterval) // Each tuple: (from, to)
 
     /*
@@ -46,9 +49,8 @@ workflow SPLIT_BAMS_TIME {
         Output: ch_bam_ts (tuple: new_meta, bam, index, from, to)
     */
     def createBamTimeSeriesMeta = { meta, bam, index, from, to ->
-        def new_meta = meta.clone()
-        new_meta.id = "${meta.id}_${from}h_${to}h"
-        new_meta.ts = "${from}h_${to}h"
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to}h")
+        new_meta.ts = "${from}h_${to}h".toString()
         tuple(new_meta, bam, index, from, to)
     }
     
@@ -64,9 +66,8 @@ workflow SPLIT_BAMS_TIME {
         Output: ref (tuple: new_meta, refid, ref_fasta, ref_fai)
     */
     def createReferenceTimeSeriesMeta = { meta, refid, ref_fasta, ref_fai, from, to ->
-        def new_meta = meta.clone()
-        new_meta.id = "${meta.id}_${from}h_${to}h"
-        new_meta.ts = "${from}h_${to}h"
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to}h")
+        new_meta.ts = "${from}h_${to}h".toString()
         tuple(new_meta, refid, ref_fasta, ref_fai)
     }
     
@@ -113,8 +114,7 @@ workflow SPLIT_BAMS_TIME {
     */
     // Add FULL to the original bam
     def toFullBam = { meta, bam, bai ->
-        def new_meta = meta.clone()
-        new_meta.id = "${meta.id}_FULL"
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
         new_meta.ts = "FULL"
         tuple(new_meta, bam, bai)
     }
@@ -124,15 +124,14 @@ workflow SPLIT_BAMS_TIME {
     
     // Add FULL to the original ref
     def toFullReference = { meta, refid, ref_fasta, ref_fai ->
-        def new_meta = meta.clone()
-        new_meta.id = "${meta.id}_FULL"
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
         new_meta.ts = "FULL"
         tuple(new_meta, refid, ref_fasta, ref_fai)
     }
 
     ref_full = ref.map(toFullReference)
 
-    ref = ts_ref.mix(ref_full)
+    ch_ref = ts_ref.mix(ref_full)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -144,13 +143,13 @@ workflow SPLIT_BAMS_TIME {
     def extractBamFields = { meta, bam, bai ->
         tuple(meta, bam, bai)
     }
+
+
     
     ch_bam_out = SAMTOOLS_SORT_INDEX.out.sortedbamidx
         .map(extractBamFields)
         .mix(ch_bam)
-    
-    ch_bam_out.view()
-    ref.view()
+
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -171,8 +170,10 @@ workflow SPLIT_BAMS_TIME {
         ref:           Channel containing all reference data (time series + full)
     */
 
+  
+
     emit:
     bam              = ch_bam_out
     versions         = ch_versions
-    ref              = ref
+    ref              = ch_ref
 }

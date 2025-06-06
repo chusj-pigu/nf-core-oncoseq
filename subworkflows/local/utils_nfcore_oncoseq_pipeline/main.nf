@@ -89,7 +89,17 @@ workflow PIPELINE_INITIALISATION {
     
     // Process grouped reference data
     def processGroupedReference = { _meta_id, meta, ref, ref_path ->
-        tuple(meta, ref.flatten(), ref_path.sort().flatten()).flatten()
+        // Sort ref_path so that reference files (.fa, .fasta) come before indices (.fai)
+        def sorted_ref_path = ref_path.flatten().sort { path ->
+            def filename = file(path).name
+            // Give priority to reference files over index files
+            if (filename.endsWith('.fai')) {
+                return filename.replaceAll('\\.fai$', '') + '_index'
+            } else {
+                return filename
+            }
+        }
+        tuple(meta, ref.flatten(), sorted_ref_path).flatten()
     }
 
     ch_versions = Channel.empty()
@@ -358,3 +368,46 @@ def methodsDescriptionText(mqc_methods_yaml) {
     return description_html.toString()
 }
 
+//
+// Function to modify metadata id field in a flexible way
+// This is a generalized function that can handle various metadata transformations
+//
+def modifyMetaId(Map meta, String operation, String search_string = '', String replace_string = '', String suffix = '') {
+    // Create a deep copy of the metadata to avoid modifying the original
+    def new_meta = meta.clone()
+    
+    // Ensure all metadata fields are converted to strings for consistency
+    new_meta.each { key, value ->
+        if (value != null) {
+            new_meta[key] = value.toString()
+        }
+    }
+    
+    // Apply the requested operation to the id field
+    if (operation == 'remove_suffix') {
+        if (new_meta.id && suffix && new_meta.id.endsWith(suffix)) {
+            new_meta.id = new_meta.id.substring(0, new_meta.id.length() - suffix.length())
+        }
+    } else if (operation == 'add_suffix') {
+        if (new_meta.id && suffix) {
+            new_meta.id = new_meta.id + suffix
+        }
+    } else if (operation == 'replace') {
+        if (new_meta.id && search_string) {
+            new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
+        }
+    } else if (operation == 'prefix') {
+        if (new_meta.id && suffix) {  // using suffix parameter as prefix for consistency
+            new_meta.id = suffix + new_meta.id
+        }
+    }
+    // For default case or no operation - just return normalized metadata
+        // Ensure all metadata fields are converted to strings for consistency
+    new_meta.each { key, value ->
+        if (value != null) {
+            new_meta[key] = value.toString()
+        }
+    }
+    
+    return new_meta
+}

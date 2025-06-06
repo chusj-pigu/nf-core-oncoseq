@@ -20,16 +20,18 @@ include { CFDNA                   } from './workflows/cfdna'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
+
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
 workflow NFCORE_ONCOSEQ_ADAPTIVE {
 
+
+
     take:
     samplesheet // channel: samplesheet read in from --input
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
-    chr_list
     model
     clin_database
 
@@ -38,7 +40,13 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-    ADAPTIVE(samplesheet,ref,bed,chr_list,model,clin_database)
+    ADAPTIVE(
+        samplesheet,
+        ref,
+        bed,
+        model,
+        clin_database
+    )
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
@@ -111,7 +119,6 @@ workflow {
         NFCORE_ONCOSEQ_ADAPTIVE (
         ch_input,
         PIPELINE_INITIALISATION.out.ref_ch,
-        ch_chr_list,
         ch_clairs_model,
         ch_clin_database,
         PIPELINE_INITIALISATION.out.bed_sheet,

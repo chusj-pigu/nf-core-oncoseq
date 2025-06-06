@@ -14,12 +14,14 @@ workflow ADAPTIVE {
     take:
     samplesheet // channel: samplesheet read in from --input
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
-    chr_list
     model
     clin_database
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
 
     main:
+
+
+
 
     //
     // WORKFLOW: Run pipeline
@@ -36,7 +38,6 @@ workflow ADAPTIVE {
         CLAIRS_TO_CALLING(
             MAPPING.out.bam,
             ref,
-            chr_list,
             model,
             clin_database
             )
@@ -60,25 +61,35 @@ workflow ADAPTIVE {
 
         MAPPING(BASECALL_SIMPLEX.out.fastq,ref)
 
-        // SPLIT_BAMS_TIME(MAPPING.out.bam, ref)
-        // ref = (SPLIT_BAMS_TIME.out.ref)
+        if (params.time_series) {
+            // If time series evaluation is enabled, split BAMs into time intervals
+            SPLIT_BAMS_TIME(
+                MAPPING.out.bam,
+                ref
+            )
+            
+            // Use time series outputs for variant calling
+            ch_bam_for_calling = SPLIT_BAMS_TIME.out.bam
+            ch_ref_for_calling = SPLIT_BAMS_TIME.out.ref
+        } else {
+            // If not, use the full BAM directly
+            ch_bam_for_calling = MAPPING.out.bam
+            ch_ref_for_calling = ref
+        }
 
         CLAIRS_TO_CALLING(
-            MAPPING.out.bam,
-            // SPLIT_BAMS_TIME.out.bam,
-            ref,
-            chr_list,
+            ch_bam_for_calling,
+            ch_ref_for_calling,
             model,
             clin_database
             )
 
-        // COVERAGE_SEPARATE(SPLIT_BAMS_TIME.out.bam,bed)
+        COVERAGE_SEPARATE(SPLIT_BAMS_TIME.out.bam,bed)
 
-        // PHASING_VARIANTS(SPLIT_BAMS_TIME.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+        PHASING_VARIANTS(SPLIT_BAMS_TIME.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
 
         SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
 
         CNV_CALLING(MAPPING.out.bam,ref)
-        // SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
     }
 }
