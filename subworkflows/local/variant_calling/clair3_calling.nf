@@ -40,9 +40,10 @@ workflow CLAIR3_CALLING {
         .join(ch_ref)
         .combine(basecall_model)
         .map { meta, bamfile, bai, ref_fasta, ref_fai, model ->
-            def model_clai3 = model.contains('sup')
+            def model_str = model instanceof Path ? model.getName() : model.toString()              // Convert model to string if it's a path
+            def model_clai3 = model_str.contains('sup')
                 ? 'r1041_e82_400bps_sup_v500'
-                : (model.contains('hac') || model.contains('fast'))
+                : (model.name.contains('hac') || model.name.contains('fast'))
                     ? 'r1041_e82_400bps_hac_v500'
                     : { throw new IllegalArgumentException("Unsupported model: ${model}") }()
             tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clai3)
