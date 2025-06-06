@@ -41,7 +41,6 @@ workflow CNV_CALLING {
             def meta_restore = meta.id.replaceAll('_germline_snp', '')       // Restore meta to be sample id only to join with ref
                 tuple(id:meta_restore, vcf_file) }
         .join(ch_ref_subchrom)
-        .view()
 
     SUBCHROM_CALL_WGS(ch_in_subchrom)
 
