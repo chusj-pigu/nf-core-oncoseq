@@ -31,10 +31,12 @@ workflow PHASING_VARIANTS {
         .map { meta, _ref, ref_fasta, ref_fai ->
             tuple(meta, ref_fasta, ref_fai) }
 
-
-    // Remove snv and indel from meta of vcf and separate them in different channels:
+    // Put clinvar vcf into a different channel:
     ch_snv_vcf = vcf_ch
         .filter { meta, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar') }
+        .map { meta, vcf, vcf_tbi ->
+            def meta_restore = meta.id.replaceAll('(_somatic_snp|_germline_snp)', '')
+                tuple(id:meta_restore, meta.id, vcf, vcf_tbi)}
 
     ch_snv_clinvar_vcf = vcf_ch
         .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_clinvar') }
@@ -48,9 +50,6 @@ workflow PHASING_VARIANTS {
         .join(ch_ref)
         .map { _meta, bamfile, bai, meta_type, vcf, vcf_tbi, ref_fasta, ref_idx ->
                 tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
-
-bam.view()
-
     ch_phase_clin_snv_in = bam
         .join(ch_snv_clinvar_vcf)
         .join(ch_ref)
@@ -86,9 +85,9 @@ bam.view()
                 tuple(id:meta_phased,bamfile, bai,ref_fasta, ref_idx)
         }
         .join(BCFTOOLS_INDEX.out.vcf_tbi)
-        .filter { meta, _bamfile, _bai, _ref_fasta, _ref_idx, _vcf, _vcf_tbi -> meta.id.endsWith('_snv_phased') }            // Only has to run once per sample (SNV calls are usually enough to produce haplotagged cram and gtf)
+        .filter { meta, _bamfile, _bai, _ref_fasta, _ref_idx, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar_phased') }            // Only has to run once per sample (SNV calls are usually enough to produce haplotagged cram and gtf)
         .map { meta, bamfile, bai, ref_fasta, ref_idx, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_snv_phased', '')               // We want to name outputs according to sample_id only at this point
+            def meta_restore = meta.id.replaceAll('_(somatic_snp|germline_snp)_phased', '')               // We want to name outputs according to sample_id only at this point
                 tuple(id:meta_restore,bamfile,bai,vcf,vcf_tbi,ref_fasta,ref_idx)
         }
 

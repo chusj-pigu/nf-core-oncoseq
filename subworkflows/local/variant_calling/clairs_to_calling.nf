@@ -115,7 +115,7 @@ workflow CLAIRS_TO_CALLING {
     ch_versions = Channel.empty()
 
     // Extract just the reference FASTA and its index from the reference channel
-    ch_ref = ref.map { meta, reference, ref_fasta, ref_fai -> 
+    ch_ref = ref.map { meta, reference, ref_fasta, ref_fai ->
         extractRefFiles(meta, reference, ref_fasta, ref_fai) }
 
 
@@ -187,7 +187,7 @@ workflow CLAIRS_TO_CALLING {
     BCFTOOLS_CONCAT(ch_to_concat)
     BCFTOOLS_SORT(BCFTOOLS_CONCAT.out.vcf)
 
-   
+
     ch_snp_annotate = BCFTOOLS_SORT.out.vcf.join(ch_databases_ref)
 
     // -----------------------------------------------------------------------------
@@ -204,7 +204,7 @@ workflow CLAIRS_TO_CALLING {
     // Combines each annotated VCF with the clinical database (e.g., ClinVar)
     ch_snpsift_annotate = SNPEFF_ANNOTATE.out.vcf
         .combine(ch_clin_db)
-        .map { meta, vcf, clin_db, clin_db_idx -> 
+        .map { meta, vcf, clin_db, clin_db_idx ->
             prepareForSnpsift(meta, vcf, clin_db, clin_db_idx) }
 
     // Run SNPSift annotation to add clinical significance information to variants

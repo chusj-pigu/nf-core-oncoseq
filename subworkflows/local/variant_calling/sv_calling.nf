@@ -67,9 +67,11 @@ workflow SV_CALLING {
 
     emit:
     sv_vcf           = BGZIP_VCF.out.vcf_gz
+    sv_vcf           = BGZIP_VCF.out.vcf_gz
     versions         = ch_versions
 
 }
+
 
 
 /*

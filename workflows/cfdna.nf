@@ -1,5 +1,6 @@
 include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_multiplex'
 include { MAPPING            } from '../subworkflows/local/mapping/mapping'
+include { CNV_CALLING        } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 
 workflow CFDNA {
 
@@ -17,5 +18,13 @@ workflow CFDNA {
         samplesheet,
         demux
     )
-    MAPPING(BASECALL_MULTIPLEX.out.fastq,ref)
+    MAPPING (
+        BASECALL_MULTIPLEX.out.fastq,
+        ref
+    )
+
+    CNV_CALLING (
+            MAPPING.out.bam,
+            ref
+        )
 }
