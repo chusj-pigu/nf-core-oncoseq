@@ -9,6 +9,7 @@ include { WHATSHAP_HAPLOTAG } from '../../../modules/local/whatshap/main.nf'
 include { WHATSHAP_STATS    } from '../../../modules/local/whatshap/main.nf'
 include { SAMTOOLS_INDEX    } from '../../../modules/local/samtools/main.nf'
 include { SAMTOOLS_FAIDX } from '../../../modules/local/samtools/main.nf'
+include { modifyMetaId } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,61 +31,41 @@ workflow PHASING_VARIANTS {
         .map { meta, _ref, ref_fasta, ref_fai ->
             tuple(meta, ref_fasta, ref_fai) }
 
+
     // Remove snv and indel from meta of vcf and separate them in different channels:
     ch_snv_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.endsWith('_snv') }
-        .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_snv', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
-
-    ch_indel_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.endsWith('_indel') }
-        .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_indel', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
+        .filter { meta, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar') }
 
     ch_snv_clinvar_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_snv_clinvar') }
-        .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_snv_clinvar', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
+        .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_clinvar') }
+        .map {meta, vcf, vcf_tbi ->
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_clinvar')
+            tuple(new_meta, vcf, vcf_tbi) }
 
-    ch_indel_clinvar_vcf = vcf_ch
-        .filter { meta, _vcf, _vcf_tbi -> meta.id.contains('_indel_clinvar') }
-        .map { meta, vcf, vcf_tbi ->
-            def meta_restore = meta.id.replace('_indel_clinvar', '')
-                tuple(id:meta_restore, vcf, vcf_tbi)}
 
-    // Combined bam with vcf and ref, put clinvar, indel and snv back in meta to process all tuples together:
     ch_phase_snv_in = bam
         .join(ch_snv_vcf)
         .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_snv'
+        .map { _meta, bamfile, bai, meta_type, vcf, vcf_tbi, ref_fasta, ref_idx ->
                 tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
-    ch_phase_indel_in = bam
-        .join(ch_indel_vcf)
-        .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_indel'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
+
+bam.view()
+
     ch_phase_clin_snv_in = bam
         .join(ch_snv_clinvar_vcf)
         .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_snv_clinvar'
-                tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
-    ch_phase_clin_indel_in = bam
-        .join(ch_indel_clinvar_vcf)
-        .join(ch_ref)
-        .map { meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx ->
-            def meta_type = meta.id + '_indel_clinvar'
+        .map { _meta, bamfile, bai, meta_type, vcf, vcf_tbi, ref_fasta, ref_idx ->
                 tuple(id:meta_type, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx) }
 
     ch_phase_in = ch_phase_snv_in
-        .mix(ch_phase_indel_in,
-            ch_phase_clin_snv_in,
-            ch_phase_clin_indel_in)
+        .mix(ch_phase_clin_snv_in)
+
+    ch_phase_in.view {
+        "Phasing input channel: ${it}"
+    }
+
+    ch_phase_in = ch_phase_snv_in
+        .mix(ch_phase_clin_snv_in)
 
     WHATSHAP_PHASE(ch_phase_in)
 

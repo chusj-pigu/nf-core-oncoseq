@@ -24,6 +24,7 @@ workflow SPLIT_BAMS_TIME {
     take:
     ch_bam
     ref
+    bed
 
     main:
 
@@ -82,6 +83,24 @@ workflow SPLIT_BAMS_TIME {
     ts_ref = ts_ref
         .map(extractReferenceFields)
 
+        /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        PROPAGATE TIME SERIES TO BED DATA
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        For each bed entry, create a new meta for each time interval, updating id/ts.
+        Output: bed (tuple: new_meta, bedfile, padding, path)
+    */
+
+    def createBedTimeSeriesMeta = { meta, bedfile, padding, path, from, to ->
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to}h")
+        new_meta.ts = "${from}h_${to}h".toString()
+        tuple(new_meta, bedfile, padding, path)
+    }
+
+    ts_bed = bed
+        .combine(timeseries)
+        .map(createBedTimeSeriesMeta)
+
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         FILTER/SPLIT BAM FILES BY TIME INTERVALS
@@ -112,26 +131,47 @@ workflow SPLIT_BAMS_TIME {
         entry to represent the unfiltered/original data. These are mixed into the
         respective channels so downstream steps receive both time series and full data.
     */
-    // Add FULL to the original bam
-    def toFullBam = { meta, bam, bai ->
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
-        new_meta.ts = "FULL"
-        tuple(new_meta, bam, bai)
-    }
 
-    ch_bam = ch_bam
-        .map(toFullBam)
+    if (params.include_full ) {
+        // Add FULL to the original bam
+        def toFullBam = { meta, bam, bai ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
+            new_meta.ts = "FULL"
+            tuple(new_meta, bam, bai)
+        }
+
+        ch_bam = ch_bam
+            .map(toFullBam)
+
+        // Add FULL to the original ref
+        def toFullReference = { meta, refid, ref_fasta, ref_fai ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
+            new_meta.ts = "FULL"
+            tuple(new_meta, refid, ref_fasta, ref_fai)
+        }
+
+        ref_full = ref.map(toFullReference)
+
+        ch_ref = ts_ref.mix(ref_full)
+
+        // Add FULL to the original bed
+        def toFullBed = { meta, bedfile, padding, path ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
+            new_meta.ts = "FULL"
+            tuple(new_meta, bedfile, padding, path)
+        }
+
+        ch_bed = bed
+            .map(toFullBed)
+        
+        ch_bed = ts_bed.mix(ch_bed)
+
+    } else {
+        // If not including full BAMs, just use the time series reference
+        ch_ref = ts_ref
+        ch_bed = ts_bed
+    }
     
-    // Add FULL to the original ref
-    def toFullReference = { meta, refid, ref_fasta, ref_fai ->
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
-        new_meta.ts = "FULL"
-        tuple(new_meta, refid, ref_fasta, ref_fai)
-    }
-
-    ref_full = ref.map(toFullReference)
-
-    ch_ref = ts_ref.mix(ref_full)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -176,4 +216,5 @@ workflow SPLIT_BAMS_TIME {
     bam              = ch_bam_out
     versions         = ch_versions
     ref              = ch_ref
+    bed              = ch_bed
 }

@@ -7,6 +7,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { ONTIME_RANGE_FILTER_FASTQ } from '../../../modules/local/ontime/main.nf'
+include { modifyMetaId } from '../utils_nfcore_oncoseq_pipeline'
 
 
 /*
@@ -44,8 +45,7 @@ workflow SPLIT_BAMS_TIME_FASTQ {
     ch_fastq = ch_fastq
         .combine(timeseries)
         .map { meta, fastq, index, from, to ->
-            def new_meta = meta.clone()
-            new_meta.id = "${meta.id}_ts_${from}h_${to}h"
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_ts_${from}h_${to}h")
             tuple(new_meta, fastq, index, from, to)
         }
 

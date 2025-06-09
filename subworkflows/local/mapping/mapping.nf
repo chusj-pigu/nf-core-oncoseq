@@ -14,6 +14,7 @@ include { MINIMAP2_ALIGN         } from '../../../modules/local/minimap2/main.nf
 include { SAMTOOLS_TOBAM         } from '../../../modules/local/samtools/main.nf'         // Convert SAM to BAM
 include { SAMTOOLS_SORT_INDEX    } from '../../../modules/local/samtools/main.nf'         // Sort and index BAM
 include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'          // Coverage stats
+include { modifyMetaId           } from '../utils_nfcore_oncoseq_pipeline'
 include { QUARTO_TABLE           } from '../../../modules/local/quarto/main.nf'           // Reporting (optional)
 include { paramsSummaryMap       } from 'plugin/nf-schema'                                // Parameter summary
 include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline' // MultiQC summary
@@ -68,8 +69,8 @@ workflow MAPPING {
     // Prepare mapping input: clean up meta.id and join with reference
     ch_mapping_in = fastq_ch
         .map { meta, reads ->
-            def meta_prefix = meta.id.replace('_pass', '')
-            tuple(id:meta_prefix, reads)
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+            tuple(new_meta, reads)
         }
         .join(ch_ref)
 

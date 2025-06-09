@@ -6,6 +6,7 @@
 include { SNIFFLES_CALL   } from '../../../modules/local/sniffles/main.nf'
 include { SNPEFF_ANNOTATE } from '../../../modules/local/snpeff/main.nf'
 include { BGZIP_VCF       } from '../../../modules/local/bcftools/main.nf'
+include { modifyMetaId    } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -55,8 +56,8 @@ workflow SV_CALLING {
     ch_sv_annotate = SNIFFLES_CALL.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
-            def meta_type = meta.id + '_sv'
-                tuple(id:meta_type, output, database) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_sv')
+            tuple(new_meta, output, database) }
 
     SNPEFF_ANNOTATE(ch_sv_annotate)
     BGZIP_VCF(SNPEFF_ANNOTATE.out.vcf)

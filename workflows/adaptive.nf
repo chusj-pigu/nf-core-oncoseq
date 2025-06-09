@@ -65,16 +65,19 @@ workflow ADAPTIVE {
             // If time series evaluation is enabled, split BAMs into time intervals
             SPLIT_BAMS_TIME(
                 MAPPING.out.bam,
-                ref
+                ref,
+                bed
             )
             
             // Use time series outputs for variant calling
             ch_bam_for_calling = SPLIT_BAMS_TIME.out.bam
             ch_ref_for_calling = SPLIT_BAMS_TIME.out.ref
+            ch_bed = SPLIT_BAMS_TIME.out.bed
         } else {
             // If not, use the full BAM directly
             ch_bam_for_calling = MAPPING.out.bam
             ch_ref_for_calling = ref
+            ch_bed = bed
         }
 
         CLAIRS_TO_CALLING(
@@ -84,12 +87,22 @@ workflow ADAPTIVE {
             clin_database
             )
 
-        COVERAGE_SEPARATE(SPLIT_BAMS_TIME.out.bam,bed)
+        COVERAGE_SEPARATE(ch_bam_for_calling,ch_bed)
 
-        PHASING_VARIANTS(SPLIT_BAMS_TIME.out.bam,ref,CLAIRS_TO_CALLING.out.vcf)
+        PHASING_VARIANTS(
+            ch_bam_for_calling,
+            ch_ref_for_calling,
+            CLAIRS_TO_CALLING.out.vcf
+            )
 
-        SV_CALLING(PHASING_VARIANTS.out.haptag_bam,ref)
+        SV_CALLING(
+            PHASING_VARIANTS.out.haptag_bam,
+            ch_ref_for_calling
+        )
 
-        CNV_CALLING(MAPPING.out.bam,ref)
+        CNV_CALLING(
+            ch_bam_for_calling,
+            ch_ref_for_calling
+        )
     }
 }

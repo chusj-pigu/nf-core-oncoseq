@@ -9,6 +9,7 @@ include { MOSDEPTH_ADAPTIVE     } from '../../../modules/local/mosdepth/main.nf'
 include { REMOVE_PADDING        } from '../../../modules/local/adaptive_specific/main.nf'
 include { PIGZ_BED              } from '../../../modules/local/adaptive_specific/main.nf'
 include { COVERAGE_PLOT         } from '../../../modules/local/adaptive_specific/main.nf'
+include { modifyMetaId          } from '../utils_nfcore_oncoseq_pipeline'
 
 
 /*
@@ -27,6 +28,7 @@ workflow COVERAGE_SEPARATE {
 
     main:
 
+
     ch_versions = Channel.empty()
 
     // For now, we keep padding in bed file
@@ -36,18 +38,19 @@ workflow COVERAGE_SEPARATE {
 
     ch_split_in = bam
         .join(ch_bed)
+        
 
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 
     ch_cramino_bg = SAMTOOLS_SPLIT_BY_BED.out.bg
         .map { meta, bamfile, bai ->
-            def meta_type = meta.id + '_background'
-                tuple(id:meta_type, bamfile, bai) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_background')
+            tuple(new_meta, bamfile, bai) }
 
     ch_cramino_panel = SAMTOOLS_SPLIT_BY_BED.out.panel
         .map { meta, bamfile, bai ->
-            def meta_type = meta.id + '_panel'
-                tuple(id:meta_type, bamfile, bai) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel')
+            tuple(new_meta, bamfile, bai) }
 
     ch_cramino_in = ch_cramino_bg
         .mix(ch_cramino_panel)
@@ -66,44 +69,44 @@ workflow COVERAGE_SEPARATE {
 
     ch_bed_nopad_nofilt = REMOVE_PADDING.out.bed
         .map { meta, bedfile ->
-            def meta_filter = meta.id + '_nofilter'
-                tuple(id:meta_filter, bedfile) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_nofilter')
+            tuple(new_meta, bedfile) }
 
     ch_nofilt = SAMTOOLS_SPLIT_BY_BED.out.panel
         .map { meta, bamfile, bai ->
-            def meta_filter = meta.id + '_nofilter'
-                tuple(id:meta_filter, bamfile, bai) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_nofilter')
+            tuple(new_meta, bamfile, bai) }
         .join(ch_bed_nopad_nofilt)
-        .map { meta_filt, bamfile, bai, bedfile ->
-            tuple(meta_filt, bamfile, bai, bedfile, 1540, 0) }
+        .map { new_meta, bamfile, bai, bedfile ->
+            tuple(new_meta, bamfile, bai, bedfile, 1540, 0) }
 
     // Primary alignments only:
     ch_bed_nopad_primary = REMOVE_PADDING.out.bed
         .map { meta, bedfile ->
-            def meta_filter = meta.id + '_primary'
-                tuple(id:meta_filter, bedfile) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_primary')
+            tuple(new_meta, bedfile) }
 
     ch_primary = SAMTOOLS_SPLIT_BY_BED.out.panel
         .map { meta, bamfile, bai ->
-            def meta_filter = meta.id + '_primary'
-                tuple(id:meta_filter, bamfile, bai) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_primary')
+            tuple(new_meta, bamfile, bai) }
         .join(ch_bed_nopad_primary)
-        .map { meta_filt, bamfile, bai, bedfile ->
-            tuple(meta_filt, bamfile, bai, bedfile, 1796, 0) }
+        .map { new_meta, bamfile, bai, bedfile ->
+            tuple(new_meta, bamfile, bai, bedfile, 1796, 0) }
 
     // mapq60 alignments only:
     ch_bed_nopad_mapq60 = REMOVE_PADDING.out.bed
         .map { meta, bedfile ->
-            def meta_filter = meta.id + '_mapq60'
-                tuple(id:meta_filter, bedfile) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_mapq60')
+            tuple(new_meta, bedfile) }
 
     ch_mapq60 = SAMTOOLS_SPLIT_BY_BED.out.panel
         .map { meta, bamfile, bai ->
-            def meta_filter = meta.id + '_mapq60'
-                tuple(id:meta_filter, bamfile, bai) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_mapq60')
+            tuple(new_meta, bamfile, bai) }
         .join(ch_bed_nopad_mapq60)
-        .map { meta_filt, bamfile, bai, bedfile ->
-            tuple(meta_filt, bamfile, bai, bedfile, 1796, 60) }
+        .map { new_meta, bamfile, bai, bedfile ->
+            tuple(new_meta, bamfile, bai, bedfile, 1796, 60) }
 
     mosdepth_in = ch_nofilt
         .mix(ch_primary,ch_mapq60)
@@ -114,10 +117,10 @@ workflow COVERAGE_SEPARATE {
         .filter { meta, table -> meta.id.contains('background') }
         .map { meta, table ->
         // Read the file content as a list of lines
-            def meta_restore = meta.id.replace('_background', '')    // restore meta to sample_id
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_background')
             def lines = table.readLines()
             def coverage = lines[5].tokenize('\t')[1].toDouble()    // Last line and only take mean coverage column (4th)
-            tuple(id:meta_restore,coverage)
+            tuple(new_meta, coverage)
         }
     // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
 
@@ -126,20 +129,20 @@ workflow COVERAGE_SEPARATE {
     ch_nofilt_bed_out = PIGZ_BED.out.bed
         .filter { meta, bedfile -> meta.id.contains('nofilter') }
         .map { meta, bedfile ->
-            def meta_sample = meta.id.replace('_nofilter', '')
-            tuple(id:meta_sample,bedfile) }
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_nofilter')
+            tuple(new_meta, bedfile) }
 
     ch_primary_bed_out = PIGZ_BED.out.bed
         .filter { meta, bedfile -> meta.id.contains('primary') }
         .map { meta, bedfile ->
-            def meta_sample = meta.id.replace('_primary', '')
-            tuple(id:meta_sample,bedfile) }
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_primary')
+            tuple(new_meta, bedfile) }
 
     ch_mapq60_bed_out = PIGZ_BED.out.bed
         .filter { meta, bedfile -> meta.id.contains('mapq60') }
         .map { meta, bedfile ->
-            def meta_sample = meta.id.replace('_mapq60', '')
-            tuple(id:meta_sample,bedfile) }
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_mapq60')
+            tuple(new_meta, bedfile) }
 
     // Now we join all the variables by sample_id (meta)
 
