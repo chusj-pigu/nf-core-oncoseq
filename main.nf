@@ -128,7 +128,7 @@ workflow {
 
     // Load Channels from parameters:
 
-    ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+    ch_model = params.basecall_model ? Channel.of(params.basecall_model) : Channel.fromPath(params.basecall_model_path)
 
     // Combine the samplesheet with the model :
     if (params.skip_basecalling) {
