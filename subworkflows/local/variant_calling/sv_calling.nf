@@ -23,6 +23,7 @@ workflow SV_CALLING {
     ref         // reference channel with index
     main:
 
+
     ch_in_sniffles = cram
         .join(ref)
 
@@ -34,15 +35,10 @@ workflow SV_CALLING {
 
     // Branch ref channel to create database channel
     ch_databases = ch_ref_type.branch {
-        hg38: { meta, refid -> refid.matches('hg38|GRCh38') }
-        hg19: { meta, refid -> refid.matches('hg19|GRCh37') }
+        hg38: { _meta, refid -> refid.matches('hg38|GRCh38') }
+        hg19: { _meta, refid -> refid.matches('hg19|GRCh37') }
         other: true
             return 'Error'
-    }
-
-    // Generate error if reference is not hg38 nor hg19
-    ch_error = ch_databases.other.map {
-        throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
     }
 
     ch_databases_hg38 = ch_databases.hg38
@@ -52,6 +48,10 @@ workflow SV_CALLING {
 
     ch_databases_ref = ch_databases_hg38
         .mix(ch_databases_hg19)
+
+    SNIFFLES_CALL.out.vcf.view {
+        "Sniffles output VCF: ${it}"
+    }
 
     ch_sv_annotate = SNIFFLES_CALL.out.vcf
         .join(ch_databases_ref)
@@ -66,7 +66,6 @@ workflow SV_CALLING {
 
 
     emit:
-    sv_vcf           = BGZIP_VCF.out.vcf_gz
     sv_vcf           = BGZIP_VCF.out.vcf_gz
     versions         = ch_versions
 

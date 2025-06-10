@@ -210,8 +210,6 @@ workflow SPLIT_BAMS_TIME {
         ref:           Channel containing all reference data (time series + full)
     */
 
-  
-
     emit:
     bam              = ch_bam_out
     versions         = ch_versions
