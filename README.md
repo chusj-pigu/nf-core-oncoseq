@@ -47,6 +47,9 @@
 10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
 11. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
 
+#### Time Series Breakdown Analysis
+12. Separation of bam files by time point with [Ontime](https://github.com/mbhall88/ontime)
+
 ### WGS mode:
 
 3. Alignment with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)

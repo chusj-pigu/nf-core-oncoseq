@@ -41,6 +41,67 @@ workflow PIPELINE_INITIALISATION {
 
     main:
 
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        NAMED CLOSURE FUNCTIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    // Transform UBAM samplesheet entries to tuples with file handling
+    def transformUbamEntry = { meta, ubam ->
+        tuple(meta.id, meta, file(ubam))
+    }
+
+    // Transform input samplesheet entries to tuples with file handling
+    def transformInputEntry = { meta, input, _ref, _ref_path ->
+        tuple(meta.id, meta, file(input))
+    }
+
+    // Flatten input arrays for processing
+    def flattenInputArrays = { meta, input ->
+        return [meta, input.flatten()]
+    }
+
+    // Transform demux samplesheet entries
+    def transformDemuxEntry = { barcode, sample ->
+        tuple(barcode, sample)
+    }
+
+    // Transform adaptive samplesheet entries with conditional file handling
+    def transformAdaptiveEntry = { meta, bed, padding, low_fidelity ->
+        if(!low_fidelity) {
+            return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+        } else if(low_fidelity == null) {
+            return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
+        } else {
+            return(tuple(meta, file(bed), padding, file(low_fidelity)))
+        }
+    }
+
+    // Transform bed file entries for default adaptive processing
+    def transformBedEntry = { bed ->
+        tuple(bed, input_padding, list_low_fidelity)
+    }
+
+    // Transform reference entries for processing
+    def transformReferenceEntry = { meta, _input, ref, ref_path ->
+        tuple(meta.id, meta, ref, file(ref_path))
+    }
+
+    // Process grouped reference data
+    def processGroupedReference = { _meta_id, meta, ref, ref_path ->
+        // Sort ref_path so that reference files (.fa, .fasta) come before indices (.fai)
+        def sorted_ref_path = ref_path.flatten().sort { path ->
+            def filename = file(path).name
+            // Give priority to reference files over index files
+            if (filename.endsWith('.fai')) {
+                return filename.replaceAll('\\.fai$', '') + '_index'
+            } else {
+                return filename
+            }
+        }
+        tuple(meta, ref.flatten(), sorted_ref_path).flatten()
+    }
+
     ch_versions = Channel.empty()
 
     //
@@ -76,34 +137,22 @@ workflow PIPELINE_INITIALISATION {
     if (params.ubam_samplesheet != null) {
         Channel
             .fromList(samplesheetToList(ubam_samplesheet, "${projectDir}/assets/schema_ubam.json"))
-            .map {
-                meta, ubam ->
-                    tuple(meta.id,meta,file(ubam))
-            }
+            .map(transformUbamEntry)
             .groupTuple()
             .map { samplesheet ->
                 validateUbamSamplesheet(samplesheet)
             }
-            .map {
-                meta, ubam ->
-                    return [ meta, ubam.flatten() ]
-            }
+            .map(flattenInputArrays)
             .set { ch_ubam }
 
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map {
-                meta, input, _ref, _ref_path ->
-                    tuple(meta.id,meta,file(input))
-            }
+            .map(transformInputEntry)
             .groupTuple()
             .map { samplesheet ->
                 validateInputSamplesheet(samplesheet)
             }
-            .map {
-                meta, input ->
-                    return [ meta, input.flatten() ]
-            }
+            .map(flattenInputArrays)
             .set { ch_input }
 
         ch_samplesheet = ch_input
@@ -115,18 +164,12 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_ubam }
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map {
-                meta, input, _ref, _ref_path ->
-                    tuple(meta.id,meta,file(input))
-            }
+            .map(transformInputEntry)
             .groupTuple()
             .map { samplesheet ->
                 validateInputSamplesheet(samplesheet)
             }
-            .map {
-                meta, input ->
-                    return [ meta, input.flatten() ]
-            }
+            .map(flattenInputArrays)
             .set { ch_samplesheet }
 
     } else {
@@ -134,78 +177,47 @@ workflow PIPELINE_INITIALISATION {
             .fromPath("${projectDir}/assets/NO_UBAM")
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map {
-                meta, input, _ref, _ref_path ->
-                    tuple(meta.id,meta,file(input))
-            }
+            .map(transformInputEntry)
             .groupTuple()
             .map { samplesheet ->
                 validateInputSamplesheet(samplesheet)
             }
-            .map {
-                meta, input ->
-                    return [ meta, input.flatten() ]
-            }
+            .map(flattenInputArrays)
             .set { ch_samplesheet }
     }
 
     if (params.demux != null) {
         Channel
             .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
-            .map {
-                barcode, sample ->
-                    tuple(barcode,sample)
-            }
+            .map(transformDemuxEntry)
             .set { ch_demux }
     } else {
         Channel.empty()
             .set { ch_demux }
     }
 
-
-    if (params.adaptive) {
-        if (params.adaptive_samplesheet != null) {
-            Channel
-                .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
-                .map {
-                    meta, bed, padding, low_fidelity ->
-                    if(!low_fidelity) {
-                        return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
-                    } else if(low_fidelity == null) {
-                        return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
-                    } else {
-                        return(tuple(meta, file(bed), padding, file(low_fidelity)))
-                    }
-                }
-                groupTuple(by:1)
-                .set { ch_bed }
-        } else {
-            Channel
-                .fromPath(input_bed)
-                .map {
-                    bed ->
-                    tuple(bed, input_padding, list_low_fidelity)
-                }
-                .combine(ch_samplesheet)
-                .map { samplesheet ->             // Re-use the sample_id as meta
-                    validateAdaptiveSamplesheet(samplesheet) }
-                .set { ch_bed }
-        }
+    if (params.adaptive_samplesheet != null) {
+        Channel
+            .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .map(transformAdaptiveEntry)
+            groupTuple(by:1)
+            .set { ch_bed }
     } else {
-        Channel.empty()
+        Channel
+            .fromPath(input_bed)
+            .map(transformBedEntry)
+            .combine(ch_samplesheet)
+            .map { samplesheet ->             // Re-use the sample_id as meta
+                validateAdaptiveSamplesheet(samplesheet) }
             .set { ch_bed }
     }
 
 
     Channel
         .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-        .map { meta, _input, ref, ref_path ->
-            tuple(meta.id,meta,ref,file(ref_path)) }
+        .map(transformReferenceEntry)
         .groupTuple()
-        .map {
-                _meta_id, meta, ref, ref_path ->
-                    tuple(meta, ref.flatten(), ref_path.sort().flatten()).flatten()
-        }
+        .map(processGroupedReference)
         .set { ch_ref }
 
 
@@ -356,3 +368,46 @@ def methodsDescriptionText(mqc_methods_yaml) {
     return description_html.toString()
 }
 
+//
+// Function to modify metadata id field in a flexible way
+// This is a generalized function that can handle various metadata transformations
+//
+def modifyMetaId(Map meta, String operation, String search_string = '', String replace_string = '', String suffix = '') {
+    // Create a deep copy of the metadata to avoid modifying the original
+    def new_meta = meta.clone()
+
+    // Ensure all metadata fields are converted to strings for consistency
+    new_meta.each { key, value ->
+        if (value != null) {
+            new_meta[key] = value.toString()
+        }
+    }
+
+    // Apply the requested operation to the id field
+    if (operation == 'remove_suffix') {
+        if (new_meta.id && suffix && new_meta.id.endsWith(suffix)) {
+            new_meta.id = new_meta.id.substring(0, new_meta.id.length() - suffix.length())
+        }
+    } else if (operation == 'add_suffix') {
+        if (new_meta.id && suffix) {
+            new_meta.id = new_meta.id + suffix
+        }
+    } else if (operation == 'replace') {
+        if (new_meta.id && search_string) {
+            new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
+        }
+    } else if (operation == 'prefix') {
+        if (new_meta.id && suffix) {  // using suffix parameter as prefix for consistency
+            new_meta.id = suffix + new_meta.id
+        }
+    }
+    // For default case or no operation - just return normalized metadata
+        // Ensure all metadata fields are converted to strings for consistency
+    new_meta.each { key, value ->
+        if (value != null) {
+            new_meta[key] = value.toString()
+        }
+    }
+
+    return new_meta
+}

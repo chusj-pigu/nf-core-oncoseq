@@ -212,7 +212,8 @@
         },
         "bed": {
             "type": "string",
-            "description": "Bed file used for adaptive mode"
+            "description": "Bed file used for adaptive mode",
+            "default": "/workspaces/nf-core-oncoseq/test_data/adaptive/2025-02-05-CHUSJ-Panel-20kb-LP.bed"
         },
         "demux": {
             "type": "string",
@@ -226,10 +227,6 @@
         "m_bases": {
             "type": "string",
             "description": "Modifications model to usefor basecalling"
-        },
-        "model_path": {
-            "type": "string",
-            "description": "If using on a HPC, path to the local basecalling model"
         },
         "m_bases_path": {
             "type": "string",
@@ -270,10 +267,6 @@
             "description": "ClairS_TO model to use for SNP calling",
             "default": "ont_r10_dorado_sup_5khz_ssrs"
         },
-        "model": {
-            "type": "string",
-            "description": "Basecalling model to use with Dorado. If --model-path is not specified, has to be specified."
-        },
         "adaptive_samplesheet": {
             "type": "string",
             "description": "Samplesheet to specify which bed file was used for which sample in adaptive mode"
@@ -293,7 +286,8 @@
         },
         "clin_database": {
             "type": "string",
-            "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)"
+            "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)",
+            "default": "ClinVar"
         },
         "max_memory": {
             "type": "string",
@@ -310,9 +304,20 @@
             "default": "4h",
             "description": "Maximum amount of time any process can take"
         },
-        "wgs": {
-            "type": "boolean",
-            "description": "Run in WGS DNA mode. Cannot be set with adaptive sampling of cell free DNA mode."
+        "time_series": {
+            "type": "boolean"
+        },
+        "time_points": {
+            "type": "string"
+        },
+        "include_full": {
+            "type": "boolean"
+        },
+        "basecall_model": {
+            "type": "string"
+        },
+        "basecall_model_path": {
+            "type": "string"
         }
     },
     "required": ["clin_database"]
