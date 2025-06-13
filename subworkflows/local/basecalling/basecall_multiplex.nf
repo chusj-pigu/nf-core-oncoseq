@@ -14,6 +14,7 @@ include { paramsSummaryMap                          } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc                      } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText                    } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { modifyMetaId                              } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,8 +59,8 @@ workflow BASECALL_MULTIPLEX {
             tuple([id: sample], ubam) }
         .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add pass to meta in tuples for output naming
-            def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, ubam)
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
+            tuple(new_meta, ubam)
             }
 
     ch_new_sample_ids_fail = ch_demux
@@ -68,8 +69,8 @@ workflow BASECALL_MULTIPLEX {
             tuple([id: sample], ubam) }
         .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add fail to meta in tuples for output naming
-            def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, ubam)
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
+            tuple(new_meta, ubam)
             }
 
     SAMTOOLS_TOFASTQ_PASS(ch_new_sample_ids_pass)

@@ -6,7 +6,49 @@
 
 ## Introduction
 
-<!-- TODO nf-core: Add documentation about anything specific to running your pipeline. For general topics, please point to (and add to) the main nf-core website. -->
+nf-core/oncoseq is a comprehensive bioinformatics pipeline for analyzing Oxford Nanopore Technologies (ONT) long-read sequencing data in oncology contexts. The pipeline supports three distinct workflow modes optimized for different sequencing strategies and sample types:
+
+- **Adaptive Sampling Mode** (`--adaptive`): Optimized for targeted sequencing with adaptive sampling, including time-series analysis capabilities
+- **Cell-free DNA Mode** (`--cfdna`): Specialized for circulating tumor DNA (ctDNA) analysis from liquid biopsies
+- **Whole Genome Sequencing Mode** (`--wgs`): Complete genome analysis for comprehensive variant detection
+
+The pipeline can process data starting from raw ONT signals (POD5/FAST5 files) through basecalling, or begin with pre-basecalled FASTQ files. It performs comprehensive variant analysis including SNV/indel calling, structural variant detection, copy number variation analysis, and variant phasing.
+
+## Pipeline Modes
+
+### Adaptive Sampling Mode (`--adaptive`)
+
+This mode is designed for targeted sequencing experiments using ONT's adaptive sampling technology. It includes:
+
+- **Targeted Coverage Analysis**: Evaluates sequencing coverage across specified genomic regions
+- **Time-series Evaluation**: Tracks sequencing progress over time for adaptive sampling optimization
+- **Region-specific Variant Calling**: Focuses analysis on regions of interest defined by BED files
+- **Coverage Separation**: Separates on-target and off-target reads for quality assessment
+
+**Key Parameters:**
+- `--bed`: BED file defining regions of interest for adaptive sampling
+- `--adaptive_samplesheet`: Optional samplesheet specifying BED files per sample
+- `--time_series`: Enable time-series analysis for tracking sequencing progress
+- `--time_points`: Comma-separated list of time points for analysis
+- `--padding`: Padding around regions of interest (default: based on BED file)
+- `--low_fidelity`: File listing genes with known sequencing challenges
+
+### Cell-free DNA Mode (`--cfdna`)
+
+Optimized for liquid biopsy analysis focusing on:
+
+- **Copy Number Variation Detection**: Specialized CNV calling optimized for ctDNA
+- **Low-input Sample Processing**: Handles the unique challenges of cfDNA analysis
+- **Multiplexed Sample Support**: Designed for high-throughput cfDNA screening
+
+### Whole Genome Sequencing Mode (`--wgs`)
+
+Comprehensive genome analysis including:
+
+- **Complete Variant Calling**: SNVs, indels, structural variants, and CNVs
+- **Variant Phasing**: Links variants to their parental chromosomes
+- **Structural Variant Detection**: Large-scale genomic rearrangements
+- **Comprehensive Annotation**: Clinical and functional variant annotation
 
 ## Samplesheet input
 
@@ -15,6 +57,34 @@ You will need to create a samplesheet with information about the samples you wou
 ```bash
 --input '[path to samplesheet file]'
 ```
+
+The pipeline supports different input types depending on your starting data:
+
+### FASTQ Input (Skip Basecalling)
+
+For pre-basecalled data, use the `--skip_basecalling` flag:
+
+```csv title="samplesheet.csv"
+sample,fastq_1,fastq_2
+SAMPLE1,/path/to/sample1.fastq.gz,
+SAMPLE2,/path/to/sample2_R1.fastq.gz,/path/to/sample2_R2.fastq.gz
+```
+
+### Raw Signal Input (With Basecalling)
+
+For raw ONT data requiring basecalling:
+
+```csv title="samplesheet.csv"
+sample,pod5,ubam
+SAMPLE1,/path/to/sample1_pod5_dir,/path/to/sample1.ubam
+SAMPLE2,/path/to/sample2_pod5_dir,/path/to/sample2.ubam
+```
+
+**Additional Input Files:**
+
+- `--demux_samplesheet`: For multiplexed samples requiring demultiplexing
+- `--adaptive_samplesheet`: For adaptive sampling with sample-specific BED files
+- `--ubam_samplesheet`: For unaligned BAM files from previous basecalling runs
 
 ### Multiple runs of the same sample
 
@@ -54,13 +124,88 @@ An [example samplesheet](../assets/samplesheet.csv) has been provided with the p
 
 ## Running the pipeline
 
-The typical command for running the pipeline is as follows:
+The typical command for running the pipeline varies depending on the workflow mode:
+
+### Adaptive Sampling Mode
 
 ```bash
-nextflow run nf-core/oncoseq --input ./samplesheet.csv --outdir ./results  -profile docker
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --outdir ./results \
+    --adaptive \
+    --bed ./regions_of_interest.bed \
+    --time_series \
+    --time_points "1,2,4,8,12,24" \
+    -profile docker
 ```
 
-This will launch the pipeline with the `docker` configuration profile. See below for more information about profiles.
+### Cell-free DNA Mode
+
+```bash
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --outdir ./results \
+    --cfdna \
+    --demux_samplesheet ./demux.csv \
+    -profile docker
+```
+
+### Whole Genome Sequencing Mode
+
+```bash
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --outdir ./results \
+    --wgs \
+    --clairsto_model ont_r10_dorado_sup_5khz_ssrs \
+    --basecall_model sup \
+    -profile docker
+```
+
+### Skip Basecalling (Pre-basecalled FASTQ)
+
+```bash
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --outdir ./results \
+    --adaptive \
+    --skip_basecalling \
+    --bed ./regions_of_interest.bed \
+    -profile docker
+```
+
+## Key Parameters
+
+### Basecalling Parameters
+
+- `--basecall_model`: Dorado basecalling model (`fast`, `hac`, `sup`)
+- `--basecall_model_path`: Path to custom basecalling model
+- `--device`: Computing device for basecalling (`cpu`, `cuda:0`)
+- `--batch`: Batch size for basecalling processes
+- `--m_bases`: Modified base detection model
+- `--minqs`: Minimum quality score for read filtering (default: 10)
+
+### Variant Calling Parameters
+
+- `--clairsto_model`: ClairS-TO model for variant calling
+- `--clin_database`: Clinical variant database for annotation (ClinVar)
+- `--qdnaseq_binsize`: Bin size for CNV calling (default: 500)
+
+### Adaptive Sampling Parameters
+
+- `--bed`: BED file defining target regions
+- `--adaptive_samplesheet`: Sample-specific BED file assignments
+- `--padding`: Padding around target regions
+- `--low_fidelity`: File listing problematic genomic regions
+- `--time_series`: Enable time-series analysis
+- `--time_points`: Time points for analysis (comma-separated)
+- `--include_full`: Include full sequencing time in analysis
+
+### Resource Parameters
+
+- `--max_memory`: Maximum memory per process (default: 16G)
+- `--max_cpus`: Maximum CPUs per process (default: 4)
+- `--max_time`: Maximum time per process (default: 4h)
 
 Note that the pipeline will create the following files in your working directory:
 
@@ -69,6 +214,42 @@ work                # Directory containing the nextflow working files
 <OUTDIR>            # Finished results in specified location (defined with --outdir)
 .nextflow_log       # Log file from Nextflow
 # Other nextflow hidden files, eg. history of pipeline runs and old logs.
+```
+
+## Output Structure
+
+The pipeline generates organized output directories based on the analysis performed:
+
+```bash
+results/
+├── alignments/          # BAM files and alignment statistics
+├── basecalling/         # Basecalled FASTQ files (if basecalling performed)
+├── variants/            # Variant calling results (VCF files)
+│   ├── clairs/         # ClairS-TO somatic variant calls
+│   ├── clair3/         # Clair3 germline variant calls
+│   ├── phasing/        # Phased variant files
+│   └── structural/     # Structural variant calls
+├── cnv/                # Copy number variation analysis
+├── coverage/           # Coverage analysis and statistics
+├── time_series/        # Time-series analysis results (adaptive mode)
+├── reports/            # MultiQC and other analysis reports
+└── pipeline_info/      # Pipeline execution information
+```
+
+## Test Profiles
+
+The pipeline includes several test profiles for validation:
+
+- `test`: Minimal test with small dataset
+- `test_fastq`: Test with pre-basecalled FASTQ input
+- `test_full`: Comprehensive test with realistic data
+- `test_full_ts`: Full test with time-series analysis
+- `test_drac`: Test configuration for DRAC cluster
+
+Example test run:
+
+```bash
+nextflow run nf-core/oncoseq -profile test,docker --outdir test_results
 ```
 
 If you wish to repeatedly use the same parameters for multiple runs, rather than specifying each flag in the command, you can specify these in a params file.
@@ -89,8 +270,65 @@ with:
 ```yaml title="params.yaml"
 input: './samplesheet.csv'
 outdir: './results/'
-<...>
+adaptive: true
+bed: './target_regions.bed'
+time_series: true
+time_points: '1,2,4,8,12,24'
+clairsto_model: 'ont_r10_dorado_sup_5khz_ssrs'
+basecall_model: 'sup'
+max_memory: '32.GB'
+max_cpus: 8
 ```
+
+## Analysis Capabilities
+
+### Variant Detection and Analysis
+
+The pipeline provides comprehensive variant analysis capabilities:
+
+**Small Variant Calling:**
+- **ClairS-TO**: Somatic variant calling optimized for tumor samples
+- **Clair3**: Germline variant calling for constitutional variants
+- **Quality Filtering**: Configurable quality thresholds and filters
+- **Clinical Annotation**: Integration with ClinVar and other databases
+
+**Structural Variant Detection:**
+- **Sniffles2**: Long-read optimized SV calling
+- **Large Deletions, Insertions**: Detection of major genomic rearrangements
+- **Copy Number Variations**: Both targeted and genome-wide CNV analysis
+- **Breakpoint Resolution**: Single-nucleotide resolution for many SVs
+
+**Variant Phasing:**
+- **WhatsHap**: Statistical phasing of heterozygous variants
+- **Haplotype-resolved Analysis**: Separates maternal and paternal variants
+- **Long-range Phasing**: Leverages long-read advantages for extended phasing
+
+### Coverage and Quality Analysis
+
+**Adaptive Sampling Specific:**
+- **On/Off-target Analysis**: Quantifies enrichment efficiency
+- **Time-series Tracking**: Monitors coverage accumulation over time
+- **Region-specific Metrics**: Per-gene and per-exon coverage statistics
+- **Adaptive Efficiency**: Measures real-time selection performance
+
+**General Coverage Metrics:**
+- **Depth Distribution**: Coverage histograms and statistics
+- **Uniformity Assessment**: Coefficient of variation across regions
+- **Quality Metrics**: Read quality, mapping quality, and alignment statistics
+
+### Specialized Analysis Modes
+
+**Cell-free DNA Analysis:**
+- **Low-input Optimization**: Adapted algorithms for cfDNA characteristics
+- **Fragment Analysis**: Size distribution and fragmentation patterns
+- **CNV Detection**: Optimized for detecting circulating tumor DNA
+- **Quality Control**: cfDNA-specific QC metrics and thresholds
+
+**Time-series Analysis:**
+- **Progressive Coverage**: Tracks sequencing progress over defined time points
+- **Adaptive Efficiency**: Measures on-target enrichment over time
+- **Stopping Criteria**: Supports analysis of optimal sequencing duration
+- **Comparative Analysis**: Multiple time point comparison and visualization
 
 You can also generate such `YAML`/`JSON` files via [nf-core/launch](https://nf-co.re/launch).
 
@@ -210,4 +448,98 @@ We recommend adding the following line to your environment to limit this (typica
 
 ```bash
 NXF_OPTS='-Xms1g -Xmx4g'
+```
+
+## Workflow Mode Selection
+
+The pipeline supports exactly one workflow mode at a time. You must specify one of:
+
+- `--adaptive`: Adaptive sampling analysis
+- `--cfdna`: Cell-free DNA analysis  
+- `--wgs`: Whole genome sequencing analysis
+
+**Note:** These modes are mutually exclusive and cannot be combined.
+
+## Advanced Usage
+
+### Time-series Analysis (Adaptive Mode Only)
+
+For adaptive sampling experiments, you can track sequencing progress over time:
+
+```bash
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --adaptive \
+    --time_series \
+    --time_points "0.5,1,2,4,8,12,24" \
+    --include_full \
+    --outdir ./results \
+    -profile docker
+```
+
+### Custom Basecalling Models
+
+For specialized basecalling requirements:
+
+```bash
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --basecall_model_path /path/to/custom/model \
+    --m_bases 5mCG_5hmCG \
+    --device cuda:0 \
+    --outdir ./results \
+    -profile docker
+```
+
+### Multi-sample Demultiplexing
+
+For multiplexed runs requiring demultiplexing:
+
+```bash
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --demux_samplesheet ./demux_barcodes.csv \
+    --demux SQK-RBK004 \
+    --outdir ./results \
+    -profile docker
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Memory Errors**: Increase `--max_memory` for large datasets
+2. **Time Limits**: Adjust `--max_time` for complex analyses  
+3. **GPU Issues**: Ensure CUDA drivers are installed for GPU basecalling
+4. **File Permissions**: Ensure input files are readable and output directory is writable
+
+### Resource Optimization
+
+For large datasets or resource-constrained environments:
+
+```bash
+# Increase resources
+--max_memory 64GB --max_cpus 16 --max_time 24h
+
+# Reduce parallel processes
+process.maxForks = 2
+
+# Use specific resource profiles
+-profile drac  # For DRAC cluster
+-profile mpgi_local  # For local MPGI systems
+```
+
+### Debugging
+
+Enable detailed logging for troubleshooting:
+
+```bash
+nextflow run nf-core/oncoseq \
+    --input ./samplesheet.csv \
+    --outdir ./results \
+    -profile docker \
+    -with-trace \
+    -with-report \
+    -with-timeline \
+    -with-dag flowchart.html
 ```

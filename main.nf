@@ -21,10 +21,13 @@ include { WGS                     } from './workflows/wgs'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
+
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
 workflow NFCORE_ONCOSEQ_ADAPTIVE {
+
+
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -125,7 +128,7 @@ workflow {
 
     // Load Channels from parameters:
 
-    ch_model = params.model ? Channel.of(params.model) : Channel.fromPath(params.model_path)
+    ch_model = params.basecall_model ? Channel.of(params.basecall_model) : Channel.fromPath(params.basecall_model_path)
 
     // Combine the samplesheet with the model :
     if (params.skip_basecalling) {

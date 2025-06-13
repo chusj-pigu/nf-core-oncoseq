@@ -13,6 +13,7 @@ include { paramsSummaryMap                          } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc                      } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText                    } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { modifyMetaId                              } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,15 +40,15 @@ workflow BASECALL_SIMPLEX {
     ch_ubam_pass = SAMTOOLS_QSFILTER.out.ubam_pass
         .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
-            def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, ubam)
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
+            tuple(new_meta, ubam)
             }
 
     ch_ubam_fail = SAMTOOLS_QSFILTER.out.ubam_fail
         .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
-            def meta_full   = meta.id + '_' + meta_suffix
-            tuple(id:meta_full, ubam)
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
+            tuple(new_meta, ubam)
             }
 
     SAMTOOLS_TOFASTQ_PASS(ch_ubam_pass)

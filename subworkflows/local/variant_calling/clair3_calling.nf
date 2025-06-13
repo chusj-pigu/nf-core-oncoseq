@@ -12,6 +12,7 @@ include { paramsSummaryMap             } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { modifyMetaId                 } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -32,6 +33,7 @@ workflow CLAIR3_CALLING {
 
     ch_versions = Channel.empty()
 
+
     ch_ref = ref
         .map { meta, _ref, ref_fasta, ref_fai ->
             tuple(meta, ref_fasta, ref_fai) }
@@ -40,20 +42,21 @@ workflow CLAIR3_CALLING {
         .join(ch_ref)
         .combine(basecall_model)
         .map { meta, bamfile, bai, ref_fasta, ref_fai, model ->
-            def model_str = model instanceof Path ? model.getName() : model.toString()              // Convert model to string if it's a path
-            def model_clai3 = model_str.contains('sup')
+            def model_str = model instanceof Path ? model.getBaseName() : model.toString()
+            def model_clair3 = model_str.contains('sup')
                 ? 'r1041_e82_400bps_sup_v500'
-                : (model.name.contains('hac') || model.name.contains('fast'))
+                : (model_str.contains('hac') || model_str.contains('fast'))
                     ? 'r1041_e82_400bps_hac_v500'
                     : { throw new IllegalArgumentException("Unsupported model: ${model}") }()
-            tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clai3)
+            tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clair3)
         }
-
-    CLAIR3_CALL(ch_input_clair3)
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
-            tuple(meta, refid) }
+            tuple(meta, refid) 
+            }
+
+    CLAIR3_CALL(ch_input_clair3)
 
     // Branch ref channel to create database channel
     ch_databases = ch_ref_type.branch {
@@ -61,11 +64,6 @@ workflow CLAIR3_CALLING {
         hg19: { meta, refid -> refid.matches('hg19|GRCh37') }
         other: true
             return 'Error'
-    }
-
-    // Generate error if reference is not hg38 nor hg19
-    ch_error = ch_databases.other.map {
-        throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
     }
 
     ch_databases_hg38 = ch_databases.hg38
@@ -79,8 +77,9 @@ workflow CLAIR3_CALLING {
     ch_snp_annotate = CLAIR3_CALL.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
-            def meta_type = meta.id + '_germline_snp'
-                tuple(id:meta_type, output, database) }
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp')
+            tuple(new_meta, output, database)
+        }
 
     SNPEFF_ANNOTATE(ch_snp_annotate)
 
@@ -95,8 +94,9 @@ workflow CLAIR3_CALLING {
 
     ch_snipsift_out = SNPSIFT_ANNOTATE.out.vcf
         .map { meta, vcf ->
-            def meta_type = meta.id + '_clinvar'
-                tuple(id:meta_type, vcf) }
+            def meta_clinvar = modifyMetaId(meta, 'add_suffix', '', '', '_clinvar')
+            tuple(meta_clinvar, vcf)
+            }
 
     ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
         .mix(ch_snipsift_out)
