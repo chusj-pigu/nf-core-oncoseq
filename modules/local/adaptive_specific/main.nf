@@ -82,14 +82,16 @@ process COVERAGE_PLOT {
     output:
     tuple val(meta),
         path("*.pdf"),
-        emit: cov_plot
+        emit: cov_plot_pdf
+    tuple val(meta),
+        path("*.svg"),
+        emit: cov_plot_svg
     path "versions.yml",
         emit: versions
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}_coverage_mapq.pdf
     coverage_plot.R \\
         -n ${nofilt_bed} \\
         -p ${primary_bed} \\

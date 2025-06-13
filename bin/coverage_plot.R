@@ -203,7 +203,41 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
            coord_cartesian(expand = FALSE, clip = "off") +
            labs(y = "Mean coverage", alpha = "Alignement type filter", fill = "", title = paste(sub("^(.*)_.*$", "\\1", full_bed_file), " (mean coverage:", round(mean), "X)")))
   dev.off()
+
+  # Generate a svg plot alongside the pdf plot
+  svg(gsub("\\.pdf$", ".svg", output_pdf), width = 22, height = 14)
+  print(ggplot() +
+          geom_bar(data = bed, aes(x = gene, y = coverage, fill = fidelity, alpha = set), stat = "identity") +
+          geom_text(data = ann_out, aes(x = gene, y = coverage - 50, label = ann), size = 4, hjust = "inward") +
+          geom_text(data = ann_facet, aes(x = gene, y = coverage, label = ann), size = 4, vjust = 0.5, hjust = "outward", nudge_x = 0.5) +
+          geom_hline(yintercept = ceiling(median), linewidth = 1, linetype = 'dashed') +
+          geom_hline(yintercept = ceiling(bg_cov), linewidth = 1, linetype = 'dashed') +
+          facet_wrap(~ chr, nrow = 3, scales = "free_x") +
+          theme(
+            plot.margin = unit(c(0.5, 4, 0, 0), "cm"),
+            axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
+            axis.text.y = element_text(size = 14),
+            axis.title.x = element_blank(),
+            axis.title.y = element_text(size = 18),
+            strip.text.x = element_text(size = 18),
+            strip.background = element_rect(fill = NA),
+            panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.2),
+            panel.background = element_blank(),
+            legend.position = "bottom",
+            legend.text = element_text(size = 16),
+            legend.title = element_text(size = 16),
+            plot.title = element_text(size = 18),
+            panel.grid.major = element_line(colour = "grey")
+          ) +
+          scale_y_continuous(limits = c(0, max(axis_ticks)), breaks = axis_ticks) +
+          scale_fill_manual(values = c("lavenderblush4", "orangered3", "turquoise4", "#DDAA33FF"), breaks = c("Normal (-2.75 < zscore < 2.75)", "Possible increased copy number", "Possible decreased copy number", "Low fidelity")) +
+          scale_alpha_manual(values = c(0.33, 0.66, 1), breaks = c("no filter", "primary only", "unique")) +
+          coord_cartesian(expand = FALSE, clip = "off") +
+          labs(y = "Mean coverage", alpha = "Alignement type filter", fill = "", title = paste(sub("^(.*)_.*$", "\\1", full_bed_file), " (mean coverage:", round(mean), "X)")))
+  dev.off()
+
 }
+
 # Usage ####
 
 tryCatch({
@@ -240,4 +274,7 @@ tryCatch({
   generate_plot(bed_long, max_normal_coverage, ann_df, ann_facet, opt$output)
 }, error = function(e) {
   warning("[WARNING] No plot generated: ", e$message)
-})
+}
+
+)
+

@@ -23,7 +23,13 @@ include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/cove
 // Time series evaluation subworkflows
 include { SPLIT_BAMS_TIME   } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
 include { SPLIT_BAMS_TIME_FASTQ   } from '../subworkflows/local/time_series_evaluation/split_bams_fastq.nf'
-include { modifyMetaId    } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+
+// Reporting
+include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
+include { QDNASEQ_REPORT } from '../subworkflows/local/report/variants.nf'
+include { COVERAGE_REPORT } from '../subworkflows/local/report/mapping.nf'
+// Utility functions
+include {  modifyMetaId } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 //
 // WORKFLOW: Adaptive sequencing analysis pipeline
@@ -93,14 +99,8 @@ workflow ADAPTIVE {
 
         // Structural variant calling using phased BAM
         SV_CALLING (
-                PHASING_GERMLINE.out.haptag_bam
-                .map { meta, bamfile, bai ->
-                    // Restore original sample ID for output naming
-                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
-                    tuple(meta_restore, bamfile, bai)
-                },
-                ref
+            PHASING_GERMLINE.out.haptag_bam,
+            ref
         )
 
         // Copy number variant calling
@@ -199,14 +199,13 @@ workflow ADAPTIVE {
         )
 
         // Structural variant calling using phased BAM
-        // TODO: find 
         SV_CALLING (
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
-                    // Restore original sample ID for output naming
-                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
-                    tuple(meta_restore, bamfile, bai)
+                // Restore original sample ID for output naming
+                def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
+                meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+                tuple(meta_restore, bamfile, bai)
                 },
             ch_ref_for_calling
         )
@@ -217,5 +216,56 @@ workflow ADAPTIVE {
             ch_ref_for_calling
         )
 
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COLLECT VERSIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    ch_versions = MAPPING.out.versions
+        .mix(CLAIRS_TO_CALLING.out.versions)
+        .mix(CLAIR3_CALLING.out.versions)
+        .mix(PHASING_SOMATIC.out.versions)
+        .mix(PHASING_GERMLINE.out.versions)
+        .mix(SV_CALLING.out.versions)
+        .mix(CNV_CALLING.out.versions)
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COMPILE SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+        QDNASEQ_REPORT(CNV_CALLING.out.qdnaseq_plot)
+
+        COVERAGE_REPORT(
+            COVERAGE_SEPARATE.out.coverage_separated,
+            COVERAGE_SEPARATE.out.coverage_plot
+        )
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COLLECT SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    // Collect sections from all analysis steps
+    // ch_sections = ch_sections.mix(SUMMARIZE_ANALYSIS.out.ch_section)
+    ch_sections = QDNASEQ_REPORT.out.sections
+    ch_sections = ch_sections.mix(COVERAGE_REPORT.out.sections)
+
+    bam_input = PHASING_GERMLINE.out.haptag_bam
+        .map { meta, bamfile, bai ->
+            // Restore original sample ID for output naming
+            def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
+            meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+            tuple(meta_restore, bamfile, bai)
+        }
+
+        MIDNIGHT_REPORT(
+            bam_input,
+            ch_sections,
+            ch_versions
+        )
+        
     }
 }
