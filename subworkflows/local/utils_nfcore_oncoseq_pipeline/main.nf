@@ -50,22 +50,22 @@ workflow PIPELINE_INITIALISATION {
     def transformUbamEntry = { meta, ubam ->
         tuple(meta.id, meta, file(ubam))
     }
-    
+
     // Transform input samplesheet entries to tuples with file handling
     def transformInputEntry = { meta, input, _ref, _ref_path ->
         tuple(meta.id, meta, file(input))
     }
-    
+
     // Flatten input arrays for processing
     def flattenInputArrays = { meta, input ->
         return [meta, input.flatten()]
     }
-    
+
     // Transform demux samplesheet entries
     def transformDemuxEntry = { barcode, sample ->
         tuple(barcode, sample)
     }
-    
+
     // Transform adaptive samplesheet entries with conditional file handling
     def transformAdaptiveEntry = { meta, bed, padding, low_fidelity ->
         if(!low_fidelity) {
@@ -76,17 +76,17 @@ workflow PIPELINE_INITIALISATION {
             return(tuple(meta, file(bed), padding, file(low_fidelity)))
         }
     }
-    
+
     // Transform bed file entries for default adaptive processing
     def transformBedEntry = { bed ->
         tuple(bed, input_padding, list_low_fidelity)
     }
-    
+
     // Transform reference entries for processing
     def transformReferenceEntry = { meta, _input, ref, ref_path ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
-    
+
     // Process grouped reference data
     def processGroupedReference = { _meta_id, meta, ref, ref_path ->
         // Sort ref_path so that reference files (.fa, .fasta) come before indices (.fai)
@@ -375,14 +375,14 @@ def methodsDescriptionText(mqc_methods_yaml) {
 def modifyMetaId(Map meta, String operation, String search_string = '', String replace_string = '', String suffix = '') {
     // Create a deep copy of the metadata to avoid modifying the original
     def new_meta = meta.clone()
-    
+
     // Ensure all metadata fields are converted to strings for consistency
     new_meta.each { key, value ->
         if (value != null) {
             new_meta[key] = value.toString()
         }
     }
-    
+
     // Apply the requested operation to the id field
     if (operation == 'remove_suffix') {
         if (new_meta.id && suffix && new_meta.id.endsWith(suffix)) {
@@ -408,6 +408,6 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
             new_meta[key] = value.toString()
         }
     }
-    
+
     return new_meta
 }

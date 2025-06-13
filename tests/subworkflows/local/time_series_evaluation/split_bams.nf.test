@@ -1,0 +1,35 @@
+nextflow_workflow {
+
+    name "Test Workflow SPLIT_BAMS_TIME"
+    script "subworkflows/local/time_series_evaluation/split_bams.nf"
+    workflow "SPLIT_BAMS_TIME"
+
+    test("Test Workflow SPLIT_BAMS_TIME") {
+
+        when {
+            params {
+                max_cpus = 2
+            }
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                input[0] = tuple(
+                [id: "test_sample"],
+                file("${projectDir}/test_data/alignments/sample1_mito_align.bam")
+                )
+                input[1] = tuple 0, 4
+                input[2] = tuple(
+                    [id: "test_sample"],
+                    file("${projectDir}/test_data/clinvar/clinvar.vcf.gz")
+                )
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+            assert snapshot(workflow.out).match()
+        }
+
+    }
+}
