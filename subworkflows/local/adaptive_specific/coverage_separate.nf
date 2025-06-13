@@ -38,7 +38,7 @@ workflow COVERAGE_SEPARATE {
 
     ch_split_in = bam
         .join(ch_bed)
-        
+
 
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 

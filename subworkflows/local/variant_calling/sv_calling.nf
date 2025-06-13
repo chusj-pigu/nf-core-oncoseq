@@ -5,6 +5,7 @@
 */
 include { SNIFFLES_CALL   } from '../../../modules/local/sniffles/main.nf'
 include { SNPEFF_ANNOTATE } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_SORT   } from '../../../modules/local/bcftools/main.nf'
 include { BGZIP_VCF       } from '../../../modules/local/bcftools/main.nf'
 include { modifyMetaId    } from '../utils_nfcore_oncoseq_pipeline'
 
@@ -60,7 +61,8 @@ workflow SV_CALLING {
             tuple(new_meta, output, database) }
 
     SNPEFF_ANNOTATE(ch_sv_annotate)
-    BGZIP_VCF(SNPEFF_ANNOTATE.out.vcf)
+    BCFTOOLS_SORT(SNPEFF_ANNOTATE.out.vcf)
+    BGZIP_VCF(BCFTOOLS_SORT.out.vcf)
 
     ch_versions = SNIFFLES_CALL.out.versions
 
