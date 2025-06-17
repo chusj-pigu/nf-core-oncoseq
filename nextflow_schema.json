@@ -258,6 +258,10 @@
             "type": "boolean",
             "description": "Run in adaptive sampling mode. Cannot be set with cfdna or wgs mode."
         },
+        "wgs": {
+            "type": "boolean",
+            "description": "Run in adaptive WGS mode. Cannot be set with cfdna or adaptive mode."
+        },
         "cfdna": {
             "type": "boolean",
             "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling or wgs mode."

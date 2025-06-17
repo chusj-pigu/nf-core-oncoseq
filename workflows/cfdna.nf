@@ -23,8 +23,8 @@ workflow CFDNA {
         ref
     )
 
-    CNV_CALLING (
-            MAPPING.out.bam,
-            ref
-        )
+    // CNV_CALLING (
+    //         MAPPING.out.bam,
+    //         ref
+    //     )
 }

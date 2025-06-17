@@ -20,12 +20,20 @@ nextflow_workflow {
                     .combine(ch_bai)
                     .map { bam, bai ->
                         tuple(id:'sample1',bam,bai)}
-                ch_ref = Channel.fromPath("${projectDir}/test_data/realistic_data/hg38.fa*")
+                ch_ref = Channel.fromPath("${projectDir}/test_data/realistic_data/hg38.{fa,fa.fai}")
                     .toSortedList()
                     .map { ref, ref_fai ->
                         tuple(id:"sample1", "hg38", ref, ref_fai) }
                 input[0] = ch_input0
                 input[1] = ch_ref
+                ch_vcf = Channel.fromPath("${projectDir}/test_data/realistic_data/subchrom_in.vcf.gz")
+                ch_vcf_tbi = Channel.fromPath("${projectDir}/test_data/realistic_data/subchrom_in.vcf.gz.tbi")
+                ch_meta_vcf = Channel.of('sample1_germline_snp')
+                input[2] = ch_meta_vcf
+                    .combine(ch_vcf)
+                    .combine(ch_vcf_tbi)
+                    .map { meta, vcf, vcf_tbi ->
+                        tuple(id:meta, vcf, vcf_tbi) }
                 """
             }
         }

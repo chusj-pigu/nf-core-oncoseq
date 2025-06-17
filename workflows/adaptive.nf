@@ -42,7 +42,7 @@ workflow ADAPTIVE {
 
     take:
     samplesheet             // channel: samplesheet read in from --input
-    demux_samplesheet       // channel: demux samplesheet read in from --demux_samplesheet  
+    demux_samplesheet       // channel: demux samplesheet read in from --demux_samplesheet
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     clairs_model            // channel: model for ClairS variant calling
     basecall_model          // channel: model for basecalling
@@ -106,7 +106,8 @@ workflow ADAPTIVE {
         // Copy number variant calling
         CNV_CALLING (
             MAPPING.out.bam,
-            ref
+            ref,
+            CLAIR3_CALLING.out.vcf
         )
 
     } else {
@@ -213,7 +214,8 @@ workflow ADAPTIVE {
         // Copy number variant calling
         CNV_CALLING(
             ch_bam_for_calling,
-            ch_ref_for_calling
+            ch_ref_for_calling,
+            CLAIR3_CALLING.out.vcf
         )
 
 /*
