@@ -2,5 +2,6 @@
     "markdown.styles": [
         "public/vscode_markdown.css"
     ],
-    "nextflow.telemetry.enabled": false
+    "nextflow.telemetry.enabled": false,
+    "r.lsp.promptToInstall": false
 }
