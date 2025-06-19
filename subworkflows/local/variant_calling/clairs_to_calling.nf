@@ -189,6 +189,11 @@ workflow CLAIRS_TO_CALLING {
 
 
     ch_snp_annotate = BCFTOOLS_SORT.out.vcf.join(ch_databases_ref)
+        .map { meta, output, database ->
+            // Prepare metadata for SNPEff annotation
+            // Add reference genome type to metadata for database selection
+            prepareSomaticSnpAnnotation(meta, output, database)
+            }
 
     // -----------------------------------------------------------------------------
 
