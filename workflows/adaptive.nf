@@ -52,7 +52,6 @@ workflow ADAPTIVE {
 
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling) {
-
         // Map FASTQ reads to reference genome
         MAPPING(
             samplesheet,
