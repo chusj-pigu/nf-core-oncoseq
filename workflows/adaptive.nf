@@ -52,14 +52,17 @@ workflow ADAPTIVE {
 
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling) {
-        // Split BAMs by time points and convert to FASTQ for time series analysis
-        SPLIT_BAMS_TIME_FASTQ(samplesheet)
 
         // Map FASTQ reads to reference genome
         MAPPING(
-            SPLIT_BAMS_TIME_FASTQ.out.ch_fastq_out,
+            samplesheet,
             ref
-            )
+        )
+
+        COVERAGE_SEPARATE(
+            MAPPING.out.bam,
+            bed
+        )
 
         // Somatic variant calling using ClairS
         CLAIRS_TO_CALLING (
