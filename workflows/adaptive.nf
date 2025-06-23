@@ -12,9 +12,10 @@ include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 // Variant calling subworkflows
 include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { CLAIR3_CALLING } from '../subworkflows/local/variant_calling/clair3_calling.nf'
-include { PHASING_VARIANTS as PHASING_SOMATIC  } from  '../subworkflows/local/variant_calling/phasing.nf'
+include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING        } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { SV_CALLING as SV_PHASED               } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING       } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
 
 // Adaptive-specific subworkflows
@@ -58,6 +59,11 @@ workflow ADAPTIVE {
             ref
         )
 
+        SV_UNPHASED(
+            MAPPING.out.bam,
+            ref
+        )
+
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed
@@ -94,7 +100,7 @@ workflow ADAPTIVE {
         )
 
         // Structural variant calling using phased BAM
-        SV_CALLING (
+        SV_PHASED (
                 PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                     // Restore original sample ID for output naming
@@ -165,6 +171,11 @@ workflow ADAPTIVE {
             ch_bed = bed
         }
 
+        SV_UNPHASED(
+            ch_bam_for_calling,
+            ref
+        )
+
         // Analyze coverage separation between target and background regions
         COVERAGE_SEPARATE(
             ch_bam_for_calling,
@@ -203,7 +214,7 @@ workflow ADAPTIVE {
 
         // Structural variant calling using phased BAM
         // TODO: find
-        SV_CALLING (
+        SV_PHASED (
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                     // Restore original sample ID for output naming
