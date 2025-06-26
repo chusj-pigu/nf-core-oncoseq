@@ -1,12 +1,18 @@
+// Basecalling subworkflows
 include { BASECALL_SIMPLEX   } from '../subworkflows/local/basecalling/basecall_simplex'
 include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_multiplex'
+
+// Core analysis subworkflows
 include { MAPPING            } from '../subworkflows/local/mapping/mapping'
-include { CLAIRS_TO_CALLING  } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
-include { CLAIR3_CALLING } from '../subworkflows/local/variant_calling/clair3_calling.nf'
+
+// Variant calling subworkflows
+include { CLAIRS_TO_CALLING                    } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
+include { CLAIR3_CALLING                       } from '../subworkflows/local/variant_calling/clair3_calling.nf'
+include { BCFTOOLS_CALLING                     } from '../subworkflows/local/variant_calling/bcftools_calling.nf'
 include { PHASING_VARIANTS as PHASING_SOMATIC  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING         } from '../subworkflows/local/variant_calling/sv_calling.nf'
-include { CNV_CALLING        } from '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { PHASING_VARIANTS as PHASING_GERMLINE } from  '../subworkflows/local/variant_calling/phasing.nf'
+include { SV_CALLING                           } from '../subworkflows/local/variant_calling/sv_calling.nf'
+include { CNV_CALLING                          } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 
 workflow WGS {
 
@@ -29,6 +35,12 @@ workflow WGS {
         MAPPING (
             samplesheet,
             ref
+        )
+
+        BCFTOOLS_CALLING(
+            MAPPING.out.bam,
+            ref,
+            ch_clin_database
         )
 
         CLAIRS_TO_CALLING (
@@ -64,7 +76,8 @@ workflow WGS {
 
         CNV_CALLING (
             MAPPING.out.bam,
-            ref
+            ref,
+            CLAIR3_CALLING.out.vcf
         )
 
     } else {
@@ -92,6 +105,12 @@ workflow WGS {
             )
         }
 
+        BCFTOOLS_CALLING(
+            MAPPING.out.bam,
+            ref,
+            ch_clin_database
+        )
+
         CLAIRS_TO_CALLING (
             MAPPING.out.bam,
             ref,
@@ -125,7 +144,8 @@ workflow WGS {
 
         CNV_CALLING (
             MAPPING.out.bam,
-            ref
+            ref,
+            CLAIR3_CALLING.out.vcf
         )
     }
 }
