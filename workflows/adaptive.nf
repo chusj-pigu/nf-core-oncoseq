@@ -3,28 +3,29 @@
 //
 
 // Basecalling subworkflows
-include { BASECALL_SIMPLEX  } from '../subworkflows/local/basecalling/basecall_simplex'
+include { BASECALL_SIMPLEX   } from '../subworkflows/local/basecalling/basecall_simplex'
 include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_multiplex'
 
 // Core analysis subworkflows
 include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 
 // Variant calling subworkflows
-include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
-include { CLAIR3_CALLING } from '../subworkflows/local/variant_calling/clair3_calling.nf'
+include { CLAIRS_TO_CALLING                     } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
+include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
+include { BCFTOOLS_CALLING                      } from '../subworkflows/local/variant_calling/bcftools_calling.nf'
 include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { SV_CALLING as SV_PHASED               } from  '../subworkflows/local/variant_calling/sv_calling.nf'
-include { CNV_CALLING       } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
 
 // Adaptive-specific subworkflows
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
 // Time series evaluation subworkflows
-include { SPLIT_BAMS_TIME   } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
-include { SPLIT_BAMS_TIME_FASTQ   } from '../subworkflows/local/time_series_evaluation/split_bams_fastq.nf'
-include { modifyMetaId    } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+include { SPLIT_BAMS_TIME       } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
+include { SPLIT_BAMS_TIME_FASTQ } from '../subworkflows/local/time_series_evaluation/split_bams_fastq.nf'
+include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 //
 // WORKFLOW: Adaptive sequencing analysis pipeline
@@ -67,6 +68,12 @@ workflow ADAPTIVE {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed
+        )
+
+        BCFTOOLS_CALLING(
+            MAPPING.out.bam,
+            ref,
+            ch_clin_database
         )
 
         // Somatic variant calling using ClairS
@@ -180,6 +187,12 @@ workflow ADAPTIVE {
         COVERAGE_SEPARATE(
             ch_bam_for_calling,
             ch_bed
+        )
+
+        BCFTOOLS_CALLING(
+            ch_bam_for_calling,
+            ref,
+            ch_clin_database
         )
 
         // Somatic variant calling using ClairS
