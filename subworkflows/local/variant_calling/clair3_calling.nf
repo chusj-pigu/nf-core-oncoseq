@@ -13,6 +13,7 @@ include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/uti
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { modifyMetaId                 } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
+include { SUBCHROM_CALL_PANEL          } from '../../../modules/local/subchrom/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -29,6 +30,7 @@ workflow CLAIR3_CALLING {
     ref     // channel: from input samplesheet
     basecall_model       // channel: basecalling model
     clinic_database
+    ch_panel_bin // subchrom panel bin file
     main:
 
     ch_versions = Channel.empty()

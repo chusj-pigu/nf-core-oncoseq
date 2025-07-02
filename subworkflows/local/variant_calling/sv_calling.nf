@@ -50,10 +50,6 @@ workflow SV_CALLING {
     ch_databases_ref = ch_databases_hg38
         .mix(ch_databases_hg19)
 
-    SNIFFLES_CALL.out.vcf.view {
-        "Sniffles output VCF: ${it}"
-    }
-
     ch_sv_annotate = SNIFFLES_CALL.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->

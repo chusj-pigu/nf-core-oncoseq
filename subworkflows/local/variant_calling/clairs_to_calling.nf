@@ -20,6 +20,8 @@ include { BCFTOOLS_SORT                 } from '../../../modules/local/bcftools/
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_SNV   } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_INDEL } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL } from '../../../modules/local/bcftools/main.nf'
+include { SUBCHROM_CALL_PANEL          } from '../../../modules/local/subchrom/main.nf'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -109,6 +111,7 @@ workflow CLAIRS_TO_CALLING {
     ref           // channel: reference genome information from input samplesheet (tuple containing [meta, refid, ref_fasta, ref_fai])
     model         // channel: basecalling model name used for platform-specific optimizations in variant calling
     clinic_database // channel: path to clinical database (e.g., ClinVar) for variant annotation
+    ch_panel_bin // subchrom panel bin file
     main:
 
     // Initialize empty channel for collecting software versions
