@@ -5,7 +5,7 @@
 */
 include { SAMTOOLS_SPLIT_BY_BED } from '../../../modules/local/samtools/main.nf'
 include { SAMTOOLS_INDEX        } from '../../../modules/local/samtools/main.nf'
-include { CRAMINO_STATS         } from '../../../modules/local/cramino/main.nf'
+include { MOSDEPTH_GENERAL      } from '../../../modules/local/mosdepth/main.nf'
 include { MOSDEPTH_ADAPTIVE     } from '../../../modules/local/mosdepth/main.nf'
 include { REMOVE_PADDING        } from '../../../modules/local/adaptive_specific/main.nf'
 include { PIGZ_BED              } from '../../../modules/local/adaptive_specific/main.nf'
@@ -57,7 +57,10 @@ workflow COVERAGE_SEPARATE {
 
     SAMTOOLS_INDEX(ch_index_in)
 
-    CRAMINO_STATS(SAMTOOLS_INDEX.out.bamfile_index)
+    ch_mosdepth_bg = SAMTOOLS_INDEX.out.bamfile_index
+        .filter{ meta, _bamfile, _bai -> meta.id.endsWith('_background') }
+
+    MOSDEPTH_GENERAL(ch_mosdepth_bg)
 
     // Remove padding from bed file for further coverage computations
     ch_bed_pad = bed
@@ -118,15 +121,15 @@ workflow COVERAGE_SEPARATE {
 
     MOSDEPTH_ADAPTIVE(mosdepth_in)
 
-    ch_coverage_bg = CRAMINO_STATS.out.stats
-        .filter { meta, table -> meta.id.contains('background') }
+    ch_coverage_bg = MOSDEPTH_GENERAL.out.summary
         .map { meta, table ->
         // Read the file content as a list of lines
             def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_background')
             def lines = table.readLines()
-            def coverage = lines[5].tokenize('\t')[1].toDouble()    // Last line and only take mean coverage column (4th)
+            def coverage = lines.last().tokenize('\t')[3].toDouble()    // Last line and only take mean coverage column (4th)
             tuple(new_meta, coverage)
         }
+        .view()
     // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
 
     PIGZ_BED(MOSDEPTH_ADAPTIVE.out.bed)
@@ -164,14 +167,14 @@ workflow COVERAGE_SEPARATE {
     //
     ch_versions = SAMTOOLS_SPLIT_BY_BED.out.versions
         .mix(SAMTOOLS_INDEX.out.versions)
-        .mix(CRAMINO_STATS.out.versions)
+        .mix(MOSDEPTH_GENERAL.out.versions)
         .mix(MOSDEPTH_ADAPTIVE.out.versions)
         .mix(COVERAGE_PLOT.out.versions)
 
 
 
     emit:
-    coverage_separated  = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
+    coverage_background = MOSDEPTH_GENERAL.out.summary              // TODO: QUARTO REPORT
     coverage_plot       = COVERAGE_PLOT.out.cov_plot           // TODO: QUARTO REPORT
     versions            = ch_versions
 
