@@ -63,13 +63,13 @@ workflow ADAPTIVE {
             meta, panelbed, padding, _low_fidelity ->
             tuple(meta, panelbed, padding) 
         }
-        ).join(ref).view()
+        ).join(ref)
         .map {
             meta, panelbed, refid, _ref, _ref_fai ->
             tuple(meta, panelbed, refid, params.subchrom_binsize ) 
         }.view()
 
-    ch_panel_bin = SUBCHROM_PANEL_BIN(bed).subchrom_panelbin_bed
+    ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
     
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling) {
@@ -206,7 +206,7 @@ workflow ADAPTIVE {
 
         SV_UNPHASED(
             ch_bam_for_calling,
-            ref
+            ch_ref_for_calling
         )
 
         // Analyze coverage separation between target and background regions
@@ -217,7 +217,7 @@ workflow ADAPTIVE {
 
         BCFTOOLS_CALLING(
             ch_bam_for_calling,
-            ref,
+            ch_ref_for_calling,
             ch_clin_database,
             ch_panel_bin
         )
