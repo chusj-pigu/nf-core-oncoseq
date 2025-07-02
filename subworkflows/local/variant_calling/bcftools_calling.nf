@@ -100,8 +100,14 @@ workflow BCFTOOLS_CALLING {
 
     BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
 
+    ch_subchrom_in = bam.join(BCFTOOLS_CALL.out.vcf).join(ref).join(ch_panel_bin)
+        .map {meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, _reffai, sc_panelbed ->
+            tuple(meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, sc_panelbed)
+        }
 
-    // SUBCHROM_CALL_PANEL()
+    ch_subchrom_in.view()
+
+    SUBCHROM_CALL_PANEL(ch_subchrom_in)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

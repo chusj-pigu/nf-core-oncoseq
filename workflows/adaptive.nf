@@ -56,20 +56,6 @@ workflow ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-
-    ch_subchrom_panelbin_in = REMOVE_PADDING(
-        bed
-        .map {
-            meta, panelbed, padding, _low_fidelity ->
-            tuple(meta, panelbed, padding) 
-        }
-        ).join(ref)
-        .map {
-            meta, panelbed, refid, _ref, _ref_fai ->
-            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
-        }.view()
-
-    ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
     
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling) {
@@ -89,8 +75,17 @@ workflow ADAPTIVE {
             bed
         )
 
-        COVERAGE_SEPARATE.out.coverage_separated
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+        .map {
+            meta, panelbed ->
+            tuple(meta, panelbed) 
+        }.join(ref)
+        .map {
+            meta, panelbed, refid, _ref, _ref_fai ->
+            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
+        }
 
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
 
 
         BCFTOOLS_CALLING(
@@ -214,6 +209,19 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_bed
         )
+        
+
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+        .map {
+            meta, panelbed ->
+            tuple(meta, panelbed) 
+        }.join(ch_ref_for_calling)
+        .map {
+            meta, panelbed, refid, _ref, _ref_fai ->
+            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
+        }
+
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
 
         BCFTOOLS_CALLING(
             ch_bam_for_calling,

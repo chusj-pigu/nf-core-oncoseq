@@ -63,6 +63,7 @@ workflow COVERAGE_SEPARATE {
     ch_bed_pad = bed
         .map { meta,bedfile,padding,_low_fidelity ->
             tuple(meta,bedfile,padding) }
+
     REMOVE_PADDING(ch_bed_pad)
 
     // Create channels for running mosdepth with different filters for each sample by creating a new meta variable containing filter type,
@@ -173,6 +174,7 @@ workflow COVERAGE_SEPARATE {
     emit:
     coverage_separated  = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
     coverage_plot       = COVERAGE_PLOT.out.cov_plot           // TODO: QUARTO REPORT
+    split_bed           = REMOVE_PADDING.out.bed
     versions            = ch_versions
 
 }
