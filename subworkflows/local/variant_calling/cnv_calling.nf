@@ -5,6 +5,8 @@
 */
 include { QDNASEQ_CALL       } from '../../../modules/local/qdnaseq/main.nf'
 include { SUBCHROM_CALL_WGS  } from '../../../modules/local/subchrom/main.nf'
+include { modifyMetaId          } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -33,13 +35,14 @@ workflow CNV_CALLING {
 
     ch_ref_subchrom = ref
         .map { meta, ref_id, ref_fasta, _ref_fai ->
-            tuple(meta,ref_id, ref_fasta) }
+            tuple(meta, ref_id, ref_fasta) }
 
     ch_in_subchrom = vcf
         .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('germline_snp') }       // Only keep the snp file created by clair3 annotated with SnpEff
         .map { meta, vcf_file, _vcf_tbi ->
-            def meta_restore = meta.id.replaceAll('_germline_snp', '')       // Restore meta to be sample id only to join with ref
-                tuple(id:meta_restore, vcf_file) }
+            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp', '', '')       // Restore meta to be sample id only to join with ref
+                tuple(meta_restore, vcf_file) 
+                }
         .join(ch_ref_subchrom)
 
     SUBCHROM_CALL_WGS(ch_in_subchrom)
