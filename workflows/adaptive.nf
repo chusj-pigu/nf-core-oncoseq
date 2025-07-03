@@ -28,6 +28,11 @@ include { SPLIT_BAMS_TIME_FASTQ } from '../subworkflows/local/time_series_evalua
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 //
+include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
+include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
+
+
+//
 // WORKFLOW: Adaptive sequencing analysis pipeline
 //
 // This workflow handles two main scenarios:
@@ -51,7 +56,7 @@ workflow ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-
+    
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling) {
         // Map FASTQ reads to reference genome
@@ -70,10 +75,24 @@ workflow ADAPTIVE {
             bed
         )
 
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+        .map {
+            meta, panelbed ->
+            tuple(meta, panelbed) 
+        }.join(ref)
+        .map {
+            meta, panelbed, refid, _ref, _ref_fai ->
+            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
+        }
+
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
+
+
         BCFTOOLS_CALLING(
             MAPPING.out.bam,
             ref,
-            ch_clin_database
+            ch_clin_database,
+            ch_panel_bin
         )
 
         // Somatic variant calling using ClairS
@@ -81,7 +100,8 @@ workflow ADAPTIVE {
             MAPPING.out.bam,
             ref,
             clairs_model,
-            ch_clin_database
+            ch_clin_database,
+            ch_panel_bin
         )
 
         // Germline variant calling using Clair3
@@ -89,7 +109,8 @@ workflow ADAPTIVE {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            ch_panel_bin
         )
 
         // Phase somatic variants
@@ -180,7 +201,7 @@ workflow ADAPTIVE {
 
         SV_UNPHASED(
             ch_bam_for_calling,
-            ref
+            ch_ref_for_calling
         )
 
         // Analyze coverage separation between target and background regions
@@ -188,11 +209,25 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_bed
         )
+        
+
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+        .map {
+            meta, panelbed ->
+            tuple(meta, panelbed) 
+        }.join(ch_ref_for_calling)
+        .map {
+            meta, panelbed, refid, _ref, _ref_fai ->
+            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
+        }
+
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
 
         BCFTOOLS_CALLING(
             ch_bam_for_calling,
-            ref,
-            ch_clin_database
+            ch_ref_for_calling,
+            ch_clin_database,
+            ch_panel_bin
         )
 
         // Somatic variant calling using ClairS
@@ -200,7 +235,8 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             clairs_model,
-            ch_clin_database
+            ch_clin_database,
+            ch_panel_bin
         )
 
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -208,7 +244,8 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            ch_panel_bin
         )
 
         // // Phase somatic variants (uses original mapping output)
