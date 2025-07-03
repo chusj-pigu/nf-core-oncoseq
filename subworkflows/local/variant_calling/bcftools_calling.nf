@@ -105,9 +105,7 @@ workflow BCFTOOLS_CALLING {
             tuple(meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, sc_panelbed)
         }
 
-    ch_subchrom_in.view()
-
-    SUBCHROM_CALL_PANEL(ch_subchrom_in)
+    // SUBCHROM_CALL_PANEL(ch_subchrom_in)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
