@@ -41,14 +41,16 @@
 6. Coverage calculation for ROIs in Panel with [mosdepth](https://github.com/brentp/mosdepth) and background coverage calculation with [Cramino](https://github.com/wdecoster/cramino)
 7. Visualisation with [R](https://www.r-project.org/)
 
-#### Variant Calling
-8. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO) and [Clair3](https://github.com/HKU-BAL/Clair3) and annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
-9. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
-10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
-11. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
-
 #### Time Series Breakdown Analysis
-12. Separation of bam files by time point with [Ontime](https://github.com/mbhall88/ontime)
+8. Separation of bam files by time point with [Ontime](https://github.com/mbhall88/ontime)
+
+#### Variant Calling
+9. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3) and [bcftools](https://samtools.github.io/bcftools/bcftools.html)
+10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+11. VCF annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
+12. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
+13. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+14. CNV and cnLOH calling with [SubChrom](https://github.com/Shaohua-Lei/SubChrom), WGS and panel mode
 
 ### WGS mode:
 
@@ -56,10 +58,12 @@
 4. Sorting and indexing with [samtools](https://www.htslib.org/)
 
 #### Variant Calling
-5. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO) and [Clair3](https://github.com/HKU-BAL/Clair3) and annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
-6. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
-7. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
-8. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+5. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3) and [bcftools](https://samtools.github.io/bcftools/bcftools.html)
+6. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+7. VCF annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
+8. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
+9. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+10. CNV and cnLOH calling with [SubChrom](https://github.com/Shaohua-Lei/SubChrom), WGS mode
 
 ### cf-DNA mode (In Development):
 
@@ -102,7 +106,8 @@ nextflow run nf-core-oncoseq \
    <--adaptive/wgs/cfdna>
    --input samplesheet.csv \
    --outdir <OUTDIR> \
-   --clin_database /path/to/clindatabase
+   --clin_database /path/to/clindatabase \
+   --model 'sup/hac/fast'
 ```
 
 By default, the pipeline will run in adaptive mode, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
@@ -130,8 +135,9 @@ For more details about the output files and reports, please refer to the
 | reports/{sample}_coverage_mapq.pdf | Plot showing ROIs coverage | If `--adaptive` mode is used |
 | variants/{sample}_snp_somatic_phased.vcf.gz<br>variants/{sample}_snp_somatic_clinvar_phased.vcf.gz | VCF files of phased SNV and indels called by [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO)  | If `--adaptive` or `--wgs` mode is used |
 | variants/{sample}_snp_germline_phased.vcf.gz<br>variants/{sample}_snp_germline_clinvar_phased.vcf.gz | VCF files of phased SNV and indels called by [Clair3](https://github.com/HKU-BAL/Clair3)  | If `--adaptive` or `--wgs` mode is used |
+| variants/{sample}_snp_baseline.vcf.gz<br>variants/{sample}_snp_baseline_clinvar.vcf.gz | VCF files of phased SNV and indels called by [bcftools](https://samtools.github.io/bcftools/bcftools.html)  | If `--adaptive` or `--wgs` mode is used |
 | variants/{sample}_sv.vcf.gz | VCF file of phased SV called by [Sniffles2](https://github.com/fritzsedlazeck/Sniffles) | If `--adaptive` or `--wgs` mode is used |
-| variants/{sample}_cnv_calls.vcf.gz | VCF file of CNV called by [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html) | Always |
+| variants/qdnaseq{sample}_cnv_calls.vcf | VCF file of CNV called by [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html) | Always |
 | phasing/{sample}_haplotagged.bam<br>phasing/{sample}_haplotagged.bam.bai | Aligned bam and index file including phasing HP tags added by [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html) | If `--adaptive` or `--wgs` mode is used |
 | phasing/{sample}.haploblocks.gtf | Gtf files containing phase blocks | If `--adaptive` or `--wgs` mode is used |
 

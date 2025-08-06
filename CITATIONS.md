@@ -14,6 +14,10 @@
 
 > Danecek, P., Bonfield, J. K., Liddle, J., Marshall, J., Ohan, V., Pollard, M. O., Whitwham, A., Keane, T., McCarthy, S. A., Davies, R. M., & Li, H. (2021). Twelve years of SAMtools and BCFtools. GigaScience, 10(2), giab008. https://doi.org/10.1093/gigascience/giab008
 
+- [Clair3](https://github.com/HKU-BAL/Clair3)
+
+> Zheng, Z., Li, S., Su, J., Leung, A. W.-S., Lam, T.-W., & Luo, R. (2022). Symphonizing pileup and full-alignment for deep learning-based long-read variant calling. Nature Computational Science, 2(12), 797–803. https://doi.org/10.1038/s43588-022-00387-x
+
 - [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO)
 
 > Chen, L., Zheng, Z., Su, J., Yu, X., Wong, A. O. K., Zhang, J., Lee, Y.-L., & Luo, R. (2025). ClairS-TO: A deep-learning method for long-read tumor-only somatic small variant calling. bioRxiv, 2025.03.10.642523. https://doi.org/10.1101/2025.03.10.642523
@@ -32,6 +36,10 @@
 
 > Pedersen, B. S., & Quinlan, A. R. (2018). Mosdepth: Quick coverage calculation for genomes and exomes. Bioinformatics (Oxford, England), 34(5), 867–868. https://doi.org/10.1093/bioinformatics/btx699
 
+- [ontime](https://github.com/mbhall88/ontime)
+
+> Hall, M. (2024). mbhall88/ontime: v0.3.1 (0.3.1). Zenodo. https://doi.org/10.5281/zenodo.10652351
+
 - [quarto](https://quarto.org/)
 
 - [Samtools](https://github.com/samtools/samtools)
@@ -49,6 +57,10 @@
 - [SnpEff](https://pcingola.github.io/SnpEff/)
 
 > Cingolani, P., Patel, V. M., Coon, M., Nguyen, T., Land, S. J., Ruden, D. M., & Lu, X. (2012). Using Drosophila melanogaster as a Model for Genotoxic Chemical Mutational Studies with a New Program, SnpSift. Frontiers in Genetics, 3, 35. https://doi.org/10.3389/fgene.2012.00035
+
+- [SubChrom](https://github.com/Shaohua-Lei/SubChrom/)
+
+> Lei, S., Jia, S., Takalkar, S., Chang, T.-C., Ma, X., Szlachta, K., Xu, K., Cheng, Z., Hui, Y., Koo, S. C., Mead, P. E., Gao, Q., Kumar, P., Bailey, C. P., Sunny, J., Pappo, A. S., Federico, S. M., Robinson, G. W., Gajjar, A., … Mullighan, C. G. (2025). Genomic profiling of circulating tumor DNA for childhood cancers. Leukemia, 39(2), 420–430. https://doi.org/10.1038/s41375-024-02461-x
 
 - [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
 
