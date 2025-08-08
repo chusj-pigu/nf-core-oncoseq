@@ -18,6 +18,7 @@
 include { ADAPTIVE                } from './workflows/adaptive'
 include { CFDNA                   } from './workflows/cfdna'
 include { WGS                     } from './workflows/wgs'
+include { LOCAL_REALTIME          } from './workflows/local_realtime'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
@@ -43,7 +44,9 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-    ADAPTIVE (
+
+    if (params.realtime == null) {
+        ADAPTIVE (
         samplesheet,
         demux,
         ref,
@@ -51,8 +54,17 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
         clairs_model,
         basecall_model,
         ch_clin_database
-
-    )
+        )
+    } else {
+        LOCAL_REALTIME (
+        samplesheet,
+        demux,
+        ref,
+        bed,
+        basecall_model,
+        ch_clin_database
+        )
+    }
 }
 
 workflow NFCORE_ONCOSEQ_CFDNA {
