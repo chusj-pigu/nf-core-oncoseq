@@ -322,6 +322,14 @@
         },
         "basecall_model_path": {
             "type": "string"
+        },
+        "realtime": {
+            "type": "integer",
+            "description": "Use number of sequencing hour to activate real time mode"
+        },
+        "subchrom_binsize": {
+            "type": "integer",
+            "default": 500
         }
     },
     "required": ["clin_database"]
