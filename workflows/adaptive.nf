@@ -12,12 +12,12 @@ include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 // Variant calling subworkflows
 include { CLAIRS_TO_CALLING                     } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
-include { BCFTOOLS_CALLING                      } from '../subworkflows/local/variant_calling/bcftools_calling.nf'
 include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { SV_CALLING as SV_PHASED               } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { SUBCHROM_CALL                         } from  '../subworkflows/local/variant_calling/subchrom_call.nf'
 
 // Adaptive-specific subworkflows
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
@@ -75,33 +75,12 @@ workflow ADAPTIVE {
             bed
         )
 
-        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
-        .map {
-            meta, panelbed ->
-            tuple(meta, panelbed) 
-        }.join(ref)
-        .map {
-            meta, panelbed, refid, _ref, _ref_fai ->
-            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
-        }
-
-        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
-
-
-        BCFTOOLS_CALLING(
-            MAPPING.out.bam,
-            ref,
-            ch_clin_database,
-            ch_panel_bin
-        )
-
         // Somatic variant calling using ClairS
         CLAIRS_TO_CALLING (
             MAPPING.out.bam,
             ref,
             clairs_model,
-            ch_clin_database,
-            ch_panel_bin
+            ch_clin_database
         )
 
         // Germline variant calling using Clair3
@@ -109,8 +88,7 @@ workflow ADAPTIVE {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
-            ch_panel_bin
+            ch_clin_database
         )
 
         // Phase somatic variants
@@ -142,8 +120,27 @@ workflow ADAPTIVE {
         // Copy number variant calling
         CNV_CALLING (
             MAPPING.out.bam,
+            ref
+        )
+
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+            .map {
+                meta, panelbed ->
+                tuple(meta, panelbed) 
+            }
+            .join(ref)
+            .map {
+                meta, panelbed, refid, _ref, _ref_fai ->
+                tuple(meta, panelbed, refid, params.subchrom_binsize ) 
+            }
+
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
+
+        SUBCHROM_CALL (
+            MAPPING.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf,
+            ch_panel_bin
         )
 
     } else {
@@ -209,34 +206,13 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_bed
         )
-        
-
-        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
-        .map {
-            meta, panelbed ->
-            tuple(meta, panelbed) 
-        }.join(ch_ref_for_calling)
-        .map {
-            meta, panelbed, refid, _ref, _ref_fai ->
-            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
-        }
-
-        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
-
-        BCFTOOLS_CALLING(
-            ch_bam_for_calling,
-            ch_ref_for_calling,
-            ch_clin_database,
-            ch_panel_bin
-        )
 
         // Somatic variant calling using ClairS
         CLAIRS_TO_CALLING (
             ch_bam_for_calling,
             ch_ref_for_calling,
             clairs_model,
-            ch_clin_database,
-            ch_panel_bin
+            ch_clin_database
         )
 
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -244,8 +220,7 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             basecall_model,
-            ch_clin_database,
-            ch_panel_bin
+            ch_clin_database
         )
 
         // // Phase somatic variants (uses original mapping output)
@@ -278,8 +253,27 @@ workflow ADAPTIVE {
         // Copy number variant calling
         CNV_CALLING(
             ch_bam_for_calling,
-            ch_ref_for_calling,
-            CLAIR3_CALLING.out.vcf
+            ch_ref_for_calling
+        )
+
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+            .map {
+                meta, panelbed ->
+                tuple(meta, panelbed) 
+            }
+            .join(ref)
+            .map {
+                meta, panelbed, refid, _ref, _ref_fai ->
+                tuple(meta, panelbed, refid, params.subchrom_binsize ) 
+            }
+
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
+
+        SUBCHROM_CALL (
+            MAPPING.out.bam,
+            ref,
+            CLAIR3_CALLING.out.vcf,
+            ch_panel_bin
         )
     }
 }

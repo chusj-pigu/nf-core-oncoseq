@@ -13,7 +13,6 @@ include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/uti
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { modifyMetaId                 } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
-include { SUBCHROM_CALL_PANEL          } from '../../../modules/local/subchrom/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,7 +29,6 @@ workflow CLAIR3_CALLING {
     ref     // channel: from input samplesheet
     basecall_model       // channel: basecalling model
     clinic_database
-    ch_panel_bin // subchrom panel bin file
     main:
 
     ch_versions = Channel.empty()
@@ -55,7 +53,7 @@ workflow CLAIR3_CALLING {
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
-            tuple(meta, refid) 
+            tuple(meta, refid)
             }
 
     CLAIR3_CALL(ch_input_clair3)
@@ -108,14 +106,6 @@ workflow CLAIR3_CALLING {
     BGZIP_VCF(ch_vcf_final)
 
     BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
-
-    ch_subchrom_in = bam.join(CLAIR3_CALL.out.vcf).join(ref).join(ch_panel_bin)
-    .map {meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, _reffai, sc_panelbed ->
-        tuple(meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, sc_panelbed)
-    }
-
-    SUBCHROM_CALL_PANEL(ch_subchrom_in)
-
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

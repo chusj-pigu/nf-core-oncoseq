@@ -66,3 +66,11 @@
 	path = modules/local/subchrom
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = subchrom
+[submodule "modules/local/modkit"]
+	path = modules/local/modkit
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = modkit
+[submodule "modules/local/marlin"]
+	path = modules/local/marlin
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = marlin
