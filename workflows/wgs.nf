@@ -8,11 +8,11 @@ include { MAPPING            } from '../subworkflows/local/mapping/mapping'
 // Variant calling subworkflows
 include { CLAIRS_TO_CALLING                    } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { CLAIR3_CALLING                       } from '../subworkflows/local/variant_calling/clair3_calling.nf'
-include { BCFTOOLS_CALLING                     } from '../subworkflows/local/variant_calling/bcftools_calling.nf'
 include { PHASING_VARIANTS as PHASING_SOMATIC  } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { PHASING_VARIANTS as PHASING_GERMLINE } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING                           } from '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                          } from '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { modifyMetaId                         } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 workflow WGS {
 
@@ -35,12 +35,6 @@ workflow WGS {
         MAPPING (
             samplesheet,
             ref
-        )
-
-        BCFTOOLS_CALLING(
-            MAPPING.out.bam,
-            ref,
-            ch_clin_database
         )
 
         CLAIRS_TO_CALLING (
@@ -70,14 +64,19 @@ workflow WGS {
         )
 
         SV_CALLING (
-            PHASING_GERMLINE.out.haptag_bam,
+            PHASING_GERMLINE.out.haptag_bam
+                .map { meta, bamfile, bai ->
+                    // Restore original sample ID for output naming
+                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
+                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+                    tuple(meta_restore, bamfile, bai)
+                },
             ref
         )
 
         CNV_CALLING (
             MAPPING.out.bam,
-            ref,
-            CLAIR3_CALLING.out.vcf
+            ref
         )
 
     } else {
@@ -105,12 +104,6 @@ workflow WGS {
             )
         }
 
-        BCFTOOLS_CALLING(
-            MAPPING.out.bam,
-            ref,
-            ch_clin_database
-        )
-
         CLAIRS_TO_CALLING (
             MAPPING.out.bam,
             ref,
@@ -138,14 +131,19 @@ workflow WGS {
         )
 
         SV_CALLING (
-            PHASING_GERMLINE.out.haptag_bam,
+            PHASING_GERMLINE.out.haptag_bam
+                .map { meta, bamfile, bai ->
+                    // Restore original sample ID for output naming
+                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
+                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+                    tuple(meta_restore, bamfile, bai)
+                },
             ref
         )
 
         CNV_CALLING (
             MAPPING.out.bam,
-            ref,
-            CLAIR3_CALLING.out.vcf
+            ref
         )
     }
 }
