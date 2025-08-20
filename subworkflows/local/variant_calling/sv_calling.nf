@@ -3,16 +3,16 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SNIFFLES_CALL            } from '../../../modules/local/sniffles/main.nf'
-include { SNPEFF_ANNOTATE          } from '../../../modules/local/snpeff/main.nf'
-include { BCFTOOLS_SORT            } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX           } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_FILTER_SV       } from '../../../modules/local/bcftools/main.nf'
-include { SV_PROCESS               } from '../../../modules/local/vcf_process/main.nf'
-include { FIGENO_FUSION_FIGURE     } from '../../../modules/local/figeno/main.nf'
-include { FIGENO_SV_FIGURE         } from '../../../modules/local/figeno/main.nf'
-include { BGZIP_VCF                } from '../../../modules/local/bcftools/main.nf'
-include { modifyMetaId             } from '../utils_nfcore_oncoseq_pipeline'
+include { SNIFFLES_CALL                     } from '../../../modules/local/sniffles/main.nf'
+include { SNPEFF_ANNOTATE                   } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_SORT                     } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX                    } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_FILTER_SV                } from '../../../modules/local/bcftools/main.nf'
+include { SV_PROCESS                        } from '../../../modules/local/vcf_process/main.nf'
+include { FIGENO_SV_FIGURE as FIGENO_FUSION } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_SV_FIGURE as FIGENO_OTHER  } from '../../../modules/local/figeno/main.nf'
+include { BGZIP_VCF                         } from '../../../modules/local/bcftools/main.nf'
+include { modifyMetaId                      } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -85,9 +85,9 @@ workflow SV_CALLING {
         .join(BCFTOOLS_INDEX.out.vcf_tbi)
         .join(SV_PROCESS.out.indel_txt)
 
-    FIGENO_SV_FIGURE(ch_figeno_sv)
+    FIGENO_OTHER(ch_figeno_sv)
 
-    FIGENO_FUSION_FIGURE(ch_figeno_fusion)
+    FIGENO_FUSION(ch_figeno_fusion)
 
     ch_versions = SNIFFLES_CALL.out.versions
         .mix(SNPEFF_ANNOTATE.out.versions)
@@ -95,13 +95,14 @@ workflow SV_CALLING {
         .mix(BGZIP_VCF.out.versions)
         .mix(BCFTOOLS_INDEX.out.versions)
         .mix(BCFTOOLS_FILTER_SV.out.versions)
-        .mix(FIGENO_SV_FIGURE.out.versions)
+        .mix(FIGENO_OTHER.out.versions)
+        .mix(SV_PROCESS.out.versions)
 
 
     emit:
     sv_vcf           = BGZIP_VCF.out.vcf_gz
-    sv_png           = FIGENO_SV_FIGURE.out.figure
-    fusion_png       = FIGENO_FUSION_FIGURE.out.figure
+    sv_png           = FIGENO_OTHER.out.figure
+    fusion_png       = FIGENO_FUSION.out.figure
     versions         = ch_versions
 
 }
