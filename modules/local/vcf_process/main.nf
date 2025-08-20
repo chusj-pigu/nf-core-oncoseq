@@ -31,9 +31,9 @@ process SV_PROCESS {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    grep -E 'HIGH|MODERATE' ${filt_vcf} > ${prefix}_sv_filt.tsv
+    grep -E 'HIGH|MODERATE' ${filt_vcf} > ${prefix}_filt.tsv
     generate_sv_filt_regions.R \\
-        --input ${prefix}_sv_filt.tsv
+        --input ${prefix}_filt.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
