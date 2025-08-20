@@ -3,11 +3,16 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SNIFFLES_CALL   } from '../../../modules/local/sniffles/main.nf'
-include { SNPEFF_ANNOTATE } from '../../../modules/local/snpeff/main.nf'
-include { BCFTOOLS_SORT   } from '../../../modules/local/bcftools/main.nf'
-include { BGZIP_VCF       } from '../../../modules/local/bcftools/main.nf'
-include { modifyMetaId    } from '../utils_nfcore_oncoseq_pipeline'
+include { SNIFFLES_CALL            } from '../../../modules/local/sniffles/main.nf'
+include { SNPEFF_ANNOTATE          } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_SORT            } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX           } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_FILTER_SV       } from '../../../modules/local/bcftools/main.nf'
+include { SV_PROCESS               } from '../../../modules/local/vcf_process/main.nf'
+include { FIGENO_FUSION_FIGURE     } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_SV_FIGURE         } from '../../../modules/local/figeno/main.nf'
+include { BGZIP_VCF                } from '../../../modules/local/bcftools/main.nf'
+include { modifyMetaId             } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -20,12 +25,12 @@ workflow SV_CALLING {
     //TODO Add reports for coverage stats figure ?
 
     take:
-    cram        // channel: from phasing workflow, includes index
+    bam        // channel: from phasing workflow, includes index
     ref         // reference channel with index
     main:
 
 
-    ch_in_sniffles = cram
+    ch_in_sniffles = bam
         .join(ref)
 
     SNIFFLES_CALL(ch_in_sniffles)
@@ -59,12 +64,44 @@ workflow SV_CALLING {
     SNPEFF_ANNOTATE(ch_sv_annotate)
     BCFTOOLS_SORT(SNPEFF_ANNOTATE.out.vcf)
     BGZIP_VCF(BCFTOOLS_SORT.out.vcf)
+    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
+
+    // Filter SV and produce figures:
+
+    ch_bam_sv = bam
+        .map {meta, bamfile, bai ->
+           def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_sv')
+           tuple(new_meta, bamfile, bai)}             // Match meta_id with the vcf and region files
+
+    BCFTOOLS_FILTER_SV(BGZIP_VCF.out.vcf_gz)
+
+    SV_PROCESS(BCFTOOLS_FILTER_SV.out.filt_vcf)
+
+    ch_figeno_fusion = ch_bam_sv
+        .join(BCFTOOLS_INDEX.out.vcf_tbi)
+        .join(SV_PROCESS.out.fusion_txt)
+
+    ch_figeno_sv = ch_bam_sv
+        .join(BCFTOOLS_INDEX.out.vcf_tbi)
+        .join(SV_PROCESS.out.indel_txt)
+
+    FIGENO_SV_FIGURE(ch_figeno_sv)
+
+    FIGENO_FUSION_FIGURE(ch_figeno_fusion)
 
     ch_versions = SNIFFLES_CALL.out.versions
+        .mix(SNPEFF_ANNOTATE.out.versions)
+        .mix(BCFTOOLS_SORT.out.versions)
+        .mix(BGZIP_VCF.out.versions)
+        .mix(BCFTOOLS_INDEX.out.versions)
+        .mix(BCFTOOLS_FILTER_SV.out.versions)
+        .mix(FIGENO_SV_FIGURE.out.versions)
 
 
     emit:
     sv_vcf           = BGZIP_VCF.out.vcf_gz
+    sv_png           = FIGENO_SV_FIGURE.out.figure
+    fusion_png       = FIGENO_FUSION_FIGURE.out.figure
     versions         = ch_versions
 
 }
