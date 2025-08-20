@@ -30,18 +30,22 @@ workflow MARLIN {
     ref       // Channel: from input samplesheet
 
     main:
-    
+
     ch_ref_pileup = ref
-        .map { meta, ref_id, _ref_fasta, _ref_fai ->
-            tuple(meta, ref_id) }
+        .map { meta, ref_id, ref_fasta, _ref_fai ->
+            tuple(meta, ref_id, ref_fasta) }
 
     ch_pileup_in = bam
         .join(ch_ref_pileup)
-    
+
     MARLIN_PILEUP(ch_pileup_in)
 
+    ch_ref_merge = ref
+        .map { meta, ref_id, _ref_fasta, _ref_fai ->
+            tuple(meta, ref_id )}
+
     ch_merge_in = MARLIN_PILEUP.out.bedmethyl
-        .join(ch_ref_pileup)
+        .join(ch_ref_merge)
 
     MARLIN_MERGE(ch_merge_in)
 

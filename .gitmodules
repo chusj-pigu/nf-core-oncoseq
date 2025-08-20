@@ -70,3 +70,7 @@
 	path = modules/local/marlin
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = marlin
+[submodule "modules/local/figeno"]
+	path = modules/local/figeno
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = figeno
