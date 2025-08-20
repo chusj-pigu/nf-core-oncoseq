@@ -27,21 +27,25 @@ workflow SUBCHROM_CALL {
         .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('germline_snp') }       // Only keep the snp file created by clair3 annotated with SnpEff
         .map { meta, vcf_file, _vcf_tbi ->
             def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp', '', '')       // Restore meta to be sample id only to join with ref
-                tuple(meta_restore, vcf_file) 
+                tuple(meta_restore, vcf_file)
                 }
         .join(ch_ref_subchrom)
 
     SUBCHROM_CALL_WGS(ch_in_subchrom_wgs)
 
-   ch_in_subchrom_panel = bam
-        .join(vcf)
-        .join(ch_ref_subchrom)
-        .join(ch_panel_bin)
+    if (params.tadaptive) {
+        ch_in_subchrom_panel = bam
+            .join(vcf)
+            .join(ch_ref_subchrom)
+            .join(ch_panel_bin)
 
-    SUBCHROM_CALL_PANEL(ch_in_subchrom_panel)
+        SUBCHROM_CALL_PANEL(ch_in_subchrom_panel)
 
-    ch_versions = SUBCHROM_CALL_WGS.out.versions
-        .mix(SUBCHROM_CALL_PANEL.out.versions)
+        ch_versions = SUBCHROM_CALL_WGS.out.versions
+            .mix(SUBCHROM_CALL_PANEL.out.versions)
+    } else {
+        ch_versions = SUBCHROM_CALL_WGS.out.versions
+    }
 
 
     emit:

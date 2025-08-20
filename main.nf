@@ -95,6 +95,7 @@ workflow NFCORE_ONCOSEQ_WGS {
     clairs_model
     basecall_model
     ch_clin_database
+    bed_empty       // Channel with empty bed file to trigger subchrom
 
     main:
 
@@ -107,7 +108,8 @@ workflow NFCORE_ONCOSEQ_WGS {
         ref,
         clairs_model,
         basecall_model,
-        ch_clin_database
+        ch_clin_database,
+        bed_empty
     )
 }
 
@@ -185,7 +187,8 @@ workflow {
         PIPELINE_INITIALISATION.out.ref_ch,
         ch_clairs_model,
         ch_model,
-        ch_clin_database
+        ch_clin_database,
+        PIPELINE_INITIALISATION.out.bed_sheet
         )
     }
     //

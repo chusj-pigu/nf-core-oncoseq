@@ -12,6 +12,7 @@ include { PHASING_VARIANTS as PHASING_SOMATIC  } from  '../subworkflows/local/va
 include { PHASING_VARIANTS as PHASING_GERMLINE } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING                           } from '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                          } from '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { SUBCHROM_CALL                        } from '../subworkflows/local/variant_calling/subchrom_call.nf'
 include { modifyMetaId                         } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 workflow WGS {
@@ -23,6 +24,7 @@ workflow WGS {
     clairs_model
     basecall_model
     ch_clin_database
+    bed_empty
 
     main:
 
@@ -77,6 +79,13 @@ workflow WGS {
         CNV_CALLING (
             MAPPING.out.bam,
             ref
+        )
+
+        SUBCHROM_CALL (
+            MAPPING.out.bam,
+            ref,
+            CLAIR3_CALLING.out.vcf,
+            bed_empty
         )
 
     } else {
@@ -144,6 +153,13 @@ workflow WGS {
         CNV_CALLING (
             MAPPING.out.bam,
             ref
+        )
+
+        SUBCHROM_CALL (
+            MAPPING.out.bam,
+            ref,
+            CLAIR3_CALLING.out.vcf,
+            bed_empty
         )
     }
 }
