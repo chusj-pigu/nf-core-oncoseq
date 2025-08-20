@@ -20,7 +20,7 @@ if (is.null(opt$input)) {
 }
 
 input <- opt$input
-sample_id <- sub("_sv_filt\\.tsv$", "", basename(input))
+sample_id <- sub("_filt\\.tsv$", "", basename(input))
 
 # -----------------------------
 # Helper Functions
