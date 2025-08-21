@@ -33,19 +33,23 @@ workflow SUBCHROM_CALL {
 
     SUBCHROM_CALL_WGS(ch_in_subchrom_wgs)
 
-    if (params.tadaptive) {
-        ch_in_subchrom_panel = bam
-            .join(vcf)
-            .join(ch_ref_subchrom)
-            .join(ch_panel_bin)
-
-        SUBCHROM_CALL_PANEL(ch_in_subchrom_panel)
-
-        ch_versions = SUBCHROM_CALL_WGS.out.versions
-            .mix(SUBCHROM_CALL_PANEL.out.versions)
+    if (params.adaptive) {
+        ch_panel_bin_processed = ch_panel_bin
     } else {
-        ch_versions = SUBCHROM_CALL_WGS.out.versions
+        ch_panel_bin_processed = ch_panel_bin                   // make a bed channel with a different ID so that subchrom_call_panel is skipped with joined channels
+            .map { _meta,bedfile,_padding,_low_fidelity ->
+                tuple(id:'skip', bedfile) }
     }
+
+    ch_in_subchrom_panel = bam
+        .join(vcf)
+        .join(ch_ref_subchrom)
+        .join(ch_panel_bin_processed)
+
+    SUBCHROM_CALL_PANEL(ch_in_subchrom_panel)
+
+    ch_versions = SUBCHROM_CALL_WGS.out.versions
+        .mix(SUBCHROM_CALL_PANEL.out.versions)
 
 
     emit:

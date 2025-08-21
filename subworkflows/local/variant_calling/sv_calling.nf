@@ -101,8 +101,8 @@ workflow SV_CALLING {
 
     emit:
     sv_vcf           = BGZIP_VCF.out.vcf_gz
-    sv_png           = FIGENO_OTHER.out.figure
-    fusion_png       = FIGENO_FUSION.out.figure
+    sv_png           = FIGENO_OTHER.out.figure      // TODO: Quarto report
+    fusion_png       = FIGENO_FUSION.out.figure     // TODO: Quarto report
     versions         = ch_versions
 
 }
