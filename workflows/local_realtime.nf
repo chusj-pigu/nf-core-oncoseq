@@ -15,6 +15,9 @@ include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/v
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { SUBCHROM_CALL                         } from  '../subworkflows/local/variant_calling/subchrom_call.nf'
 
+// Variant processing and visualization subworkflow
+include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
+
 // Adaptive-specific subworkflows
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
@@ -88,6 +91,15 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             ref
         )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_UNPHASED.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs
+        )
+
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed
@@ -104,6 +116,15 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             ref
         )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_UNPHASED.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs
+        )
+
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed
@@ -125,6 +146,15 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             ref
         )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_UNPHASED.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs
+        )
+
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed

@@ -15,6 +15,9 @@ include { CNV_CALLING                          } from '../subworkflows/local/var
 include { SUBCHROM_CALL                        } from '../subworkflows/local/variant_calling/subchrom_call.nf'
 include { modifyMetaId                         } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
+// Variant processing and visualization subworkflow
+include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
+
 workflow WGS {
 
     take:
@@ -81,11 +84,20 @@ workflow WGS {
             ref
         )
 
+<<<<<<< HEAD
         SUBCHROM_CALL (
             MAPPING.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf,
             bed_empty
+=======
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_CALLING.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs
+>>>>>>> NO-41-Make-a-local-real-time-workflow
         )
 
     } else {
@@ -155,11 +167,20 @@ workflow WGS {
             ref
         )
 
+<<<<<<< HEAD
         SUBCHROM_CALL (
             MAPPING.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf,
             bed_empty
+=======
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_CALLING.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs
+>>>>>>> NO-41-Make-a-local-real-time-workflow
         )
     }
 }

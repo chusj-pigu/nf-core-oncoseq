@@ -4,8 +4,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { QDNASEQ_CALL       } from '../../../modules/local/qdnaseq/main.nf'
-include { SUBCHROM_CALL_WGS  } from '../../../modules/local/subchrom/main.nf'
-include { modifyMetaId          } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+include { modifyMetaId       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 
 /*
@@ -35,8 +34,9 @@ workflow CNV_CALLING {
     ch_versions = QDNASEQ_CALL.out.versions
 
     emit:
-    qdnaseq_vcf         = QDNASEQ_CALL.out.call_vcf
     qdnaseq_plot        = QDNASEQ_CALL.out.cov_png             // TODO: Quarto report
+    qdnaseq_bed         = QDNASEQ_CALL.out.calls_bed
+    qdnaseq_segs        = QDNASEQ_CALL.out.segs_bed
     versions            = ch_versions
 
 }
