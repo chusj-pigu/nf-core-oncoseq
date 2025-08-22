@@ -70,13 +70,7 @@ workflow SV_CALLING {
 
 
     emit:
-<<<<<<< HEAD
-    sv_vcf           = BGZIP_VCF.out.vcf_gz
-    sv_png           = FIGENO_OTHER.out.figure      // TODO: Quarto report
-    fusion_png       = FIGENO_FUSION.out.figure     // TODO: Quarto report
-=======
     vcf              = BCFTOOLS_INDEX.out.vcf_tbi
->>>>>>> NO-41-Make-a-local-real-time-workflow
     versions         = ch_versions
 
 }

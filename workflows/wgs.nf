@@ -84,20 +84,18 @@ workflow WGS {
             ref
         )
 
-<<<<<<< HEAD
         SUBCHROM_CALL (
             MAPPING.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf,
             bed_empty
-=======
+        )
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
             SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs
->>>>>>> NO-41-Make-a-local-real-time-workflow
         )
 
     } else {
@@ -167,20 +165,18 @@ workflow WGS {
             ref
         )
 
-<<<<<<< HEAD
         SUBCHROM_CALL (
             MAPPING.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf,
             bed_empty
-=======
+        )
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
             SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs
->>>>>>> NO-41-Make-a-local-real-time-workflow
         )
     }
 }
