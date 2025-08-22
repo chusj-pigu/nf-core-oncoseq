@@ -14,6 +14,9 @@ include { SV_CALLING                           } from '../subworkflows/local/var
 include { CNV_CALLING                          } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { modifyMetaId                         } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
+// Variant processing and visualization subworkflow
+include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
+
 workflow WGS {
 
     take:
@@ -77,6 +80,14 @@ workflow WGS {
         CNV_CALLING (
             MAPPING.out.bam,
             ref
+        )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_CALLING.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs
         )
 
     } else {
@@ -144,6 +155,14 @@ workflow WGS {
         CNV_CALLING (
             MAPPING.out.bam,
             ref
+        )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_CALLING.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs
         )
     }
 }
