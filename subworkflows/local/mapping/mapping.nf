@@ -79,7 +79,7 @@ workflow MAPPING {
                 } else {
                     // Case 2: Multiple BAMs → split into chunks of 20 for merging
                     def counter = 0
-                    return bams.collate(2).collect { chunk ->
+                    return bams.collate(20).collect { chunk ->
                         counter++
                         def meta_chunk = modifyMetaId(meta, 'add_suffix', '', '', "_chunk${counter}")
                         tuple(meta_chunk, 'multi', chunk)
