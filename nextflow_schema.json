@@ -213,7 +213,7 @@
         "bed": {
             "type": "string",
             "description": "Bed file used for adaptive mode",
-            "default": "/workspaces/nf-core-oncoseq/test_data/adaptive/2025-02-05-CHUSJ-Panel-20kb-LP.bed"
+            "default": "/workspaces/nf-core-oncoseq/assets/NO_BED"
         },
         "demux": {
             "type": "string",
@@ -335,6 +335,9 @@
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/NOLIST",
             "description": "List of genes to visualize with Figeno (columns GENE and pos)"
+        },
+        "skip_mapping": {
+            "type": "boolean"
         }
     },
     "required": ["clin_database"]
