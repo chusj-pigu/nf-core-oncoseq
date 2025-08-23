@@ -36,7 +36,7 @@ workflow WGS {
     // WORKFLOW: Run pipeline
     //
 
-    if (params.skip_basecalling) {
+    if (params.skip_basecalling || params.skip_mapping) {
 
         MAPPING (
             samplesheet,

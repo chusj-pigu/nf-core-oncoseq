@@ -39,7 +39,7 @@ workflow LOCAL_REALTIME {
     targets                 // channel : list of genes with their position to represent in Figeno
 
     main:
-    if (params.skip_basecalling) {
+    if (params.skip_basecalling || params.skip_mapping) {
 
         MAPPING(
             samplesheet,
