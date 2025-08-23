@@ -38,12 +38,18 @@ process SV_PROCESS {
     # Process only high and moderate effect mutations
     grep -E \\
         'HIGH|MODERATE' \\
-        "${filt_vcf}" > "${prefix}_filt.tsv"
+        "${filt_vcf}" > \\
+        "${prefix}_filt.tsv" || :
 
     # Save their IDs for filtering (Sniffles2.* patterns)
-    grep -oE \\
+    grep -oE \
         'Sniffles2\\.[A-Z]+\\.[A-Za-z0-9_]+' \\
-        "${prefix}_filt.tsv" > "${prefix}_filt_ids.txt"
+        "${prefix}_filt.tsv" > \\
+        "${prefix}_filt_ids.txt" || :
+
+    # Ensure placeholders exist if empty
+    [ -f "${prefix}_filt.tsv" ] || touch "${prefix}_filt.tsv"
+    [ -f "${prefix}_filt_ids.txt" ] || touch "${prefix}_filt_ids.txt"
 
     # Transform into figeno region input file
     generate_sv_filt_regions.R \\
