@@ -30,6 +30,7 @@ workflow VARIANT_PROCESS {
     sv_vcf
     qdnaseq_calls
     qdnaseq_segm
+    sv_targets
     main:
 
     // Circos with cnv
@@ -44,7 +45,9 @@ workflow VARIANT_PROCESS {
     BCFTOOLS_FILTER_SUPPORT(sv_vcf)
 
     // Filter variants with HIGH and MODERATE impacts, create region file expected by figeno and list of selected IDS
-    SV_PROCESS(BCFTOOLS_FILTER_SUPPORT.out.filt_vcf)
+    ch_to_process = BCFTOOLS_FILTER_SUPPORT.out.filt_vcf
+        .combine(sv_targets)
+    SV_PROCESS(ch_to_process)
 
     // Create a filtered vcf file with only HIGH and MODERATE effects variants with support > 4
     ch_to_filter_id = sv_vcf

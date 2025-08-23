@@ -36,6 +36,7 @@ workflow LOCAL_REALTIME {
     basecall_model          // channel: model for basecalling
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
+    targets                 // channel : list of genes with their position to represent in Figeno
 
     main:
     if (params.skip_basecalling) {
@@ -97,7 +98,8 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs
+            CNV_CALLING.out.qdnaseq_segs,
+            targets
         )
 
         COVERAGE_SEPARATE(
@@ -122,7 +124,8 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs
+            CNV_CALLING.out.qdnaseq_segs,
+            targets
         )
 
         COVERAGE_SEPARATE(
@@ -152,7 +155,8 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs
+            CNV_CALLING.out.qdnaseq_segs,
+            targets
         )
 
         COVERAGE_SEPARATE(

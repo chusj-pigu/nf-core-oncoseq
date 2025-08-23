@@ -38,6 +38,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     clairs_model  // channel: model for calling snp with ClairS-TO
     basecall_model  // channel : basecalling model used with dorado
     ch_clin_database            // channel : from path, vcf containing the ClinVar database for annotating vcf
+    sv_targets              // channel : list of genes with their position to represent in Figeno
 
     main:
 
@@ -53,7 +54,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
         bed,
         clairs_model,
         basecall_model,
-        ch_clin_database
+        ch_clin_database,
+        sv_targets
         )
     } else {
         LOCAL_REALTIME (
@@ -62,7 +64,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
         ref,
         bed,
         basecall_model,
-        ch_clin_database
+        ch_clin_database,
+        sv_targets
         )
     }
 }
@@ -96,6 +99,7 @@ workflow NFCORE_ONCOSEQ_WGS {
     basecall_model
     ch_clin_database
     bed_empty       // Channel with empty bed file to trigger subchrom
+    sv_targets
 
     main:
 
@@ -109,7 +113,8 @@ workflow NFCORE_ONCOSEQ_WGS {
         clairs_model,
         basecall_model,
         ch_clin_database,
-        bed_empty
+        bed_empty,
+        sv_targets
     )
 }
 
@@ -160,6 +165,9 @@ workflow {
     ch_clairs_model = Channel.of(params.clairsto_model)
     ch_clin_database = Channel.fromPath(params.clin_database)
 
+    // Channel for sv gene targets
+    ch_sv_targets = Channel.fromPath(params.sv_targets)
+
 
    // WORKFLOW: Run main workflow
 
@@ -173,6 +181,7 @@ workflow {
         ch_model,
         ch_clin_database,
         PIPELINE_INITIALISATION.out.bed_sheet,
+        ch_sv_targets
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
@@ -188,7 +197,8 @@ workflow {
         ch_clairs_model,
         ch_model,
         ch_clin_database,
-        PIPELINE_INITIALISATION.out.bed_sheet
+        PIPELINE_INITIALISATION.out.bed_sheet,
+        ch_sv_targets
         )
     }
     //

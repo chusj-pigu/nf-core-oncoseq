@@ -10,7 +10,9 @@ suppressPackageStartupMessages({
 # -----------------------------
 option_list <- list(
   make_option(c("-i", "--input"), type = "character",
-              help = "Path to input TSV file (required)", metavar = "file")
+              help = "Path to input TSV file (required)", metavar = "file"),
+  make_option(c("-t", "--target"), type = "character",
+              help = "Path to target csv file", metavar = "file")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -20,6 +22,7 @@ if (is.null(opt$input)) {
 }
 
 input <- opt$input
+target_list <- opt$target
 sample_id <- sub("_filt\\.tsv$", "", basename(input))
 
 # -----------------------------
@@ -56,7 +59,7 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
       mutate(
         pos = paste0(X1, ":", START - window_bnd, "-", START + window_bnd),
         pos2 = make_range(X5),
-        GENE = paste(sample_id, str_replace_all(GENE, "&", "-"), sep = "-")
+        GENE = paste(sample_id, str_replace_all(GENE, "&", "-"), sep = "_")
       ) %>%
       select(GENE, pos, pos2)
 
@@ -68,7 +71,7 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
         GENE = clean_genes(GENE),
         GENE = ifelse(GENE == "", X1, GENE),
         pos = paste0(X1, ":", START - window_delins, "-", END + window_delins),
-        GENE = paste(sample_id, GENE, sep = "-")
+        GENE = paste(sample_id, GENE, sep = "_")
       ) %>%
       select(GENE, pos)
   }
@@ -80,12 +83,63 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
 # Read Input
 # -----------------------------
 vcf <- read_tsv(input, col_names = FALSE)
+targets_df <- read.csv(target_list)
 
 # -----------------------------
 # Process Variants
 # -----------------------------
 vcf_bnd     <- process_variant(vcf, type = "BND")
 vcf_del_ins <- process_variant(vcf, type = "DEL_INS")
+vcf_del_ins <- data.frame()
+
+# -----------------------------
+# Add important genes even if not called by Sniffles
+# -----------------------------
+extract_genes_bnd <- function(x) {
+  # Remove sample_id prefix
+  genes_part <- sub(".*_", "", x)
+  # Split on "-" if there are multiple genes
+  str_split(genes_part, "-", simplify = FALSE) %>% unlist()
+}
+
+extract_genes_delins <- function(x) {
+  # For DEL/INS, only one gene per row
+  sub(".*_", "", x)
+}
+
+# Initialize detected_genes vector
+detected_genes <- character(0)
+
+# Only extract genes if dataframes are not empty
+if (nrow(vcf_bnd) > 0) {
+  detected_genes <- c(detected_genes, extract_genes_bnd(vcf_bnd[[1]]))
+}
+
+if (nrow(vcf_del_ins) > 0) {
+  detected_genes <- c(detected_genes, extract_genes_delins(vcf_del_ins[[1]]))
+}
+
+detected_genes <- unique(detected_genes)
+
+# Identify missing genes only if target list not empty:
+
+if (nrow(targets_df > 0)) {
+  missing_genes <- setdiff(targets_df$GENE, detected_genes)
+
+
+  missing_rows <- targets_df %>%
+    filter(GENE %in% missing_genes)
+} else {
+  missing_rows <- data.frame()
+}
+
+# Append missing rows to vcf_del_ins if any and match GENE to vcf_del_ins
+if (nrow(missing_rows) > 0) {
+  missing_rows <- missing_rows %>%
+    mutate(GENE=paste(sample_id, GENE, sep = "_"))
+  vcf_del_ins <- bind_rows(vcf_del_ins, missing_rows)
+  message("Appended ", nrow(missing_rows), " missing target genes to vcf_del_ins")
+}
 
 # -----------------------------
 # Save to output
