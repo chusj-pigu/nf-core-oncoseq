@@ -150,7 +150,7 @@ workflow {
     ch_model = params.basecall_model ? Channel.of(params.basecall_model) : Channel.fromPath(params.basecall_model_path)
 
     // Combine the samplesheet with the model :
-    if (params.skip_basecalling) {
+    if (params.skip_basecalling || params.skip_mapping) {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
     } else if (params.ubam_samplesheet == null ) {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
