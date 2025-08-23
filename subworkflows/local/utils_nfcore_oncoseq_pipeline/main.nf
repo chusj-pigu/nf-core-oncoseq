@@ -158,20 +158,6 @@ workflow PIPELINE_INITIALISATION {
         ch_samplesheet = ch_input
             .join(ch_ubam)
 
-    } else if (!params.skip_basecalling) {
-        Channel
-            .fromPath("${projectDir}/assets/NO_UBAM")
-            .set { ch_ubam }
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputEntry)
-            .groupTuple()
-            .map { samplesheet ->
-                validateInputSamplesheet(samplesheet)
-            }
-            .map(flattenInputArrays)
-            .set { ch_samplesheet }
-
     } else {
         ch_ubam = Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
@@ -372,42 +358,36 @@ def methodsDescriptionText(mqc_methods_yaml) {
 // Function to modify metadata id field in a flexible way
 // This is a generalized function that can handle various metadata transformations
 //
-def modifyMetaId(Map meta, String operation, String search_string = '', String replace_string = '', String suffix = '') {
-    // Create a deep copy of the metadata to avoid modifying the original
-    def new_meta = meta.clone()
+def modifyMetaId(Map meta, String operation, String search_string = '', String replace_string = '', def suffix = '') {
+    // Clone metadata and normalize to strings
+    def new_meta = meta.collectEntries { k, v -> [k, v?.toString()] }
 
-    // Ensure all metadata fields are converted to strings for consistency
-    new_meta.each { key, value ->
-        if (value != null) {
-            new_meta[key] = value.toString()
-        }
-    }
+    switch(operation) {
+        case 'remove_suffix':
+            if (new_meta.id && suffix) {
+                new_meta.id = new_meta.id.replaceFirst(suffix.toString(), '')
+            }
+            break
 
-    // Apply the requested operation to the id field
-    if (operation == 'remove_suffix') {
-        if (new_meta.id && suffix && new_meta.id.endsWith(suffix)) {
-            new_meta.id = new_meta.id.substring(0, new_meta.id.length() - suffix.length())
-        }
-    } else if (operation == 'add_suffix') {
-        if (new_meta.id && suffix) {
-            new_meta.id = new_meta.id + suffix
-        }
-    } else if (operation == 'replace') {
-        if (new_meta.id && search_string) {
-            new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
-        }
-    } else if (operation == 'prefix') {
-        if (new_meta.id && suffix) {  // using suffix parameter as prefix for consistency
-            new_meta.id = suffix + new_meta.id
-        }
-    }
-    // For default case or no operation - just return normalized metadata
-        // Ensure all metadata fields are converted to strings for consistency
-    new_meta.each { key, value ->
-        if (value != null) {
-            new_meta[key] = value.toString()
-        }
+        case 'add_suffix':
+            if (new_meta.id && suffix) {
+                new_meta.id = new_meta.id + suffix
+            }
+            break
+
+        case 'replace':
+            if (new_meta.id && search_string) {
+                new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
+            }
+            break
+
+        case 'prefix':
+            if (new_meta.id && suffix) {
+                new_meta.id = suffix + new_meta.id
+            }
+            break
     }
 
     return new_meta
 }
+
