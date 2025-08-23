@@ -11,7 +11,8 @@ process SV_PROCESS {
 
     input:
     tuple val(meta),
-        path(filt_vcf)
+        path(filt_vcf),
+        path(gene_list)
 
     output:
     tuple val(meta),
@@ -46,7 +47,9 @@ process SV_PROCESS {
 
     # Transform into figeno region input file
     generate_sv_filt_regions.R \\
-        --input "${prefix}_filt.tsv"
+        --input "${prefix}_filt.tsv" \\
+        --target ${gene_list}
+
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -26,6 +26,7 @@ workflow WGS {
     clairs_model
     basecall_model
     ch_clin_database
+    targets                 // channel : list of genes with their position to represent in Figeno
 
     main:
 
@@ -87,7 +88,8 @@ workflow WGS {
             MAPPING.out.bam,
             SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs
+            CNV_CALLING.out.qdnaseq_segs,
+            targets
         )
 
     } else {
@@ -162,7 +164,8 @@ workflow WGS {
             MAPPING.out.bam,
             SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs
+            CNV_CALLING.out.qdnaseq_segs,
+            targets
         )
     }
 }
