@@ -88,9 +88,13 @@ targets_df <- read.csv(target_list)
 # -----------------------------
 # Process Variants
 # -----------------------------
-vcf_bnd     <- process_variant(vcf, type = "BND")
-vcf_del_ins <- process_variant(vcf, type = "DEL_INS")
-vcf_del_ins <- data.frame()
+if (nrow(vcf) > 0) {
+    vcf_bnd     <- process_variant(vcf, type = "BND")
+    vcf_del_ins <- process_variant(vcf, type = "DEL_INS")
+} else {
+    vcf_bnd <- vcf
+    vcf_del_ins <- vcf
+}
 
 # -----------------------------
 # Add important genes even if not called by Sniffles
@@ -123,7 +127,7 @@ detected_genes <- unique(detected_genes)
 
 # Identify missing genes only if target list not empty:
 
-if (nrow(targets_df > 0)) {
+if (nrow(targets_df) > 0) {
   missing_genes <- setdiff(targets_df$GENE, detected_genes)
 
 
