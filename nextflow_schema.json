@@ -330,6 +330,11 @@
         "subchrom_binsize": {
             "type": "integer",
             "default": 500
+        },
+        "sv_targets": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOLIST",
+            "description": "List of genes to visualize with Figeno (columns GENE and pos)"
         }
     },
     "required": ["clin_database"]
