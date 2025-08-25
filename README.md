@@ -5,12 +5,10 @@
   </picture>
 </h1>
 
-[![GitHub Actions CI Status](https://github.com/nf-core/oncoseq/actions/workflows/ci.yml/badge.svg)](https://github.com/nf-core/oncoseq/actions/workflows/ci.yml)
-[![GitHub Actions Linting Status](https://github.com/nf-core/oncoseq/actions/workflows/linting.yml/badge.svg)](https://github.com/nf-core/oncoseq/actions/workflows/linting.yml)[![AWS CI](https://img.shields.io/badge/CI%20tests-full%20size-FF9900?labelColor=000000&logo=Amazon%20AWS)](https://nf-co.re/oncoseq/results)[![Cite with Zenodo](http://img.shields.io/badge/DOI-10.5281/zenodo.XXXXXXX-1073c8?labelColor=000000)](https://doi.org/10.5281/zenodo.XXXXXXX)
+![Status: Pre-Release](https://img.shields.io/badge/status-pre--release-important)[![AWS CI](https://img.shields.io/badge/CI%20tests-full%20size-FF9900?labelColor=000000&logo=Amazon%20AWS)](https://nf-co.re/oncoseq/results)[![Cite with Zenodo](http://img.shields.io/badge/DOI-10.5281/zenodo.XXXXXXX-1073c8?labelColor=000000)](https://doi.org/10.5281/zenodo.XXXXXXX)
 [![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)
 
 [![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A524.04.2-23aa62.svg)](https://www.nextflow.io/)
-[![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)
 [![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
 [![run with singularity](https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000)](https://sylabs.io/docs/)
 [![Launch on Seqera Platform](https://img.shields.io/badge/Launch%20%F0%9F%9A%80-Seqera%20Platform-%234256e7)](https://cloud.seqera.io/launch?pipeline=https://github.com/nf-core/oncoseq)
@@ -112,12 +110,74 @@ nextflow run nf-core-oncoseq \
 
 By default, the pipeline will run in adaptive mode, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
 
+If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files in input.
+
 The parameter `--clin_database` indicates the path to the ClinVar database that [SnpEff](https://pcingola.github.io/SnpEff/) will use to annotate the SNP vcf files. They can be downloaded here with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/ for hg38 or with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/ for hg19.
 
 > [!WARNING]
 > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
 
 For more details and further functionality, please refer to the [usage documentation](https://nf-co.re/oncoseq/usage) and the [parameter documentation](https://nf-co.re/oncoseq/parameters).
+
+## Pipeline input and parameters
+
+### General and/or Required Parameters
+
+| Parameter              | Type     | Default | Description                                                                 |
+|------------------------|----------|---------|-----------------------------------------------------------------------------|
+| `--input`              | `path`   | _None_  | Path to input samplesheet (**required**).                                   |
+| `--outdir`             | `path`   | _None_  | Directory where outputs will be published (**required**).                   |
+| `--basecall_model`     | `string` | _None_  | Dorado basecalling model to use (**required** if not using `--basecall_model_path`). |
+| `--m_bases`            | `string` | _None_  | Basecalling modification model name.                                        |
+| `--basecall_model_path`| `path`   | _None_  | Path to local copy of Dorado model (**required** if no network connection). |
+| `--m_bases_path`       | `path`   | _None_  | Path to local copy of Dorado modification basecalling model.                |
+| `--ubam_samplesheet`   | `path`   | _None_  | Path to samplesheet for resuming basecalling.                               |
+| `--demux`              | `bool`   | `false` | Enable demultiplexing after basecalling.                                    |
+| `--demux_samplesheet`  | `path`   | _None_  | Path to barcode samplesheet for demultiplexing.                             |
+| `--skip_basecalling`   | `bool`   | `false` | Skip basecalling (use FASTQ files as input).                                |
+| `--clin_database`      | `path`   | _None_  | Path to clinical database for annotating VCF files (**required**).          |
+
+---
+
+### Modes
+
+| Parameter        | Type   | Default | Description                                                   |
+|------------------|--------|---------|---------------------------------------------------------------|
+| `--adaptive`     | `bool` | `false` | Enable adaptive sampling mode.                                |
+| `--wgs`          | `bool` | `false` | Whole Genome Sequencing (WGS) mode.                           |
+| `--cfdna`        | `bool` | `false` | cf-DNA mode (in development).                                 |
+
+---
+
+### Adaptive Mode Parameters
+
+| Parameter               | Type   | Default | Description                                                                 |
+|--------------------------|--------|---------|-----------------------------------------------------------------------------|
+| `--bed`                  | `path` | _None_  | Path to BED file for adaptive sampling (**required** if not using `--adaptive_samplesheet`). |
+| `--low_fidelity`         | `path` | _None_  | List of low-fidelity genes for adaptive sampling.                           |
+| `--padding`              | `int`  | _None_  | Padding (in bp) around target regions (**required** if not using `--adaptive_samplesheet`). |
+| `--adaptive_samplesheet` | `path` | _None_  | Path to adaptive samplesheet.                                               |
+
+---
+
+### Basecalling Options
+
+| Parameter         | Type     | Default | Description                                                                 |
+|-------------------|----------|---------|-----------------------------------------------------------------------------|
+| `--minqs`         | `int`    | `10`    | Minimum Phred quality score for filtering reads.                            |
+| `--device`        | `string` | _None_  | GPUs to use for basecalling (e.g. `cuda:0,1`).                              |
+| `--batch`         | `int`    | _None_  | Batch size for basecalling.                                                 |
+| `--mapping_small` | `bool`   | `true`  | Use reduced compute resources for mapping (recommended for adaptive/cfDNA). |
+
+---
+
+### Variant Calling Options
+
+| Parameter          | Type     | Default                            | Description                                                                 |
+|--------------------|----------|------------------------------------|-----------------------------------------------------------------------------|
+| `--clairsto_model` | `string` | `ont_r10_dorado_sup_5khz_ssrs`     | ClairS-TO model to use.                                                     |
+| `--qdnaseq_binsize`| `int`    | `500`                              | Bin size (kb) for QDNAseq calling.                                          |
+| `--subchrom_binsize`| `int`   | `500`                              | Bin size (kb) for Subchrom calling.                                         |
 
 ## Pipeline output
 
