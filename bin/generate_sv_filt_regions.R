@@ -34,17 +34,39 @@ make_range <- function(x, window = 30000) {
   paste0("chr", parsed[,2], ":", as.numeric(parsed[,3]) - window, "-", as.numeric(parsed[,3]) + window)
 }
 
-clean_genes <- function(x) {
-  x <- str_remove_all(x, "(&?LOC\\d+&?)")
+
+clean_genes <- function(x, type = c("del_ins", "fusion")) {
+  type <- match.arg(type)
+
+  # remove LOC followed by digits
+  x <- str_remove_all(x, "LOC\\d+")
+  # clean up dangling separators
   x <- str_replace_all(x, "^&|&$", "")
-  str_replace_all(x, "&{2,}", "&")
+  x <- str_replace_all(x, "&{2,}", "&")
+
+  # split into genes
+  parts <- str_split(x, "&", simplify = TRUE)
+
+  if (type == "del_ins") {
+    out <- parts[, 1]   # first gene only
+  } else if (type == "fusion") {
+    out <- ifelse(
+      ncol(parts) >= 2,
+      paste0(parts[,1], "-", parts[,2]), # first two genes
+      parts[,1]
+    )
+  }
+
+  out
 }
+
 
 extract_gene <- function(x) {
   str_extract(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")
 }
 
-process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, window_delins = 20000) {
+process_variant <- function(df, type = c("BND", "DEL_INS"),
+                            window_bnd = 30000, window_delins = 20000) {
   type <- match.arg(type)
 
   df <- df %>%
@@ -59,7 +81,8 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
       mutate(
         pos = paste0(X1, ":", START - window_bnd, "-", START + window_bnd),
         pos2 = make_range(X5),
-        GENE = paste(sample_id, str_replace_all(GENE, "&", "-"), sep = "_")
+        GENE = clean_genes(GENE, type = "fusion"),
+        GENE = paste(sample_id, GENE, sep = "_")
       ) %>%
       select(GENE, pos, pos2)
 
@@ -68,7 +91,7 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
       filter(!str_detect(X3, "BND")) %>%
       mutate(
         END = as.numeric(str_extract(X8, "(?<=END=)\\d+")),
-        GENE = clean_genes(GENE),
+        GENE = clean_genes(GENE, type = "del_ins"),
         GENE = ifelse(GENE == "", X1, GENE),
         pos = paste0(X1, ":", START - window_delins, "-", END + window_delins),
         GENE = paste(sample_id, GENE, sep = "_")
@@ -78,7 +101,6 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
 
   return(df)
 }
-
 # -----------------------------
 # Read Input
 # -----------------------------
