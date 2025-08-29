@@ -38,6 +38,12 @@ workflow BASECALL_MULTIPLEX {
         .map { meta, pod5, _kit, ubam, model ->
             tuple(meta,pod5,ubam,model) }
 
+    ch_demux_corrected_barcode = ch_demux
+        .join(ch_samplesheet)
+        .map { meta, barcode, sample, _pod5, kit, _ubam, _model ->
+            def new_barcode = kit + '_' + barcode
+            tuple(meta,new_barcode,sample) }
+
     DORADO_BASECALL(ch_samplesheet_to_basecall)
 
     ch_to_dmux = ch_samplesheet
@@ -61,7 +67,7 @@ workflow BASECALL_MULTIPLEX {
     SAMTOOLS_QSFILTER(split_bams_ch)
 
      // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
-    ch_new_sample_ids_pass = ch_demux
+    ch_new_sample_ids_pass = ch_demux_corrected_barcode
         .map { project, barcode, sample_id ->
             def new_meta = project.id + '_' + barcode
             tuple(id:new_meta, sample_id) }
@@ -74,7 +80,7 @@ workflow BASECALL_MULTIPLEX {
             tuple(new_meta, ubam)
             }
 
-    ch_new_sample_ids_fail = ch_demux
+    ch_new_sample_ids_fail = ch_demux_corrected_barcode
         .map { project, barcode, sample_id ->
             def new_meta = project.id + '_' + barcode
             tuple(id:new_meta, sample_id) }
