@@ -52,18 +52,13 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform input samplesheet entries to tuples with file handling
-    def transformInputEntry = { meta, input, _ref, _ref_path ->
+    def transformInputEntry = { meta, input, _ref, _ref_path, _kit ->
         tuple(meta.id, meta, file(input))
     }
 
     // Transform input samplesheet entries to tuples with file handling when demultiplexing
     def transformInputKitEntry = { meta, input, _ref, _ref_path, kit ->
         tuple(meta.id, meta, file(input), kit)
-    }
-
-    // Flatten input arrays for processing
-    def flattenInputArrays = { meta, input ->
-        return [meta, input.flatten()]
     }
 
     // Transform adaptive samplesheet entries with conditional file handling
@@ -83,12 +78,7 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform reference entries for processing
-    def transformReferenceEntry = { meta, _input, ref, ref_path ->
-        tuple(meta.id, meta, ref, file(ref_path))
-    }
-
-    // Transform reference entries for processing
-    def transformReferenceDemuxEntry = { meta, _input, ref, ref_path, _kit ->
+    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
 
@@ -155,13 +145,6 @@ workflow PIPELINE_INITIALISATION {
             .transpose()
             .set { ch_demux }
 
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformReferenceDemuxEntry)
-            .groupTuple()
-            .map(processGroupedReference)
-            .set { ch_ref }
-
     } else {
         Channel.empty()
             .set { ch_demux }
@@ -173,15 +156,8 @@ workflow PIPELINE_INITIALISATION {
             .map { samplesheet ->
                 validateInputSamplesheet(samplesheet)
             }
-            .map(flattenInputArrays)
+            .transpose()
             .set { ch_samplesheet }
-
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformReferenceEntry)
-            .groupTuple()
-            .map(processGroupedReference)
-            .set { ch_ref }
     }
 
     if (params.adaptive_samplesheet != null) {
@@ -208,7 +184,7 @@ workflow PIPELINE_INITIALISATION {
             .map { samplesheet ->
                 validateUbamSamplesheet(samplesheet)
             }
-            .map(flattenInputArrays)
+            .transpose()
             .set { ch_ubam }
 
 
@@ -220,7 +196,12 @@ workflow PIPELINE_INITIALISATION {
             .fromPath("${projectDir}/assets/NO_UBAM")
     }
 
-
+    Channel
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+        .map(transformReferenceEntry)
+        .groupTuple()
+        .map(processGroupedReference)
+        .set { ch_ref }
 
     emit:
     bed_sheet   = ch_bed
