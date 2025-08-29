@@ -159,7 +159,7 @@ workflow ADAPTIVE {
         // Branch 2: Full pipeline - perform basecalling first
 
         // Sub-branch 2a: Multiplex basecalling (multiple samples per flow cell)
-        if (params.demux != null) {
+        if (params.demux) {
 
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
