@@ -56,14 +56,14 @@ workflow PIPELINE_INITIALISATION {
         tuple(meta.id, meta, file(input))
     }
 
+    // Transform input samplesheet entries to tuples with file handling when demultiplexing
+    def transformInputKitEntry = { meta, input, _ref, _ref_path, kit ->
+        tuple(meta.id, meta, file(input), kit)
+    }
+
     // Flatten input arrays for processing
     def flattenInputArrays = { meta, input ->
         return [meta, input.flatten()]
-    }
-
-    // Transform demux samplesheet entries
-    def transformDemuxEntry = { barcode, sample ->
-        tuple(barcode, sample)
     }
 
     // Transform adaptive samplesheet entries with conditional file handling
@@ -84,6 +84,11 @@ workflow PIPELINE_INITIALISATION {
 
     // Transform reference entries for processing
     def transformReferenceEntry = { meta, _input, ref, ref_path ->
+        tuple(meta.id, meta, ref, file(ref_path))
+    }
+
+    // Transform reference entries for processing
+    def transformReferenceDemuxEntry = { meta, _input, ref, ref_path, _kit ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
 
@@ -134,33 +139,33 @@ workflow PIPELINE_INITIALISATION {
     // Create channel from input file provided through params.input
     //
 
-    if (params.ubam_samplesheet != null) {
+    if (params.demux) {
         Channel
-            .fromList(samplesheetToList(ubam_samplesheet, "${projectDir}/assets/schema_ubam.json"))
-            .map(transformUbamEntry)
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformInputKitEntry)
             .groupTuple()
-            .map { samplesheet ->
-                validateUbamSamplesheet(samplesheet)
-            }
-            .map(flattenInputArrays)
-            .set { ch_ubam }
+            .transpose()
+            .map{samplesheet ->
+                validateDemuxSamplesheet(samplesheet)}
+            .set { ch_samplesheet }
+
+        Channel
+            .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .groupTuple()
+            .transpose()
+            .set { ch_demux }
 
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputEntry)
+            .map(transformReferenceDemuxEntry)
             .groupTuple()
-            .map { samplesheet ->
-                validateInputSamplesheet(samplesheet)
-            }
-            .map(flattenInputArrays)
-            .set { ch_input }
-
-        ch_samplesheet = ch_input
-            .join(ch_ubam)
+            .map(processGroupedReference)
+            .set { ch_ref }
 
     } else {
-        ch_ubam = Channel
-            .fromPath("${projectDir}/assets/NO_UBAM")
+        Channel.empty()
+            .set { ch_demux }
+
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map(transformInputEntry)
@@ -170,16 +175,13 @@ workflow PIPELINE_INITIALISATION {
             }
             .map(flattenInputArrays)
             .set { ch_samplesheet }
-    }
 
-    if (params.demux != null) {
         Channel
-            .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
-            .map(transformDemuxEntry)
-            .set { ch_demux }
-    } else {
-        Channel.empty()
-            .set { ch_demux }
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformReferenceEntry)
+            .groupTuple()
+            .map(processGroupedReference)
+            .set { ch_ref }
     }
 
     if (params.adaptive_samplesheet != null) {
@@ -198,13 +200,26 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_bed }
     }
 
+    if (params.ubam_samplesheet != null) {
+        Channel
+            .fromList(samplesheetToList(ubam_samplesheet, "${projectDir}/assets/schema_ubam.json"))
+            .map(transformUbamEntry)
+            .groupTuple()
+            .map { samplesheet ->
+                validateUbamSamplesheet(samplesheet)
+            }
+            .map(flattenInputArrays)
+            .set { ch_ubam }
 
-    Channel
-        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-        .map(transformReferenceEntry)
-        .groupTuple()
-        .map(processGroupedReference)
-        .set { ch_ref }
+
+        ch_samplesheet = ch_input
+            .join(ch_ubam)
+
+    } else {
+        ch_ubam = Channel
+            .fromPath("${projectDir}/assets/NO_UBAM")
+    }
+
 
 
     emit:
@@ -280,6 +295,12 @@ def validateUbamSamplesheet(file) {
     def (metas, ubam) = file[1..2]
 
     return [ metas[0], ubam ]
+}
+
+def validateDemuxSamplesheet(file) {
+    def (meta_id, meta, input_files, kit) = file[0..3]
+
+    return [ meta, input_files, kit ]
 }
 
 def validateAdaptiveSamplesheet(file) {

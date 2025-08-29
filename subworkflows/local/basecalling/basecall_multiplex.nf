@@ -29,34 +29,45 @@ workflow BASECALL_MULTIPLEX {
     take:
     ch_samplesheet // channel: samplesheet read in from --input
     ch_demux       // channel : demux samplesheet read in from --demux_samplesheet
+    ch_ref
     main:
 
     ch_versions = Channel.empty()
 
-    DORADO_BASECALL(ch_samplesheet)
+    ch_samplesheet_to_basecall = ch_samplesheet
+        .map { meta, pod5, _kit, ubam, model ->
+            tuple(meta,pod5,ubam,model) }
 
-    DORADO_DEMULTIPLEX(DORADO_BASECALL.out.ubam)
+    DORADO_BASECALL(ch_samplesheet_to_basecall)
+
+    ch_to_dmux = ch_samplesheet
+        .map { meta, _pod5, kit, _ubam, _model ->
+            tuple(meta,kit) }
+        .join(DORADO_BASECALL.out.ubam)
+
+    DORADO_DEMULTIPLEX(ch_to_dmux)
 
     demultiplex_out_ch = DORADO_DEMULTIPLEX.out.demux_ubam
 
-    split_bams_ch = demultiplex_out_ch
-        .groupTuple()
-        .flatMap{ meta, ubam_files ->
-            ubam_files.collect { ubam ->
+     split_bams_ch = demultiplex_out_ch
+        .map { meta, ubam_files ->
             // Extract barcodes from ubam file name
-                def ubam_base = ubam.baseName.replaceFirst(/^.*?(barcode\d{2}|unclassified).*$/, '$1')
+                def barcode = ubam_files.baseName.toString().replaceAll(/^[^_]*_/, '')
+                def new_meta = meta.id + '_' + barcode
             // Create a tuple with the extracted barcode and ubam file
-                tuple(id:ubam_base, ubam)
-                }
+                tuple(id:new_meta, ubam_files)
             }
 
     SAMTOOLS_QSFILTER(split_bams_ch)
 
-    // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
+     // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
     ch_new_sample_ids_pass = ch_demux
-        .combine(SAMTOOLS_QSFILTER.out.ubam_pass, by:0)
-        .map { barcode, sample, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
-            tuple([id: sample], ubam) }
+        .map { project, barcode, sample_id ->
+            def new_meta = project.id + '_' + barcode
+            tuple(id:new_meta, sample_id) }
+        .join(SAMTOOLS_QSFILTER.out.ubam_pass)
+        .map { _meta, sampleid, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
+            tuple(id: sampleid, ubam) }
         .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add pass to meta in tuples for output naming
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
@@ -64,9 +75,12 @@ workflow BASECALL_MULTIPLEX {
             }
 
     ch_new_sample_ids_fail = ch_demux
-        .combine(SAMTOOLS_QSFILTER.out.ubam_fail, by:0)
-        .map { barcode, sample, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
-            tuple([id: sample], ubam) }
+        .map { project, barcode, sample_id ->
+            def new_meta = project.id + '_' + barcode
+            tuple(id:new_meta, sample_id) }
+        .join(SAMTOOLS_QSFILTER.out.ubam_fail)
+        .map { _meta, sampleid, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
+            tuple(id: sampleid, ubam) }
         .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add fail to meta in tuples for output naming
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
@@ -75,6 +89,13 @@ workflow BASECALL_MULTIPLEX {
 
     SAMTOOLS_TOFASTQ_PASS(ch_new_sample_ids_pass)
     SAMTOOLS_TOFASTQ_FAIL(ch_new_sample_ids_fail)
+
+    ch_rejoin_ref = ch_demux
+        .map { project,_barcode,sample ->
+            tuple(project,sample) }
+        .join(ch_ref)
+        .map { _project, sample, ref_id, ref, ref_index ->
+            tuple(id:sample, ref_id, ref, ref_index) }      // Replace meta id with sample_id which will be used as new meta id downstream
 
     SEQKIT_STATS_PASS(SAMTOOLS_TOFASTQ_PASS.out.fq)              // Read stats for passed reads
     SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
@@ -96,6 +117,7 @@ workflow BASECALL_MULTIPLEX {
 
     emit:
     fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
+    ref            = ch_rejoin_ref
     stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
     stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
     versions       = ch_versions              // channel: [ path(versions.yml) ]

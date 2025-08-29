@@ -7,6 +7,12 @@
     "items": {
         "type": "object",
         "properties": {
+            "project": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Parent sequencing project name must be provided and cannot contain spaces",
+                "meta": ["id"]
+            },
             "barcode": {
                 "type": "string",
                 "pattern": "^\\S+$",
