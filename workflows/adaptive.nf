@@ -164,13 +164,14 @@ workflow ADAPTIVE {
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet
+                demux_samplesheet,
+                ref
             )
 
             // Map basecalled reads to reference
             MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
-                ref
+                BASECALL_MULTIPLEX.out.ref
             )
         } else {
             // Sub-branch 2b: Simplex basecalling (single sample per flow cell)

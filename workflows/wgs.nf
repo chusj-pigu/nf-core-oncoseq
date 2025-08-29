@@ -106,12 +106,13 @@ workflow WGS {
 
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet
+                demux_samplesheet,
+                ref
             )
 
             MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
-                ref
+                BASECALL_MULTIPLEX.out.ref
             )
         } else {
 
