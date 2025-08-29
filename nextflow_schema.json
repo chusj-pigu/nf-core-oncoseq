@@ -216,8 +216,8 @@
             "default": "/workspaces/nf-core-oncoseq/assets/NO_BED"
         },
         "demux": {
-            "type": "string",
-            "description": "Kit used for barcoding"
+            "type": "boolean",
+            "description": "turn on multiplex basecalling"
         },
         "minqs": {
             "type": "integer",
