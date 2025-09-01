@@ -102,11 +102,6 @@ workflow LOCAL_REALTIME {
             targets
         )
 
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed
-        )
-
     } else if (params.realtime >=6 & params.realtime < 72 ) {
 
         CNV_CALLING(
