@@ -76,7 +76,7 @@ workflow LOCAL_REALTIME {
         }
     }
 
-    if (params.realtime < 6) {                 // Before 10h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
+    if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
         MARLIN(
             MAPPING.out.bam,
