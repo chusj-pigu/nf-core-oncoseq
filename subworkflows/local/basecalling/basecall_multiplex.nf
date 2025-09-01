@@ -53,16 +53,15 @@ workflow BASECALL_MULTIPLEX {
 
     DORADO_DEMULTIPLEX(ch_to_dmux)
 
-    demultiplex_out_ch = DORADO_DEMULTIPLEX.out.demux_ubam
-
-     split_bams_ch = demultiplex_out_ch
-        .map { meta, ubam_files ->
-            // Extract barcodes from ubam file name
-                def barcode = ubam_files.baseName.toString().replaceAll(/^[^_]*_/, '')
-                def new_meta = meta.id + '_' + barcode
-            // Create a tuple with the extracted barcode and ubam file
-                tuple(id:new_meta, ubam_files)
-            }
+     split_bams_ch = DORADO_DEMULTIPLEX.out.demux_ubam
+        .flatMap { meta, bams ->
+            bams.collect { bam -> tuple(meta, bam) }                    // Split output of Dorado multiplex in a multiple tuples of one bam per barcode
+        }
+        .map { meta, bam ->
+            def barcode = bam.baseName.replaceAll(/^[^_]*_/, '')
+            def new_meta = [ id: "${meta.id}_${barcode}" ]
+            tuple(new_meta, bam)
+        }
 
     SAMTOOLS_QSFILTER(split_bams_ch)
 
