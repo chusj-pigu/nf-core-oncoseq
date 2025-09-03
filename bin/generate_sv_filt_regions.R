@@ -88,6 +88,7 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
 # Read Input
 # -----------------------------
 vcf <- read_tsv(input, col_names = FALSE)
+targets_df <- read.csv(target_list)
 
 # -----------------------------
 # Process Variants
