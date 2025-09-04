@@ -91,7 +91,7 @@ workflow BASECALL_MULTIPLEX {
             tuple(new_meta, sample_id)    // flatten key to string
         }
         .combine(
-            SAMTOOLS_QSFILTER.out.ubam_pass.map { meta, bam ->
+            SAMTOOLS_QSFILTER.out.ubam_fail.map { meta, bam ->
                 tuple(meta.id, bam)      // also flatten key
             },
             by: 0
