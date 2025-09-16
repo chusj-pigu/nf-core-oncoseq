@@ -27,7 +27,7 @@
    to nf-core here, in 15-20 seconds. For an example, see https://github.com/nf-core/rnaseq/blob/master/README.md#introduction
 -->
 
-[!nf-core-oncoseq summary of full workflow](assets/nf-core-oncoseq_schema.jpg)
+![nf-core-oncoseq summary of full workflow](assets/nf-core-oncoseq_schema.jpg)
 
 1. Basecalling with [Dorado](https://github.com/nanoporetech/dorado), it's possible to skip this step by supplying fastq files and using `--skip_basecalling`
 2. Reads QC with [Seqkit](https://bioinf.shenwei.me/seqkit/)
@@ -117,7 +117,7 @@ The parameter `--clin_database` indicates the path to the ClinVar database that 
 
 To run in real time while data is still sequencing, use the `--realtime [INT]` where you must provide the time of sequencing as an integer. **This is only available for the adaptive mode**
 
-[!nf-core-oncoseq when run in real time](assets/nf-core-oncoseq_schema_realtime.jpg)
+![nf-core-oncoseq when run in real time](assets/nf-core-oncoseq_schema_realtime.jpg)
 
 > [!WARNING]
 > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
