@@ -28,7 +28,7 @@
 
 - [Dorado](https://dorado-docs.readthedocs.io/en/latest/)
 
-- [figeno]
+- [figeno](https://figeno.readthedocs.io/en/latest/)
 
 > Sollier, E., Heilmann, J., Gerhauser, C., Scherer, M., Plass, C., & Lutsik, P. (2024). Figeno: Multi-region genomic figures with long-read support. Bioinformatics, 40(6), btae354. https://doi.org/10.1093/bioinformatics/btae354
 
