@@ -28,6 +28,10 @@
 
 - [Dorado](https://dorado-docs.readthedocs.io/en/latest/)
 
+- [figeno]
+
+> Sollier, E., Heilmann, J., Gerhauser, C., Scherer, M., Plass, C., & Lutsik, P. (2024). Figeno: Multi-region genomic figures with long-read support. Bioinformatics, 40(6), btae354. https://doi.org/10.1093/bioinformatics/btae354
+
 - [minimap2](https://github.com/lh3/minimap2)
 
 > Li, H. (2021). New strategies to improve minimap2 alignment accuracy. Bioinformatics, 37(23), 4572–4574. https://doi.org/10.1093/bioinformatics/btab705
