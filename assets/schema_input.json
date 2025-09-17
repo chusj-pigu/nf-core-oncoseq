@@ -31,6 +31,14 @@
             "kit": {
                 "type": "string",
                 "pattern": "^\\S+$"
+            },
+            "purity": {
+                "type": "string",
+                "pattern": "^\\S+$"
+            },
+            "filter": {
+                "type": "string",
+                "pattern": "^\\S+$"
             }
         },
         "required": ["sample", "input", "ref", "ref_path"]

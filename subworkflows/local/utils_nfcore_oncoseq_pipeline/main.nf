@@ -52,8 +52,22 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform input samplesheet entries to tuples with file handling
-    def transformInputEntry = { meta, input, _ref, _ref_path, _kit ->
-        tuple(meta.id, meta, file(input))
+    def transformInputEntry = { meta, input, _ref, _ref_path, kit, purity, filter ->
+        if(!kit && !purity && !filter) {                // No demultiplexing & no cfdna
+            tuple(meta.id, meta, file(input))
+        } else if (!purity && !filter) {                // Demultiplexing but no cfdna
+            tuple(meta.id, meta, file(input), kit)
+        } else if (!kit) {                              // cfdna but no demultiplexing
+            tuple(meta.id, meta, file(input), purity, filter)
+        } else {                                        // cfnda & demultiplexing
+            tuple(meta.id, meta, file(input), kit, purity, filter)
+        }
+    }
+
+    // Transform input samplesheet entries to tuples with file handling when using --cfdna mode
+    def transformInputCfEntry = { meta, input, _ref, _ref_path, kit, purity, filter ->
+        if(!kit)
+        tuple(meta.id, meta, file(input), kit, purity, filter)
     }
 
     // Transform input samplesheet entries to tuples with file handling when demultiplexing
@@ -131,34 +145,21 @@ workflow PIPELINE_INITIALISATION {
 
     if (params.demux) {
         Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputKitEntry)
-            .groupTuple()
-            .transpose()
-            .map{samplesheet ->
-                validateDemuxSamplesheet(samplesheet)}
-            .set { ch_samplesheet }
-
-        Channel
             .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
             .groupTuple()
             .transpose()
             .set { ch_demux }
 
-    } else {
-        Channel.empty()
-            .set { ch_demux }
-
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputEntry)
-            .groupTuple()
-            .map { samplesheet ->
-                validateInputSamplesheet(samplesheet)
-            }
-            .transpose()
-            .set { ch_samplesheet }
     }
+
+    Channel
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+        .map(transformInputKitEntry)
+        .groupTuple()
+        .transpose()
+        .map{samplesheet ->
+                validateDemuxSamplesheet(samplesheet)}
+        .set { ch_samplesheet }
 
     if (params.adaptive_samplesheet != null) {
         Channel
