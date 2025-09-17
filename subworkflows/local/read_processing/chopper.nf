@@ -19,7 +19,7 @@ workflow READS_FILTER {
     //   fastq_ch: Channel of tuples [meta, reads] (reads can be file or directory)
     //   ref:      Channel of tuples [meta, ref, ref_fasta, ref_fai]
     take:
-    samplesheet         // Channel: input samplesheet
+    cfdna_samplesheet    // Channel: subset of input samplesheet or demux_samplesheet
     fastq               // Channel: output of basecalling or same as samplesheet
     max_len             // Channel : from params.max_length
     minqs               // Channel: from params.minqs
@@ -28,7 +28,7 @@ workflow READS_FILTER {
 
     if (params.skip_basecalling) {
         // If the input is a directory of fastq, merge them before processing them
-             samplesheet
+             fastq
                 .map { meta, reads ->
                     // Ensure 'reads' is a list and flatten it
                     def dir_list = reads instanceof List ? reads.flatten() : [reads]
@@ -67,19 +67,12 @@ workflow READS_FILTER {
                 .set { ch_fastq }
         }
 
-    if (params.demux) {
-        ch_samplesheet_cfdna = samplesheet
-            .join(ch_fastq)
-            .map { meta, _input, _kit, _purity, filter, reads ->
-                tuple(meta, reads, filter) }
-    } else {
-        ch_samplesheet_cfdna = samplesheet
-            .join(ch_fastq)
-            .map { meta, _input, _purity, filter, reads ->
-                tuple(meta, reads, filter) }
-    }
+    ch_cfdna = cfdna_samplesheet
+        .join(ch_fastq)
+        .map { meta, _purity, filter, reads ->
+            tuple(meta, reads, filter) }
 
-    ch_samplesheet_to_process = ch_samplesheet_cfdna.branch {
+    ch_samplesheet_to_process = ch_cfdna.branch {
         to_filter: it[2]                                // Filter column true
         no_filter: !it[2]                               // Filter column false
     }
