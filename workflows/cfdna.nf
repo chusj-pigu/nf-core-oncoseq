@@ -4,6 +4,7 @@ include { READS_FILTER       } from '../subworkflows/local/read_processing/chopp
 include { MAPPING            } from '../subworkflows/local/mapping/mapping'
 include { CNV_CALLING        } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { ICHORCNA_CALLING   } from '../subworkflows/local/variant_calling/ichor_calling.nf'
+include { MARLIN             } from '../subworkflows/local/methylation_analysis/marlin.nf'
 
 workflow CFDNA {
 
@@ -56,6 +57,11 @@ workflow CFDNA {
 
     MAPPING (
         READS_FILTER.out.reads,
+        ref
+    )
+
+    MARLIN(
+        MAPPING.out.bam,
         ref
     )
 
