@@ -27,7 +27,8 @@ workflow CFDNA {
     if (params.demux) {
         BASECALL_MULTIPLEX (
             samplesheet,
-            demux
+            demux,
+            ref
         )
         READS_FILTER (
             cfdna_samplesheet,
@@ -73,7 +74,6 @@ workflow CFDNA {
 
     ICHORCNA_CALLING (
         MAPPING.out.bam,
-        ref,
         cfdna_samplesheet,
         ichor_bin,
         mapq_wig
