@@ -73,9 +73,10 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
 workflow NFCORE_ONCOSEQ_CFDNA {
 
     take:
-    samplesheet // channel: samplesheet read in from --input
-    demux       // channel: demux_samplesheet read in from --demux_samplesheet
-    ref         // channel : reference for mapping, either empty if skipping mapping, or a path
+    samplesheet         // channel: samplesheet read in from --input
+    demux               // channel: demux_samplesheet read in from --demux_samplesheet
+    cfdna_samplesheet   // channel : from demux or samplesheeet
+    ref                 // channel : reference for mapping, either empty if skipping mapping, or a path
     max_len
     minqs
     ichor_bin
@@ -89,6 +90,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     CFDNA (
         samplesheet,
         demux,
+        cfdna_samplesheet,
         ref,
         max_len,
         minqs,
@@ -203,6 +205,7 @@ workflow {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.cfdna_ch,
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_max_len,
             ch_minqs,

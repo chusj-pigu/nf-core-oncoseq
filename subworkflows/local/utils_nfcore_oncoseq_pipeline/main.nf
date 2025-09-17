@@ -57,17 +57,18 @@ workflow PIPELINE_INITIALISATION {
             tuple(meta.id, meta, file(input))
         } else if (!purity && !filter) {                // Demultiplexing but no cfdna
             tuple(meta.id, meta, file(input), kit)
-        } else if (!kit) {                              // cfdna but no demultiplexing
+        } else {                              // cfdna but no demultiplexing
             tuple(meta.id, meta, file(input), purity, filter)
-        } else {                                        // cfnda & demultiplexing
-            tuple(meta.id, meta, file(input), kit, purity, filter)
         }
     }
 
-    // Transform input samplesheet entries to tuples with file handling when using --cfdna mode
-    def transformInputCfEntry = { meta, input, _ref, _ref_path, kit, purity, filter ->
-        if(!kit)
-        tuple(meta.id, meta, file(input), kit, purity, filter)
+    // Transform input samplesheet entries to tuples with file handling
+    def transformDemuxEntry = { meta, sample, barcode, purity, filter ->
+        if(!purity && !filter) {                //  no cfdna
+            tuple(meta, sample, barcode)
+        } else {                                        // cfnda
+            tuple(meta, sample, barcode, purity, filter)
+        }
     }
 
     // Transform input samplesheet entries to tuples with file handling when demultiplexing
@@ -146,20 +147,33 @@ workflow PIPELINE_INITIALISATION {
     if (params.demux) {
         Channel
             .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .map(transformDemuxEntry)
             .groupTuple()
             .transpose()
             .set { ch_demux }
 
-    }
+        Channel
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformInputKitEntry)
+            .groupTuple()
+            .transpose()
+            .map{samplesheet ->
+                    validateDemuxSamplesheet(samplesheet)}
+            .set { ch_samplesheet }
+    } else {
+        Channel
+            .empty()
+            .set { ch_demux }
 
-    Channel
-        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-        .map(transformInputKitEntry)
-        .groupTuple()
-        .transpose()
-        .map{samplesheet ->
-                validateDemuxSamplesheet(samplesheet)}
-        .set { ch_samplesheet }
+        Channel
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformInputKitEntry)
+            .groupTuple()
+            .transpose()
+            .map{samplesheet ->
+                    validateInputSamplesheet(samplesheet)}
+            .set { ch_samplesheet }
+    }
 
     if (params.adaptive_samplesheet != null) {
         Channel
@@ -205,12 +219,42 @@ workflow PIPELINE_INITIALISATION {
         .map(processGroupedReference)
         .set { ch_ref }
 
+    // Separate samplesheet for purity and filtering (cfDNA)
+
+    if (params.cfdna) {
+        if (params.demux) {
+            ch_demux
+                .map { meta, sample, barcode, purity, filter ->
+                tuple(meta, purity, filter)
+                }
+                .set { ch_cfdna }
+
+            ch_demux
+                .map { meta, sample, barcode, purity, filter ->
+                tuple(meta, sample, barcode)
+                }
+                .set { ch_demux }
+        } else {
+            ch_samplesheet
+                .map { meta, input, purity, filter ->
+                tuple(meta, purity, filter)
+                }
+                .set { ch_cfdna }
+            ch_samplesheet
+                .map { meta, input, purity, filter ->
+                tuple(meta, input)
+                }
+                .set { ch_samplesheet }
+        }
+    }
+
     emit:
     bed_sheet   = ch_bed
     ubam_ch     = ch_ubam
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     ref_ch      = ch_ref
+    cfdna_ch    = ch_cfdna
     versions    = ch_versions
 }
 

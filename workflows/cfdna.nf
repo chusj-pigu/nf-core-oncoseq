@@ -11,6 +11,7 @@ workflow CFDNA {
     take:
     samplesheet // channel: samplesheet read in from --input
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
+    cfdna_samplesheet   // channel : from demux or samplesheeet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     max_len
     minqs
@@ -29,7 +30,7 @@ workflow CFDNA {
             demux
         )
         READS_FILTER (
-            samplesheet,
+            cfdna_samplesheet,
             BASECALL_MULTIPLEX.out.fastq,
             max_len,
             minqs
@@ -37,7 +38,7 @@ workflow CFDNA {
     } else if (params.skip_basecalling) {
 
         READS_FILTER (
-            samplesheet,
+            cfdna_samplesheet,
             samplesheet,
             max_len,
             minqs
@@ -48,7 +49,7 @@ workflow CFDNA {
             samplesheet
         )
         READS_FILTER (
-            samplesheet,
+            cfdna_samplesheet,
             BASECALL_SIMPLEX.out.fastq,
             max_len,
             minqs
@@ -73,7 +74,7 @@ workflow CFDNA {
     ICHORCNA_CALLING (
         MAPPING.out.bam,
         ref,
-        samplesheet,
+        cfdna_samplesheet,
         ichor_bin,
         mapq_wig
     )

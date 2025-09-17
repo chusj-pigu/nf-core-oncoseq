@@ -20,7 +20,7 @@ workflow ICHORCNA_CALLING {
 
     take:
     bam                 // channel: from mapping workflow, includes index
-    samplesheet         // reference channel with index
+    cfdna_samplesheet         // reference channel with index
     ichor_bin           // Channel from params.ichor_bin_size
     mapq_wig            // Channel from params.minmapq_wig
     main:
@@ -30,17 +30,11 @@ workflow ICHORCNA_CALLING {
         .combine(mapq_wig)
     HMMCOPY_WIG(ch_hmmwig_in)
 
-    if (params.demux) {
-        ch_samplesheet_wig = samplesheet
-            .join(HMMCOPY_WIG.out.wig)
-            .map { meta, _input, _kit, purity, _filter, wig ->
-                tuple(meta, wig, purity) }
-    } else {
-        ch_samplesheet_wig = samplesheet
-            .join(HMMCOPY_WIG.out.wig)
-            .map { meta, _input, purity, _filter, wig ->
-                tuple(meta, wig, purity) }
-    }
+    ch_samplesheet_wig = cfdna_samplesheet
+        .join(HMMCOPY_WIG.out.wig)
+        .map { meta, purity, _filter, wig ->
+            tuple(meta, wig, purity) }
+
 
     ICHORCNA_DOWNLOAD(ch_samplesheet_wig)
 
