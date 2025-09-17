@@ -99,8 +99,8 @@ workflow READS_FILTER {
                 def meta_restore =  modifyMetaId(meta, 'remove_suffix', '', '', '_filt')
                 tuple(meta_restore, reads)}
 
-        ch_versions = CHOPPER_LENGTH.out.version
-            .mix(SEQKIT_STATS.out.version)
+        ch_versions = CHOPPER_LENGTH.out.versions
+            .mix(SEQKIT_STATS.out.versions)
     } else {
         ch_reads_filtered = ch_chopper_result
         ch_versions = Channel.empty()
