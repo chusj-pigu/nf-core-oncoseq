@@ -74,3 +74,11 @@
 	path = modules/local/figeno
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = figeno
+[submodule "modules/local/chopper"]
+	path = modules/local/chopper
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = chopper
+[submodule "modules/local/ichorcna"]
+	path = modules/local/ichorcna
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = ichorcna
