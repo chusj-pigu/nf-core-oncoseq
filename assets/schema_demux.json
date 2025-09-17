@@ -22,6 +22,14 @@
                 "type": "string",
                 "pattern": "^\\S+$",
                 "errorMessage": "Sample name must be provided and cannot contain spaces"
+            },
+            "purity": {
+                "type": "string",
+                "pattern": "^\\S+$"
+            },
+            "filter": {
+                "type": "string",
+                "pattern": "^\\S+$"
             }
         },
         "required": ["barcode", "sample"]
