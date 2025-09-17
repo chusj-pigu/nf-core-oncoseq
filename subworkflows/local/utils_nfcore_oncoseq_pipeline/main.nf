@@ -163,9 +163,10 @@ workflow PIPELINE_INITIALISATION {
 
     if (params.adaptive_samplesheet != null) {
         Channel
-            .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_adaptive.json"))
             .map(transformAdaptiveEntry)
-            groupTuple(by:1)
+            .groupTuple(by:1)
+            .transpose()
             .set { ch_bed }
     } else {
         Channel
