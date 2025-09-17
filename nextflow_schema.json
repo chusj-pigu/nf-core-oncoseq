@@ -333,11 +333,26 @@
         },
         "sv_targets": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NOLIST",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOCSV",
             "description": "List of genes to visualize with Figeno (columns GENE and pos)"
         },
         "skip_mapping": {
             "type": "boolean"
+        },
+        "max_length": {
+            "type": "integer",
+            "default": 700,
+            "description": "Maximum length (in bases) of reads to include in cfdna analysis (if filter true in samplesheet)"
+        },
+        "min_mapq_ichor": {
+            "type": "integer",
+            "default": 20,
+            "description": "Minimum MAPQ of reads to include in ichorCNA analysis"
+        },
+        "ichor_bin_size": {
+            "type": "integer",
+            "default": 500000,
+            "description": "Bin size to use for IchorCNA (in bases)"
         }
     },
     "required": ["clin_database"]
