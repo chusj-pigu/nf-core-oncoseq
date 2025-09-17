@@ -46,18 +46,19 @@ workflow LOCAL_REALTIME {
             ref
         )
     } else {
-        if (params.demux != null) {
+        if (params.demux) {
 
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet
+                demux_samplesheet,
+                ref
             )
 
             // Map basecalled reads to reference
             MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
-                ref
+                BASECALL_MULTIPLEX.out.ref
             )
         } else {
             // Sub-branch 2b: Simplex basecalling (single sample per flow cell)
@@ -76,7 +77,7 @@ workflow LOCAL_REALTIME {
         }
     }
 
-    if (params.realtime < 6) {                 // Before 10h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
+    if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
         MARLIN(
             MAPPING.out.bam,
@@ -100,11 +101,6 @@ workflow LOCAL_REALTIME {
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
             targets
-        )
-
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed
         )
 
     } else if (params.realtime >=6 & params.realtime < 72 ) {

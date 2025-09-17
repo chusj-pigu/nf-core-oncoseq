@@ -33,7 +33,7 @@ include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncos
 //
 include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
 include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
-
+include { MARLIN                } from '../subworkflows/local/methylation_analysis/marlin.nf'
 
 //
 // WORKFLOW: Adaptive sequencing analysis pipeline

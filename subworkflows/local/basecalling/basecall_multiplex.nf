@@ -38,6 +38,12 @@ workflow BASECALL_MULTIPLEX {
         .map { meta, pod5, _kit, ubam, model ->
             tuple(meta,pod5,ubam,model) }
 
+    ch_demux_corrected_barcode = ch_samplesheet
+        .combine(ch_demux, by:0)
+        .map { meta, _pod5, kit, _ubam, _model, barcode, sample ->
+            def new_barcode = kit + '_' + barcode
+            tuple(meta,new_barcode,sample) }
+
     DORADO_BASECALL(ch_samplesheet_to_basecall)
 
     ch_to_dmux = ch_samplesheet
@@ -47,38 +53,49 @@ workflow BASECALL_MULTIPLEX {
 
     DORADO_DEMULTIPLEX(ch_to_dmux)
 
-    demultiplex_out_ch = DORADO_DEMULTIPLEX.out.demux_ubam
-
-     split_bams_ch = demultiplex_out_ch
-        .map { meta, ubam_files ->
-            // Extract barcodes from ubam file name
-                def barcode = ubam_files.baseName.toString().replaceAll(/^[^_]*_/, '')
-                def new_meta = meta.id + '_' + barcode
-            // Create a tuple with the extracted barcode and ubam file
-                tuple(id:new_meta, ubam_files)
-            }
+     split_bams_ch = DORADO_DEMULTIPLEX.out.demux_ubam
+        .flatMap { meta, bams ->
+            bams.collect { bam -> tuple(meta, bam) }                    // Split output of Dorado multiplex in a multiple tuples of one bam per barcode
+        }
+        .map { meta, bam ->
+            def barcode = bam.baseName.replaceAll(/^[^_]*_/, '')
+            def new_meta = [ id: "${meta.id}_${barcode}" ]
+            tuple(new_meta, bam)
+        }
 
     SAMTOOLS_QSFILTER(split_bams_ch)
 
      // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
-    ch_new_sample_ids_pass = ch_demux
-        .map { project, barcode, sample_id ->
-            def new_meta = project.id + '_' + barcode
-            tuple(id:new_meta, sample_id) }
-        .join(SAMTOOLS_QSFILTER.out.ubam_pass)
+    ch_new_sample_ids_pass = ch_demux_corrected_barcode
+        .map { meta, barcode, sample_id ->
+            def new_meta = meta.id + '_' + barcode
+            tuple(new_meta, sample_id)    // flatten key to string
+        }
+        .combine(
+            SAMTOOLS_QSFILTER.out.ubam_pass.map { meta, bam ->
+                tuple(meta.id, bam)      // also flatten key
+            },
+            by: 0
+        )
         .map { _meta, sampleid, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
             tuple(id: sampleid, ubam) }
         .map { meta, ubam ->
             def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add pass to meta in tuples for output naming
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
             tuple(new_meta, ubam)
-            }
+        }
 
-    ch_new_sample_ids_fail = ch_demux
-        .map { project, barcode, sample_id ->
-            def new_meta = project.id + '_' + barcode
-            tuple(id:new_meta, sample_id) }
-        .join(SAMTOOLS_QSFILTER.out.ubam_fail)
+    ch_new_sample_ids_fail = ch_demux_corrected_barcode
+        .map { meta, barcode, sample_id ->
+            def new_meta = meta.id + '_' + barcode
+            tuple(new_meta, sample_id)    // flatten key to string
+        }
+        .combine(
+            SAMTOOLS_QSFILTER.out.ubam_fail.map { meta, bam ->
+                tuple(meta.id, bam)      // also flatten key
+            },
+            by: 0
+        )
         .map { _meta, sampleid, ubam ->                         // Get rid of barcodes here and use real sample_id as meta
             tuple(id: sampleid, ubam) }
         .map { meta, ubam ->

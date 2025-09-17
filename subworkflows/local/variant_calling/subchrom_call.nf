@@ -41,10 +41,17 @@ workflow SUBCHROM_CALL {
                 tuple(id:'skip', bedfile) }
     }
 
-    ch_in_subchrom_panel = bam
-        .join(vcf)
+    ch_in_subchrom_panel = vcf
+        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('germline_snp') }       // Only keep the snp file created by clair3 annotated with SnpEff
+        .map { meta, vcf_file, _vcf_tbi ->
+            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp', '', '')       // Restore meta to be sample id only to join with ref and bam
+                tuple(meta_restore, vcf_file)
+            }
+        .join(bam)
         .join(ch_ref_subchrom)
         .join(ch_panel_bin_processed)
+        .map { meta, vcf_file, bam_file, bai, ref_id, ref_fasta, panel ->
+            tuple(meta, bam_file, bai, vcf_file, ref_id, ref_fasta, panel) }        // Reorder the files to match input declaration
 
     SUBCHROM_CALL_PANEL(ch_in_subchrom_panel)
 

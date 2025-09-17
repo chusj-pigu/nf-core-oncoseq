@@ -102,7 +102,7 @@ workflow WGS {
 
     } else {
 
-        if (params.demux != null) {
+        if (params.demux) {
 
             BASECALL_MULTIPLEX (
                 samplesheet,

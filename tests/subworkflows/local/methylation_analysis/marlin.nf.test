@@ -1,0 +1,45 @@
+nextflow_workflow {
+
+    name "Test Workflow MARLIN"
+    script "subworkflows/local/methylation_analysis/marlin.nf"
+    workflow "MARLIN"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                // define parameters here. Example:
+                // outdir = "tests/results"
+            }
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                ch_bam = Channel.fromPath("${projectDir}/test_data/methylation_analysis/test.bam")
+                ch_bam_bai = Channel.fromPath("${projectDir}/test_data/methylation_analysis/test.bam.bai")
+                ch_ref_id = Channel.of('hg38')
+                ch_ref = Channel.fromPath("${projectDir}/test_data/hg38.fa")
+                ch_ref_fai = Channel.fromPath("${projectDir}/test_data/hg38.fa.fai")
+
+                input[0] = Channel.of('test')
+                    .combine(ch_bam)
+                    .combine(ch_bam_bai)
+                    .map { meta, bam, bai ->
+                    tuple(id:meta, bam, bai)}
+
+                input[1] = Channel.of('test')
+                    .combine(ch_ref_id)
+                    .combine(ch_ref)
+                    .combine(ch_ref_fai)
+                    .map { meta, refid, ref, ref_fai ->
+                    tuple(id:meta, refid, ref, ref_fai)}
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}
