@@ -71,11 +71,6 @@ workflow PIPELINE_INITIALISATION {
         }
     }
 
-    // Transform input samplesheet entries to tuples with file handling when demultiplexing
-    def transformInputKitEntry = { meta, input, _ref, _ref_path, kit ->
-        tuple(meta.id, meta, file(input), kit)
-    }
-
     // Transform adaptive samplesheet entries with conditional file handling
     def transformAdaptiveEntry = { meta, bed, padding, low_fidelity ->
         if(!low_fidelity) {
@@ -93,7 +88,7 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform reference entries for processing
-    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit ->
+    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _purity, _filter ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
 
@@ -154,7 +149,7 @@ workflow PIPELINE_INITIALISATION {
 
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputKitEntry)
+            .map(transformInputEntry)
             .groupTuple()
             .transpose()
             .map{samplesheet ->
@@ -167,7 +162,7 @@ workflow PIPELINE_INITIALISATION {
 
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputKitEntry)
+            .map(transformInputEntry)
             .groupTuple()
             .transpose()
             .map{samplesheet ->
