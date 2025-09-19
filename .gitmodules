@@ -82,3 +82,7 @@
 	path = modules/local/ichorcna
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = ichorcna
+[submodule "modules/local/nanoplot"]
+	path = modules/local/nanoplot
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = nanoplot
