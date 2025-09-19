@@ -53,10 +53,13 @@ workflow READS_FILTER {
                 }
                 .set { ch_sep_fastq }
 
+            ch_test = ch_sep_fastq.single
+
             CAT_FASTQ(ch_sep_fastq.multi.map{meta, files, _type -> tuple(meta, files)})
 
             ch_fastq = CAT_FASTQ.out.merged_fq
-                .mix(ch_inter_fastq.single.map{meta, files, _type -> tuple(meta, files)})
+                .mix(ch_sep_fastq.single
+                    .map{meta, files, _type -> tuple(meta, files)})
 
         } else {
             fastq
@@ -90,11 +93,14 @@ workflow READS_FILTER {
 
     CHOPPER_LENGTH(ch_reads_tofilt)
 
-    ch_chopper_result = CHOPPER_LENGTH.out.reads.ifEmpty(null)
+    ch_reads_tofilt_count = ch_samplesheet_to_process.to_filter
+        .map { meta, reads, filter ->
+            reads }
+        .count()
 
-    if (ch_chopper_result != null) {
-        SEQKIT_STATS(ch_chopper_result)
-        ch_reads_filtered = ch_chopper_result
+    if (ch_reads_tofilt_count != 0) {
+        SEQKIT_STATS(CHOPPER_LENGTH.out.reads)
+        ch_reads_filtered = CHOPPER_LENGTH.out.reads
             .map { meta, reads ->
                 def meta_restore =  modifyMetaId(meta, 'remove_suffix', '', '', '_filt')
                 tuple(meta_restore, reads)}
