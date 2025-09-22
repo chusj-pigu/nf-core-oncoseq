@@ -21,6 +21,7 @@ include { WGS                     } from './workflows/wgs'
 include { LOCAL_REALTIME          } from './workflows/local_realtime'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { getMinQC                } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
 //
@@ -185,7 +186,7 @@ workflow {
     // Channels for chopper and IchorCNA (cfDNA)
 
     ch_max_len   = Channel.of(params.max_length)
-    ch_minqs     = Channel.of(params.minqs)
+    ch_minqs     = getMinQC(ch_model)
     ch_ichor_bin = Channel.of(params.ichor_bin_size)
     ch_min_mapq  = Channel.of(params.min_mapq_ichor)
 

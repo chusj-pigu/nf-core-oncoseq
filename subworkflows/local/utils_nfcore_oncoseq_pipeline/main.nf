@@ -446,3 +446,13 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
     return new_meta
 }
 
+def getMinQC(model) {
+    model_string = model.toString()
+        if (model_string.contains('sup')) {
+            return Channel.of(10)
+        } else if (model_string.contains('hac')) {
+            return Channel.of(9)
+        } else {
+            return Channel.of(8)
+        }
+    }
