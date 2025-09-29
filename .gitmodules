@@ -82,3 +82,7 @@
 	path = modules/local/ichorcna
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = ichorcna
+[submodule "modules/local/tidehunter"]
+	path = modules/local/tidehunter
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = tidehunter
