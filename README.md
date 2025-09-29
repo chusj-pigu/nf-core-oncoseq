@@ -88,7 +88,7 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 ```csv
 sample,input,ref,ref_path
-sample1,/path/to/pod5,hg38,path/to/hg38.fa*
+sample1,/path/to/pod5,hg38,path/to/hg38.{fa,fa.fai}
 ```
 
 Each row represents the pod5 directory for one sample, and the reference to map it to.
@@ -181,10 +181,6 @@ For more details and further functionality, please refer to the [usage documenta
 
 ## Pipeline output
 
-To see the results of an example test run with a full size dataset refer to the [results](https://nf-co.re/oncoseq/results) tab on the nf-core website pipeline page.
-For more details about the output files and reports, please refer to the
-[output documentation](https://nf-co.re/oncoseq/output).
-
 | File Path             | Description | Condition        |
 | --------------------- | ----------- | ---------------- |
 | reads/{sample}_passed.fq.gz | Merged raw reads that have passed filter of average QS >= `--minqs` | If --skip_basecalling is not used |
@@ -206,7 +202,7 @@ For more details about the output files and reports, please refer to the
 
 nf-core/oncoseq was originally written by CHUSJ-MPGI.
 
-We thank the following people for their extensive assistance in the development of this pipeline:
+<!-- We thank the following people for their extensive assistance in the development of this pipeline: -->
 
 <!-- TODO nf-core: If applicable, make list of people who have also contributed -->
 
