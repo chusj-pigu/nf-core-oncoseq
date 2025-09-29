@@ -3,7 +3,8 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CLAIR3_CALL                  } from '../../../modules/local/clair3/main.nf'
+include { BCFTOOLS_MPILEUP             } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_CALL                } from '../../../modules/local/bcftools/main.nf'
 include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
 include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
@@ -20,43 +21,33 @@ include { modifyMetaId                 } from '../utils_nfcore_oncoseq_pipeline'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-workflow CLAIR3_CALLING {
+workflow BCFTOOLS_CALLING {
 
     //TODO Add reports for coverage stats figure ?
 
     take:
     bam  // channel: from mapping workflow (tuple include bai)
     ref     // channel: from input samplesheet
-    basecall_model       // channel: basecalling model
     clinic_database
     main:
 
     ch_versions = Channel.empty()
 
-
     ch_ref = ref
         .map { meta, _ref, ref_fasta, ref_fai ->
             tuple(meta, ref_fasta, ref_fai) }
 
-    ch_input_clair3 = bam
+    ch_mpileup_in = bam
         .join(ch_ref)
-        .combine(basecall_model)
-        .map { meta, bamfile, bai, ref_fasta, ref_fai, model ->
-            def model_str = model instanceof Path ? model.getBaseName() : model.toString()
-            def model_clair3 = model_str.contains('sup')
-                ? 'r1041_e82_400bps_sup_v500'
-                : (model_str.contains('hac') || model_str.contains('fast'))
-                    ? 'r1041_e82_400bps_hac_v500'
-                    : { throw new IllegalArgumentException("Unsupported model: ${model}") }()
-            tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clair3)
-        }
+
+    BCFTOOLS_MPILEUP(ch_mpileup_in)
+
+    BCFTOOLS_CALL(BCFTOOLS_MPILEUP.out.bcf)
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
             tuple(meta, refid)
             }
-
-    CLAIR3_CALL(ch_input_clair3)
 
     // Branch ref channel to create database channel
     ch_databases = ch_ref_type.branch {
@@ -74,10 +65,10 @@ workflow CLAIR3_CALLING {
     ch_databases_ref = ch_databases_hg38
         .mix(ch_databases_hg19)
 
-    ch_snp_annotate = CLAIR3_CALL.out.vcf
+    ch_snp_annotate = BCFTOOLS_CALL.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp')
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_baseline_snp')
             tuple(new_meta, output, database)
         }
 
@@ -112,7 +103,8 @@ workflow CLAIR3_CALLING {
         COLLECT VERSIONS
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
-    ch_versions = CLAIR3_CALL.out.versions
+    ch_versions = BCFTOOLS_MPILEUP.out.versions
+            .mix(BCFTOOLS_CALL.out.versions)
             .mix(SNPEFF_ANNOTATE.out.versions)
             .mix(BGZIP_VCF.out.versions)
             .mix(BCFTOOLS_INDEX.out.versions)

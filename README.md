@@ -5,8 +5,7 @@
   </picture>
 </h1>
 
-[![GitHub Actions CI Status](https://github.com/nf-core/oncoseq/actions/workflows/ci.yml/badge.svg)](https://github.com/nf-core/oncoseq/actions/workflows/ci.yml)
-[![GitHub Actions Linting Status](https://github.com/nf-core/oncoseq/actions/workflows/linting.yml/badge.svg)](https://github.com/nf-core/oncoseq/actions/workflows/linting.yml)[![AWS CI](https://img.shields.io/badge/CI%20tests-full%20size-FF9900?labelColor=000000&logo=Amazon%20AWS)](https://nf-co.re/oncoseq/results)[![Cite with Zenodo](http://img.shields.io/badge/DOI-10.5281/zenodo.XXXXXXX-1073c8?labelColor=000000)](https://doi.org/10.5281/zenodo.XXXXXXX)
+![Status: Pre-Release](https://img.shields.io/badge/status-pre--release-important)[![AWS CI](https://img.shields.io/badge/CI%20tests-full%20size-FF9900?labelColor=000000&logo=Amazon%20AWS)](https://nf-co.re/oncoseq/results)[![Cite with Zenodo](http://img.shields.io/badge/DOI-10.5281/zenodo.XXXXXXX-1073c8?labelColor=000000)](https://doi.org/10.5281/zenodo.XXXXXXX)
 [![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)
 
 [![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A524.04.2-23aa62.svg)](https://www.nextflow.io/)
@@ -27,9 +26,8 @@
    to nf-core here, in 15-20 seconds. For an example, see https://github.com/nf-core/rnaseq/blob/master/README.md#introduction
 -->
 
-<!-- TODO nf-core: Include a figure that guides the user through the major workflow steps. Many nf-core
-     workflows use the "tube map" design for that. See https://nf-co.re/docs/contributing/design_guidelines#examples for examples.   -->
-<!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->
+![nf-core-oncoseq summary of full workflow](assets/nf-core-oncoseq_schema.jpg)
+
 1. Basecalling with [Dorado](https://github.com/nanoporetech/dorado), it's possible to skip this step by supplying fastq files and using `--skip_basecalling`
 2. Reads QC with [Seqkit](https://bioinf.shenwei.me/seqkit/)
 
@@ -41,14 +39,16 @@
 6. Coverage calculation for ROIs in Panel with [mosdepth](https://github.com/brentp/mosdepth) and background coverage calculation with [Cramino](https://github.com/wdecoster/cramino)
 7. Visualisation with [R](https://www.r-project.org/)
 
-#### Variant Calling
-8. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO) and [Clair3](https://github.com/HKU-BAL/Clair3) and annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
-9. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
-10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
-11. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
-
 #### Time Series Breakdown Analysis
-12. Separation of bam files by time point with [Ontime](https://github.com/mbhall88/ontime)
+8. Separation of bam files by time point with [Ontime](https://github.com/mbhall88/ontime)
+
+#### Variant Calling
+9. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3) and [bcftools](https://samtools.github.io/bcftools/bcftools.html)
+10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+11. VCF annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
+12. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
+13. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+14. CNV and cnLOH calling with [SubChrom](https://github.com/Shaohua-Lei/SubChrom), WGS and panel mode
 
 ### WGS mode:
 
@@ -56,10 +56,12 @@
 4. Sorting and indexing with [samtools](https://www.htslib.org/)
 
 #### Variant Calling
-5. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO) and [Clair3](https://github.com/HKU-BAL/Clair3) and annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
-6. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
-7. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
-8. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+5. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3) and [bcftools](https://samtools.github.io/bcftools/bcftools.html)
+6. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+7. VCF annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
+8. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
+9. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+10. CNV and cnLOH calling with [SubChrom](https://github.com/Shaohua-Lei/SubChrom), WGS mode
 
 ### cf-DNA mode (In Development):
 
@@ -86,11 +88,10 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 ```csv
 sample,input,ref,ref_path
-sample1,/path/to/pod5,hg38,path/to/hg38.fa*
+sample1,/path/to/[pod5|fastq|bam],hg38,path/to/hg38.fa*
 ```
 
-Each row represents the pod5 directory for one sample, and the reference to map it to.
-
+Each row represents the pod5/fastq/bam directory for one sample, and the reference to map it to.
 
 Now, you can run the pipeline using:
 
@@ -102,17 +103,89 @@ nextflow run nf-core-oncoseq \
    <--adaptive/wgs/cfdna>
    --input samplesheet.csv \
    --outdir <OUTDIR> \
-   --clin_database /path/to/clindatabase
+   --clin_database /path/to/clindatabase \
+   --model 'sup/hac/fast' \
+   [--realtime INT --skip_basecalling/skip_mapping --adaptive/wgs]
 ```
 
-By default, the pipeline will run in adaptive mode, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
+By default, the pipeline will run in adaptive mode starting from basecalling, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
+
+If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files in input. If your input is already mapped with minimap2, use the parameter `--skip_mapping` and provide the path to indexed bam files as input.
 
 The parameter `--clin_database` indicates the path to the ClinVar database that [SnpEff](https://pcingola.github.io/SnpEff/) will use to annotate the SNP vcf files. They can be downloaded here with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/ for hg38 or with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/ for hg19.
+
+To run in real time while data is still sequencing, use the `--realtime [INT]` where you must provide the time of sequencing as an integer. **This is only available for the adaptive mode**
+
+![nf-core-oncoseq when run in real time](assets/nf-core-oncoseq_schema_realtime.jpg)
 
 > [!WARNING]
 > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
 
 For more details and further functionality, please refer to the [usage documentation](https://nf-co.re/oncoseq/usage) and the [parameter documentation](https://nf-co.re/oncoseq/parameters).
+
+## Pipeline input and parameters
+
+### General and/or Required Parameters
+
+| Parameter              | Type     | Default | Description                                                                 |
+|------------------------|----------|---------|-----------------------------------------------------------------------------|
+| `--input`              | `path`   | _None_  | Path to input samplesheet (**required**).                                   |
+| `--outdir`             | `path`   | _None_  | Directory where outputs will be published (**required**).                   |
+| `--basecall_model`     | `string` | _None_  | Dorado basecalling model to use (**required** if not using `--basecall_model_path`). |
+| `--m_bases`            | `string` | _None_  | Basecalling modification model name.                                        |
+| `--basecall_model_path`| `path`   | _None_  | Path to local copy of Dorado model (**required** if no network connection). |
+| `--m_bases_path`       | `path`   | _None_  | Path to local copy of Dorado modification basecalling model.                |
+| `--ubam_samplesheet`   | `path`   | _None_  | Path to samplesheet for resuming basecalling.                               |
+| `--demux`              | `bool`   | `false` | Enable demultiplexing after basecalling.                                    |
+| `--demux_samplesheet`  | `path`   | _None_  | Path to barcode samplesheet for demultiplexing.                             |
+| `--skip_basecalling`   | `bool`   | `false` | Skip basecalling (use FASTQ files as input).                                |
+| `--skip_mapping`       | `bool`   | `false` | Skip basecalling + mapping (use BAM files as input).                        |
+| `--clin_database`      | `path`   | _None_  | Path to clinical database for annotating VCF files (**required**).          |
+
+---
+
+### Modes
+
+| Parameter        | Type   | Default | Description                                                   |
+|------------------|--------|---------|---------------------------------------------------------------|
+| `--adaptive`     | `bool` | `false` | Enable adaptive sampling mode.                                |
+| `--wgs`          | `bool` | `false` | Whole Genome Sequencing (WGS) mode.                           |
+| `--cfdna`        | `bool` | `false` | cf-DNA mode (in development).                                 |
+| `--realtime`     | `int`  | _None_  | Enable realtime mode (only valid with `--adaptive`).          |
+
+---
+
+### Adaptive Mode Parameters
+
+| Parameter               | Type   | Default | Description                                                                 |
+|--------------------------|--------|---------|-----------------------------------------------------------------------------|
+| `--bed`                  | `path` | _None_  | Path to BED file for adaptive sampling (**required** if not using `--adaptive_samplesheet`). |
+| `--low_fidelity`         | `path` | _None_  | List of low-fidelity genes for adaptive sampling.                           |
+| `--padding`              | `int`  | _None_  | Padding (in bp) around target regions (**required** if not using `--adaptive_samplesheet`). |
+| `--adaptive_samplesheet` | `path` | _None_  | Path to adaptive samplesheet.                                               |
+
+---
+
+### Basecalling Options
+
+| Parameter         | Type     | Default | Description                                                                 |
+|-------------------|----------|---------|-----------------------------------------------------------------------------|
+| `--minqs`         | `int`    | `10`    | Minimum Phred quality score for filtering reads.                            |
+| `--device`        | `string` | _None_  | GPUs to use for basecalling (e.g. `cuda:0,1`).                              |
+| `--batch`         | `int`    | _None_  | Batch size for basecalling.                                                 |
+| `--mapping_small` | `bool`   | `true`  | Use reduced compute resources for mapping (recommended for adaptive/cfDNA). |
+
+---
+
+### Variant Calling Options
+
+| Parameter          | Type     | Default                            | Description                                                                 |
+|--------------------|----------|------------------------------------|-----------------------------------------------------------------------------|
+| `--clairsto_model` | `string` | `ont_r10_dorado_sup_5khz_ssrs`     | ClairS-TO model to use.                                                     |
+| `--sv_targets`     | `path`   | _None_                             | Regions of interest for SV visualization (CSV with `GENE,pos` columns).     |
+| `--qdnaseq_binsize`| `int`    | `500`                              | Bin size (kb) for QDNAseq calling.                                          |
+| `--subchrom_binsize`| `int`   | `500`                              | Bin size (kb) for Subchrom calling.                                         |
+
 
 ## Pipeline output
 
@@ -130,8 +203,9 @@ For more details about the output files and reports, please refer to the
 | reports/{sample}_coverage_mapq.pdf | Plot showing ROIs coverage | If `--adaptive` mode is used |
 | variants/{sample}_snp_somatic_phased.vcf.gz<br>variants/{sample}_snp_somatic_clinvar_phased.vcf.gz | VCF files of phased SNV and indels called by [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO)  | If `--adaptive` or `--wgs` mode is used |
 | variants/{sample}_snp_germline_phased.vcf.gz<br>variants/{sample}_snp_germline_clinvar_phased.vcf.gz | VCF files of phased SNV and indels called by [Clair3](https://github.com/HKU-BAL/Clair3)  | If `--adaptive` or `--wgs` mode is used |
+| variants/{sample}_snp_baseline.vcf.gz<br>variants/{sample}_snp_baseline_clinvar.vcf.gz | VCF files of phased SNV and indels called by [bcftools](https://samtools.github.io/bcftools/bcftools.html)  | If `--adaptive` or `--wgs` mode is used |
 | variants/{sample}_sv.vcf.gz | VCF file of phased SV called by [Sniffles2](https://github.com/fritzsedlazeck/Sniffles) | If `--adaptive` or `--wgs` mode is used |
-| variants/{sample}_cnv_calls.vcf.gz | VCF file of CNV called by [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html) | Always |
+| variants/qdnaseq{sample}_cnv_calls.vcf | VCF file of CNV called by [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html) | Always |
 | phasing/{sample}_haplotagged.bam<br>phasing/{sample}_haplotagged.bam.bai | Aligned bam and index file including phasing HP tags added by [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html) | If `--adaptive` or `--wgs` mode is used |
 | phasing/{sample}.haploblocks.gtf | Gtf files containing phase blocks | If `--adaptive` or `--wgs` mode is used |
 

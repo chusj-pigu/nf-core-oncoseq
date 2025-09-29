@@ -20,6 +20,7 @@ include { BCFTOOLS_SORT                 } from '../../../modules/local/bcftools/
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_SNV   } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_INDEL } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL } from '../../../modules/local/bcftools/main.nf'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW

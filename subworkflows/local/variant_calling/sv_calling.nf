@@ -3,11 +3,12 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SNIFFLES_CALL   } from '../../../modules/local/sniffles/main.nf'
-include { SNPEFF_ANNOTATE } from '../../../modules/local/snpeff/main.nf'
-include { BCFTOOLS_SORT   } from '../../../modules/local/bcftools/main.nf'
-include { BGZIP_VCF       } from '../../../modules/local/bcftools/main.nf'
-include { modifyMetaId    } from '../utils_nfcore_oncoseq_pipeline'
+include { SNIFFLES_CALL                     } from '../../../modules/local/sniffles/main.nf'
+include { SNPEFF_ANNOTATE                   } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_SORT                     } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX                    } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF                         } from '../../../modules/local/bcftools/main.nf'
+include { modifyMetaId                      } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -20,12 +21,12 @@ workflow SV_CALLING {
     //TODO Add reports for coverage stats figure ?
 
     take:
-    cram        // channel: from phasing workflow, includes index
+    bam        // channel: from phasing workflow, includes index
     ref         // reference channel with index
     main:
 
 
-    ch_in_sniffles = cram
+    ch_in_sniffles = bam
         .join(ref)
 
     SNIFFLES_CALL(ch_in_sniffles)
@@ -50,7 +51,6 @@ workflow SV_CALLING {
     ch_databases_ref = ch_databases_hg38
         .mix(ch_databases_hg19)
 
-
     ch_sv_annotate = SNIFFLES_CALL.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
@@ -60,12 +60,17 @@ workflow SV_CALLING {
     SNPEFF_ANNOTATE(ch_sv_annotate)
     BCFTOOLS_SORT(SNPEFF_ANNOTATE.out.vcf)
     BGZIP_VCF(BCFTOOLS_SORT.out.vcf)
+    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
 
     ch_versions = SNIFFLES_CALL.out.versions
+        .mix(SNPEFF_ANNOTATE.out.versions)
+        .mix(BCFTOOLS_SORT.out.versions)
+        .mix(BGZIP_VCF.out.versions)
+        .mix(BCFTOOLS_INDEX.out.versions)
 
 
     emit:
-    sv_vcf           = BGZIP_VCF.out.vcf_gz
+    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
     versions         = ch_versions
 
 }

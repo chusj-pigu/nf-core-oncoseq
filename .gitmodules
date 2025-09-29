@@ -63,6 +63,14 @@
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = clair3
 [submodule "modules/local/subchrom"]
-    path = modules/local/subchrom
-    url = https://github.com/chusj-pigu/wf-modules
-    branch = subchrom
+	path = modules/local/subchrom
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = subchrom
+[submodule "modules/local/marlin"]
+	path = modules/local/marlin
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = marlin
+[submodule "modules/local/figeno"]
+	path = modules/local/figeno
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = figeno

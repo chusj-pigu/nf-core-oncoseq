@@ -4,7 +4,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { SAMTOOLS_SPLIT_BY_BED } from '../../../modules/local/samtools/main.nf'
-include { CRAMINO_STATS         } from '../../../modules/local/cramino/main.nf'
+include { SAMTOOLS_INDEX        } from '../../../modules/local/samtools/main.nf'
+include { MOSDEPTH_GENERAL      } from '../../../modules/local/mosdepth/main.nf'
 include { MOSDEPTH_ADAPTIVE     } from '../../../modules/local/mosdepth/main.nf'
 include { REMOVE_PADDING        } from '../../../modules/local/adaptive_specific/main.nf'
 include { PIGZ_BED              } from '../../../modules/local/adaptive_specific/main.nf'
@@ -39,28 +40,33 @@ workflow COVERAGE_SEPARATE {
     ch_split_in = bam
         .join(ch_bed)
 
-
     SAMTOOLS_SPLIT_BY_BED(ch_split_in)
 
-    ch_cramino_bg = SAMTOOLS_SPLIT_BY_BED.out.bg
-        .map { meta, bamfile, bai ->
+    ch_bg_index = SAMTOOLS_SPLIT_BY_BED.out.bg
+        .map { meta, bamfile ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_background')
-            tuple(new_meta, bamfile, bai) }
+            tuple(new_meta, bamfile) }
 
-    ch_cramino_panel = SAMTOOLS_SPLIT_BY_BED.out.panel
-        .map { meta, bamfile, bai ->
+    ch_panel_index = SAMTOOLS_SPLIT_BY_BED.out.panel
+        .map { meta, bamfile ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel')
-            tuple(new_meta, bamfile, bai) }
+            tuple(new_meta, bamfile) }
 
-    ch_cramino_in = ch_cramino_bg
-        .mix(ch_cramino_panel)
+    ch_index_in = ch_bg_index
+        .mix(ch_panel_index)
 
-    CRAMINO_STATS(ch_cramino_in)
+    SAMTOOLS_INDEX(ch_index_in)
+
+    ch_mosdepth_bg = SAMTOOLS_INDEX.out.bamfile_index
+        .filter{ meta, _bamfile, _bai -> meta.id.endsWith('_background') }
+
+    MOSDEPTH_GENERAL(ch_mosdepth_bg)
 
     // Remove padding from bed file for further coverage computations
     ch_bed_pad = bed
         .map { meta,bedfile,padding,_low_fidelity ->
             tuple(meta,bedfile,padding) }
+
     REMOVE_PADDING(ch_bed_pad)
 
     // Create channels for running mosdepth with different filters for each sample by creating a new meta variable containing filter type,
@@ -69,10 +75,11 @@ workflow COVERAGE_SEPARATE {
 
     ch_bed_nopad_nofilt = REMOVE_PADDING.out.bed
         .map { meta, bedfile ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_nofilter')
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_nofilter')
             tuple(new_meta, bedfile) }
 
-    ch_nofilt = SAMTOOLS_SPLIT_BY_BED.out.panel
+    ch_nofilt = SAMTOOLS_INDEX.out.bamfile_index
+        .filter { meta, _bamfile, _bai -> meta.id.endsWith('_panel') }
         .map { meta, bamfile, bai ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_nofilter')
             tuple(new_meta, bamfile, bai) }
@@ -83,10 +90,11 @@ workflow COVERAGE_SEPARATE {
     // Primary alignments only:
     ch_bed_nopad_primary = REMOVE_PADDING.out.bed
         .map { meta, bedfile ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_primary')
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_primary')
             tuple(new_meta, bedfile) }
 
-    ch_primary = SAMTOOLS_SPLIT_BY_BED.out.panel
+    ch_primary = SAMTOOLS_INDEX.out.bamfile_index
+        .filter { meta, _bamfile, _bai -> meta.id.endsWith('_panel') }
         .map { meta, bamfile, bai ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_primary')
             tuple(new_meta, bamfile, bai) }
@@ -97,10 +105,11 @@ workflow COVERAGE_SEPARATE {
     // mapq60 alignments only:
     ch_bed_nopad_mapq60 = REMOVE_PADDING.out.bed
         .map { meta, bedfile ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_mapq60')
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_mapq60')
             tuple(new_meta, bedfile) }
 
-    ch_mapq60 = SAMTOOLS_SPLIT_BY_BED.out.panel
+    ch_mapq60 = SAMTOOLS_INDEX.out.bamfile_index
+        .filter { meta, _bamfile, _bai -> meta.id.endsWith('_panel') }
         .map { meta, bamfile, bai ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_mapq60')
             tuple(new_meta, bamfile, bai) }
@@ -113,13 +122,12 @@ workflow COVERAGE_SEPARATE {
 
     MOSDEPTH_ADAPTIVE(mosdepth_in)
 
-    ch_coverage_bg = CRAMINO_STATS.out.stats
-        .filter { meta, table -> meta.id.contains('background') }
+    ch_coverage_bg = MOSDEPTH_GENERAL.out.summary
         .map { meta, table ->
         // Read the file content as a list of lines
             def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_background')
             def lines = table.readLines()
-            def coverage = lines[5].tokenize('\t')[1].toDouble()    // Last line and only take mean coverage column (4th)
+            def coverage = lines.last().tokenize('\t')[3].toDouble()    // Last line and only take mean coverage column (4th)
             tuple(new_meta, coverage)
         }
     // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
@@ -129,19 +137,19 @@ workflow COVERAGE_SEPARATE {
     ch_nofilt_bed_out = PIGZ_BED.out.bed
         .filter { meta, bedfile -> meta.id.contains('nofilter') }
         .map { meta, bedfile ->
-            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_nofilter')
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_panel_nofilter')
             tuple(new_meta, bedfile) }
 
     ch_primary_bed_out = PIGZ_BED.out.bed
         .filter { meta, bedfile -> meta.id.contains('primary') }
         .map { meta, bedfile ->
-            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_primary')
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_panel_primary')
             tuple(new_meta, bedfile) }
 
     ch_mapq60_bed_out = PIGZ_BED.out.bed
         .filter { meta, bedfile -> meta.id.contains('mapq60') }
         .map { meta, bedfile ->
-            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_mapq60')
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_panel_mapq60')
             tuple(new_meta, bedfile) }
 
     // Now we join all the variables by sample_id (meta)
@@ -158,15 +166,17 @@ workflow COVERAGE_SEPARATE {
     // Collate and save software versions
     //
     ch_versions = SAMTOOLS_SPLIT_BY_BED.out.versions
-        .mix(CRAMINO_STATS.out.versions)
+        .mix(SAMTOOLS_INDEX.out.versions)
+        .mix(MOSDEPTH_GENERAL.out.versions)
         .mix(MOSDEPTH_ADAPTIVE.out.versions)
         .mix(COVERAGE_PLOT.out.versions)
 
 
 
     emit:
-    coverage_separated  = CRAMINO_STATS.out.stats              // TODO: QUARTO REPORT
-    coverage_plot       = COVERAGE_PLOT.out.cov_plot_svg       // TODO: QUARTO REPORT
+    coverage_background = MOSDEPTH_GENERAL.out.summary              // TODO: QUARTO REPORT
+    coverage_plot       = COVERAGE_PLOT.out.cov_plot           // TODO: QUARTO REPORT
+    split_bed           = REMOVE_PADDING.out.bed
     versions            = ch_versions
 
 }

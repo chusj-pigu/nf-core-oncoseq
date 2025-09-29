@@ -3,19 +3,24 @@
 //
 
 // Basecalling subworkflows
-include { BASECALL_SIMPLEX  } from '../subworkflows/local/basecalling/basecall_simplex'
+include { BASECALL_SIMPLEX   } from '../subworkflows/local/basecalling/basecall_simplex'
 include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_multiplex'
 
 // Core analysis subworkflows
 include { MAPPING           } from '../subworkflows/local/mapping/mapping'
 
 // Variant calling subworkflows
-include { CLAIRS_TO_CALLING } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
-include { CLAIR3_CALLING } from '../subworkflows/local/variant_calling/clair3_calling.nf'
-include { PHASING_VARIANTS as PHASING_SOMATIC  } from  '../subworkflows/local/variant_calling/phasing.nf'
+include { CLAIRS_TO_CALLING                     } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
+include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
+include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING        } from  '../subworkflows/local/variant_calling/sv_calling.nf'
-include { CNV_CALLING       } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { SV_CALLING as SV_PHASED               } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { SUBCHROM_CALL                         } from  '../subworkflows/local/variant_calling/subchrom_call.nf'
+
+// Variant processing and visualization subworkflow
+include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
 
 // Adaptive-specific subworkflows
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
@@ -29,7 +34,12 @@ include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
 include { QDNASEQ_REPORT } from '../subworkflows/local/report/variants.nf'
 include { COVERAGE_REPORT } from '../subworkflows/local/report/mapping.nf'
 // Utility functions
-include {  modifyMetaId } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+
+//
+include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
+include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
+include { MARLIN                } from '../subworkflows/local/methylation_analysis/marlin.nf'
 
 //
 // WORKFLOW: Adaptive sequencing analysis pipeline
@@ -48,6 +58,7 @@ workflow ADAPTIVE {
     basecall_model          // channel: model for basecalling
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
+    targets                 // channel : list of genes with their position to represent in Figeno
 
     main:
 
@@ -57,12 +68,22 @@ workflow ADAPTIVE {
     //
 
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
-    if (params.skip_basecalling) {
+    if (params.skip_basecalling || params.skip_mapping) {
         // Map FASTQ reads to reference genome
         MAPPING(
             samplesheet,
             ref
-            )
+        )
+
+        SV_UNPHASED(
+            MAPPING.out.bam,
+            ref
+        )
+
+        COVERAGE_SEPARATE(
+            MAPPING.out.bam,
+            bed
+        )
 
         // Somatic variant calling using ClairS
         CLAIRS_TO_CALLING (
@@ -95,34 +116,68 @@ workflow ADAPTIVE {
         )
 
         // Structural variant calling using phased BAM
-        SV_CALLING (
-            PHASING_GERMLINE.out.haptag_bam,
-            ref
+        SV_PHASED (
+                PHASING_GERMLINE.out.haptag_bam
+                .map { meta, bamfile, bai ->
+                    // Restore original sample ID for output naming
+                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
+                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+                    tuple(meta_restore, bamfile, bai)
+                },
+                ref
         )
 
         // Copy number variant calling
         CNV_CALLING (
             MAPPING.out.bam,
+            ref
+        )
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_PHASED.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs,
+            targets
+        )
+
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+            .map {
+                meta, panelbed ->
+                tuple(meta, panelbed)
+            }
+            .join(ref)
+            .map {
+                meta, panelbed, refid, _ref, _ref_fai ->
+                tuple(meta, panelbed, refid, params.subchrom_binsize )
+            }
+
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
+
+        SUBCHROM_CALL (
+            MAPPING.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf,
+            ch_panel_bin
         )
 
     } else {
         // Branch 2: Full pipeline - perform basecalling first
 
         // Sub-branch 2a: Multiplex basecalling (multiple samples per flow cell)
-        if (params.demux != null) {
+        if (params.demux) {
 
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet
+                demux_samplesheet,
+                ref
             )
 
             // Map basecalled reads to reference
             MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
-                ref
+                BASECALL_MULTIPLEX.out.ref
             )
         } else {
             // Sub-branch 2b: Simplex basecalling (single sample per flow cell)
@@ -159,6 +214,11 @@ workflow ADAPTIVE {
             ch_ref_for_calling = ref
             ch_bed = bed
         }
+
+        SV_UNPHASED(
+            ch_bam_for_calling,
+            ch_ref_for_calling
+        )
 
         // Analyze coverage separation between target and background regions
         COVERAGE_SEPARATE(
@@ -197,7 +257,8 @@ workflow ADAPTIVE {
         )
 
         // Structural variant calling using phased BAM
-        SV_CALLING (
+        // TODO: find
+        SV_PHASED (
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                 // Restore original sample ID for output naming
@@ -211,8 +272,36 @@ workflow ADAPTIVE {
         // Copy number variant calling
         CNV_CALLING(
             ch_bam_for_calling,
-            ch_ref_for_calling,
-            CLAIR3_CALLING.out.vcf
+            ch_ref_for_calling
+        )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING.out.bam,
+            SV_PHASED.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs,
+            targets
+        )
+
+        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+            .map {
+                meta, panelbed ->
+                tuple(meta, panelbed)
+            }
+            .join(ref)
+            .map {
+                meta, panelbed, refid, _ref, _ref_fai ->
+                tuple(meta, panelbed, refid, params.subchrom_binsize )
+            }
+
+        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
+
+        SUBCHROM_CALL (
+            MAPPING.out.bam,
+            ref,
+            CLAIR3_CALLING.out.vcf,
+            ch_panel_bin
         )
 
 /*
@@ -265,6 +354,6 @@ workflow ADAPTIVE {
             ch_sections,
             ch_versions
         )
-        
+
     }
 }

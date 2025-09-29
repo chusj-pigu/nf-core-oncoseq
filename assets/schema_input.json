@@ -27,6 +27,10 @@
             "ref_path": {
                 "type": "string",
                 "errorMessage": "Glob of path to reference fasta and index file must be provided"
+            },
+            "kit": {
+                "type": "string",
+                "pattern": "^\\S+$"
             }
         },
         "required": ["sample", "input", "ref", "ref_path"]
