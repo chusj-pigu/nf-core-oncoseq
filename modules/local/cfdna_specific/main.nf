@@ -5,7 +5,7 @@ process CAT_FASTQ {
     label 'process_low'
     label 'process_single_cpu'
     label 'process_very_low_memory'
-    label 'process_very_low_time '
+    label 'process_very_low_time'
 
     tag "$meta.id"
 

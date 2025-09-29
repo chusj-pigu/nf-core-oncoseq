@@ -86,3 +86,7 @@
 	path = modules/local/tidehunter
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = tidehunter
+[submodule "modules/local/nanoplot"]
+	path = modules/local/nanoplot
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = nanoplot

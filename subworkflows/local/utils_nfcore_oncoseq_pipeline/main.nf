@@ -71,11 +71,6 @@ workflow PIPELINE_INITIALISATION {
         }
     }
 
-    // Transform input samplesheet entries to tuples with file handling when demultiplexing
-    def transformInputKitEntry = { meta, input, _ref, _ref_path, kit ->
-        tuple(meta.id, meta, file(input), kit)
-    }
-
     // Transform adaptive samplesheet entries with conditional file handling
     def transformAdaptiveEntry = { meta, bed, padding, low_fidelity ->
         if(!low_fidelity) {
@@ -93,7 +88,7 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform reference entries for processing
-    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit ->
+    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _purity, _filter ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
 
@@ -154,12 +149,23 @@ workflow PIPELINE_INITIALISATION {
 
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputKitEntry)
+            .map(transformInputEntry)
             .groupTuple()
             .transpose()
             .map{samplesheet ->
                     validateDemuxSamplesheet(samplesheet)}
             .set { ch_samplesheet }
+
+        Channel
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformReferenceEntry)
+            .groupTuple()
+            .map(processGroupedReference)
+            .combine(ch_demux, by:0)
+            .map { meta, ref_id, ref, ref_index, sample, barcode, purity, filter ->
+                tuple(id:sample, ref_id, ref, ref_index) }
+            .set { ch_ref }
+
     } else {
         Channel
             .empty()
@@ -167,12 +173,20 @@ workflow PIPELINE_INITIALISATION {
 
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputKitEntry)
+            .map(transformInputEntry)
             .groupTuple()
             .transpose()
-            .map{samplesheet ->
-                    validateInputSamplesheet(samplesheet)}
+            .map { tuple -> 
+                tuple[1..-1]   // remove duplicated meta
+            }
             .set { ch_samplesheet }
+
+        Channel
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformReferenceEntry)
+            .groupTuple()
+            .map(processGroupedReference)
+            .set { ch_ref }
     }
 
     if (params.adaptive_samplesheet != null) {
@@ -211,21 +225,13 @@ workflow PIPELINE_INITIALISATION {
         ch_ubam = Channel
             .fromPath("${projectDir}/assets/NO_UBAM")
     }
-
-    Channel
-        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-        .map(transformReferenceEntry)
-        .groupTuple()
-        .map(processGroupedReference)
-        .set { ch_ref }
-
     // Separate samplesheet for purity and filtering (cfDNA)
 
     if (params.cfdna) {
         if (params.demux) {
             ch_demux
                 .map { meta, sample, barcode, purity, filter ->
-                tuple(meta, purity, filter)
+                tuple(id:sample, purity, filter)
                 }
                 .set { ch_cfdna }
 
@@ -240,6 +246,7 @@ workflow PIPELINE_INITIALISATION {
                 tuple(meta, purity, filter)
                 }
                 .set { ch_cfdna }
+
             ch_samplesheet
                 .map { meta, input, purity, filter ->
                 tuple(meta, input)
@@ -439,3 +446,13 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
     return new_meta
 }
 
+def getMinQC(model) {
+    model_string = model.toString()
+        if (model_string.contains('sup')) {
+            return Channel.of(10)
+        } else if (model_string.contains('hac')) {
+            return Channel.of(9)
+        } else {
+            return Channel.of(8)
+        }
+    }

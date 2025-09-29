@@ -13,25 +13,26 @@
                 "errorMessage": "Parent sequencing project name must be provided and cannot contain spaces",
                 "meta": ["id"]
             },
-            "barcode": {
-                "type": "string",
-                "pattern": "^\\S+$",
-                "errorMessage": "First column must contain barcode"
-            },
             "sample": {
                 "type": "string",
                 "pattern": "^\\S+$",
                 "errorMessage": "Sample name must be provided and cannot contain spaces"
             },
-            "purity": {
+            "barcode": {
                 "type": "string",
-                "pattern": "^\\S+$"
+                "pattern": "^\\S+$",
+                "errorMessage": "First column must contain barcode"
+            },
+            "purity": {
+                "type": "number",
+                "pattern": "^\\d+$",
+                "errorMessage": "Aprroximate tumor purity must be provided for each sample in the form of a fraction, from 0 to 1 (1 being 100% pure)."
             },
             "filter": {
-                "type": "string",
-                "pattern": "^\\S+$"
+                "type": "boolean",
+                "errorMessage": " Must be set to true to pre-process reads by filtering out longer reads or to false to skip this step"
             }
         },
-        "required": ["barcode", "sample"]
+        "required": ["project", "barcode", "sample"]
     }
 }

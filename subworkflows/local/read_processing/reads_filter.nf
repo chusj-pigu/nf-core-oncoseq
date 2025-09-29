@@ -6,7 +6,7 @@
 */
 include { CAT_FASTQ      } from '../../../modules/local/cfdna_specific/main.nf'
 include { CHOPPER_LENGTH } from '../../../modules/local/chopper/main.nf'
-include { SEQKIT_STATS   } from '../../../modules/local/seqkit/main.nf'
+include { NANOPLOT_FASTQ } from '../../../modules/local/nanoplot/main.nf'
 include { modifyMetaId   } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
@@ -53,10 +53,13 @@ workflow READS_FILTER {
                 }
                 .set { ch_sep_fastq }
 
+            ch_test = ch_sep_fastq.single
+
             CAT_FASTQ(ch_sep_fastq.multi.map{meta, files, _type -> tuple(meta, files)})
 
             ch_fastq = CAT_FASTQ.out.merged_fq
-                .mix(ch_inter_fastq.single.map{meta, files, _type -> tuple(meta, files)})
+                .mix(ch_sep_fastq.single
+                    .map{meta, files, _type -> tuple(meta, files)})
 
         } else {
             fastq
@@ -90,17 +93,18 @@ workflow READS_FILTER {
 
     CHOPPER_LENGTH(ch_reads_tofilt)
 
-    ch_chopper_result = CHOPPER_LENGTH.out.reads.ifEmpty(null)
+    ch_reads_tofilt_count = ch_samplesheet_to_process.to_filter
+        .map { meta, reads, filter ->
+            reads }
+        .count()
 
-    if (ch_chopper_result != null) {
-        SEQKIT_STATS(ch_chopper_result)
-        ch_reads_filtered = ch_chopper_result
+    if (ch_reads_tofilt_count != 0) {
+        ch_reads_filtered = CHOPPER_LENGTH.out.reads
             .map { meta, reads ->
                 def meta_restore =  modifyMetaId(meta, 'remove_suffix', '', '', '_filt')
                 tuple(meta_restore, reads)}
 
-        ch_versions = CHOPPER_LENGTH.out.version
-            .mix(SEQKIT_STATS.out.version)
+        ch_versions = CHOPPER_LENGTH.out.versions
     } else {
         ch_reads_filtered = ch_chopper_result
         ch_versions = Channel.empty()
@@ -108,6 +112,11 @@ workflow READS_FILTER {
 
     ch_reads_out_final = ch_reads_filtered
         .mix(ch_reads_nofilt)
+
+    NANOPLOT_FASTQ(ch_reads_out_final)
+
+    ch_versions = ch_versions
+        .mix(NANOPLOT_FASTQ.out.versions)
 
     emit:
     reads     = ch_reads_out_final

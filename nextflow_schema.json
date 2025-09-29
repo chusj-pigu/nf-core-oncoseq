@@ -219,11 +219,6 @@
             "type": "boolean",
             "description": "turn on multiplex basecalling"
         },
-        "minqs": {
-            "type": "integer",
-            "default": 10,
-            "description": "Minimum phred score to filter reads with"
-        },
         "m_bases": {
             "type": "string",
             "description": "Modifications model to usefor basecalling"

@@ -21,6 +21,7 @@ include { WGS                     } from './workflows/wgs'
 include { LOCAL_REALTIME          } from './workflows/local_realtime'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { getMinQC                } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
 //
@@ -156,9 +157,10 @@ workflow {
         params.low_fidelity
     )
 
-    // Load Channels from parameters:
+    // Load model Channels from parameters:
 
     ch_model = params.basecall_model ? Channel.of(params.basecall_model) : Channel.fromPath(params.basecall_model_path)
+    ch_model_modif = params.m_bases ? Channel.of(params.m_bases) : (params.m_bases_path ? Channel.fromPath(params.m_bases_path) : Channel.empty())
 
     // Combine the samplesheet with the model :
     if (params.skip_basecalling || params.skip_mapping) {
@@ -167,9 +169,11 @@ workflow {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .combine(PIPELINE_INITIALISATION.out.ubam_ch)
             .combine(ch_model)
+            .combine(ch_model_modif)
     } else {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .combine(ch_model)
+            .combine(ch_model_modif)
     }
 
    // Channels for SNP calling
@@ -182,7 +186,7 @@ workflow {
     // Channels for chopper and IchorCNA (cfDNA)
 
     ch_max_len   = Channel.of(params.max_length)
-    ch_minqs     = Channel.of(params.minqs)
+    ch_minqs     = getMinQC(ch_model)
     ch_ichor_bin = Channel.of(params.ichor_bin_size)
     ch_min_mapq  = Channel.of(params.min_mapq_ichor)
 

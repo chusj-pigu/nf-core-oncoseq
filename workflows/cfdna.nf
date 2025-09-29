@@ -29,7 +29,8 @@ workflow CFDNA {
 
         BASECALL_MULTIPLEX (
             samplesheet,
-            demux
+            demux,
+            ref
         )
 
         ch_fastq = BASECALL_SIMPLEX.out.fastq
@@ -81,7 +82,6 @@ workflow CFDNA {
 
     ICHORCNA_CALLING (
         MAPPING.out.bam,
-        ref,
         cfdna_samplesheet,
         ichor_bin,
         mapq_wig
