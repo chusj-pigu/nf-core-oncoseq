@@ -52,13 +52,20 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform input samplesheet entries to tuples with file handling
-    def transformInputEntry = { meta, input, _ref, _ref_path, _kit ->
-        tuple(meta.id, meta, file(input))
+    def transformInputEntry = { meta, input, _ref, _ref_path, kit, _tumor_type ->
+        if(!kit) {
+            return(tuple(meta.id, meta, file(input)))
+        } else {
+            return(tuple(meta.id, meta, file(input), kit))
+        }
     }
 
-    // Transform input samplesheet entries to tuples with file handling when demultiplexing
-    def transformInputKitEntry = { meta, input, _ref, _ref_path, kit ->
-        tuple(meta.id, meta, file(input), kit)
+    def transformTumorType = { meta, _input, _ref, _ref_path, _kit, tumor_type ->
+        if(!tumor_type) {
+            return(tuple(meta, "leukemia"))
+        } else {
+            return(tuple(meta, tumor_type))
+        }
     }
 
     // Transform adaptive samplesheet entries with conditional file handling
@@ -78,7 +85,7 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform reference entries for processing
-    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit ->
+    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _tumor_type ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
 
@@ -132,7 +139,7 @@ workflow PIPELINE_INITIALISATION {
     if (params.demux) {
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputKitEntry)
+            .map(transformInputEntry)
             .groupTuple()
             .transpose()
             .map{samplesheet ->
@@ -204,9 +211,15 @@ workflow PIPELINE_INITIALISATION {
         .map(processGroupedReference)
         .set { ch_ref }
 
+    Channel
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+        .map(transformTumorType)
+        .set { ch_tumor }
+
     emit:
     bed_sheet   = ch_bed
     ubam_ch     = ch_ubam
+    tumor_type  = ch_tumor
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     ref_ch      = ch_ref
@@ -268,7 +281,7 @@ workflow PIPELINE_COMPLETION {
 // Validate channels from input samplesheet
 //
 def validateInputSamplesheet(file) {
-    def (metas, input) = file[1..2]
+    def (metas, input, tumor_type) = file[1..2]
 
     return [ metas[0], input ]
 }
