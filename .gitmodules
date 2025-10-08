@@ -74,3 +74,11 @@
 	path = modules/local/figeno
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = figeno
+[submodule "modules/local/sturgeon"]
+	path = modules/local/sturgeon
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = sturgeon
+[submodule "modules/local/modkit"]
+	path = modules/local/modkit
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = modkit
