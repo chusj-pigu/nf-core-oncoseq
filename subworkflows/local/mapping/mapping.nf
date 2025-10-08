@@ -141,10 +141,6 @@ workflow MAPPING {
 
             // Prepare mapping input: clean up meta.id and join with reference
             ch_mapping_in = in_ch
-                .map { meta, reads ->
-                    def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
-                    tuple(new_meta, reads)
-                }
                 .join(ch_ref)
 
             // Run minimap2 alignment
