@@ -45,12 +45,7 @@ workflow STURGEON {
 
     STURGEON_INPUT_TOBED(MODKIT_PILEUP.out.bedmethyl)
 
-    ch_model = Channel.of("/sturgeon/sturgeon/include/models/general.zip")
-
-    ch_predict_in = STURGEON_INPUT_TOBED.out.dir
-        .combine(ch_model)
-
-    STURGEON_PREDICT(ch_predict_in)
+    STURGEON_PREDICT(STURGEON_INPUT_TOBED.out.dir)
 
     // Collect versions from all modules
     ch_versions = MODKIT_ADJUST.out.versions
