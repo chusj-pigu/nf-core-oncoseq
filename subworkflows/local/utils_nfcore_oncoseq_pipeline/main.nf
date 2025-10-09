@@ -201,7 +201,7 @@ workflow PIPELINE_INITIALISATION {
 
     } else {
         ch_ubam = Channel
-            .fromPath("${projectDir}/assets/NO_UBAM")
+            .fromPath("${projectDir}/assets/NOFILE")
     }
 
     Channel
