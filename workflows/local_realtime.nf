@@ -127,8 +127,14 @@ workflow LOCAL_REALTIME {
 
     if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
+        // Run Marlin on leukemia samples only:
+        ch_marlin_bam = MAPPING_HG.out.bam
+            .join(ch_tumor_type.leukemia)
+            .map { meta, bam, bai, _tumor ->
+                tuple(meta, bam, bai)}
+
         MARLIN(
-            MAPPING_HG.out.bam,
+            ch_marlin_bam,
             ref
         )
 
