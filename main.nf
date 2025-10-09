@@ -34,6 +34,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     samplesheet // channel: samplesheet read in from --input
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
+    tumor_type  // channel: samplesheet read in from --input, contains only tumor type
+    ch_ref_t2t  // Channel : from params.ref_t2t
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     clairs_model  // channel: model for calling snp with ClairS-TO
     basecall_model  // channel : basecalling model used with dorado
@@ -62,6 +64,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
         samplesheet,
         demux,
         ref,
+        tumor_type,
+        ch_ref_t2t,
         bed,
         basecall_model,
         ch_clin_database,
@@ -168,6 +172,22 @@ workflow {
     // Channel for sv gene targets
     ch_sv_targets = Channel.fromPath(params.sv_targets)
 
+    // Channel for T2T reference:
+
+    ch_cns = PIPELINE_INITIALISATION.out.tumor_type
+        .branch { meta, tumor ->
+        tumor: tumor == "cns"
+        }
+
+    ch_ref_t2t_id = Channel.of("t2t", "no_index")
+        .toList()
+    ch_ref_t2t = Channel.fromPath(params.ref_t2t)
+        .combine(ch_ref_t2t_id)
+        .combine(ch_cns.tumor)
+        .map { ref_path, ref_id, ref_index, meta, _tumor ->
+            tuple(meta, ref_id, ref_path, ref_index)}
+        .transpose()
+
 
    // WORKFLOW: Run main workflow
 
@@ -177,6 +197,8 @@ workflow {
         ch_input,
         PIPELINE_INITIALISATION.out.demux_sheet,
         PIPELINE_INITIALISATION.out.ref_ch,
+        PIPELINE_INITIALISATION.out.tumor_type,
+        ch_ref_t2t,
         ch_clairs_model,
         ch_model,
         ch_clin_database,

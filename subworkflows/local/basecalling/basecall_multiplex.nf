@@ -117,6 +117,11 @@ workflow BASECALL_MULTIPLEX {
     SEQKIT_STATS_PASS(SAMTOOLS_TOFASTQ_PASS.out.fq)              // Read stats for passed reads
     SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
 
+    ch_fastq = SAMTOOLS_TOFASTQ_PASS.out.fq
+        .map { meta, reads ->
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+            tuple(new_meta, reads)}
+
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -133,7 +138,7 @@ workflow BASECALL_MULTIPLEX {
 
 
     emit:
-    fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
+    fastq          = ch_fastq
     ref            = ch_rejoin_ref
     stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
     stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
