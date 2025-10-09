@@ -31,6 +31,12 @@
             "kit": {
                 "type": "string",
                 "pattern": "^\\S+$"
+            },
+            "tumor_type": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "enum": ["leukemia", "cns", "other"],
+                "default": "leukemia"
             }
         },
         "required": ["sample", "input", "ref", "ref_path"]

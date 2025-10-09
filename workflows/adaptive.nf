@@ -98,7 +98,8 @@ workflow ADAPTIVE {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed
         )
 
         // Phase somatic variants
@@ -239,7 +240,8 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed
         )
 
         // // Phase somatic variants (uses original mapping output)
