@@ -152,6 +152,7 @@ workflow {
     // Load Channels from parameters:
 
     ch_model = params.basecall_model ? Channel.of(params.basecall_model) : Channel.fromPath(params.basecall_model_path)
+    ch_modif = Channel.of(params.m_bases)
 
     // Combine the samplesheet with the model :
     if (params.skip_basecalling || params.skip_mapping) {
@@ -160,9 +161,11 @@ workflow {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .combine(PIPELINE_INITIALISATION.out.ubam_ch)
             .combine(ch_model)
+            .combine(ch_modif)
     } else {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .combine(ch_model)
+            .combine(ch_modif)
     }
 
    // Channels for SNP calling
