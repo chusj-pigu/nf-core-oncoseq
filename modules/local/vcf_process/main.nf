@@ -22,11 +22,11 @@ process SV_PROCESS {
         path("*ids.txt"),
         emit: filt_ids
     tuple val(meta),
-        path("region_fusions.txt"),
+        path("*region_fusions.txt"),
         emit: fusion_txt,
         optional:true
     tuple val(meta),
-        path("region_indel.txt"),
+        path("*region_indel.txt"),
         emit: indel_txt,
         optional:true
     path "versions.yml",
