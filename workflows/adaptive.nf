@@ -33,7 +33,7 @@ include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncos
 //
 include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
 include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
-
+include { MARLIN                } from '../subworkflows/local/methylation_analysis/marlin.nf'
 
 //
 // WORKFLOW: Adaptive sequencing analysis pipeline
@@ -92,7 +92,8 @@ workflow ADAPTIVE {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed
         )
 
         // Phase somatic variants
@@ -233,7 +234,8 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed
         )
 
         // // Phase somatic variants (uses original mapping output)

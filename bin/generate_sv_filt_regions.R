@@ -34,39 +34,22 @@ make_range <- function(x, window = 30000) {
   paste0("chr", parsed[,2], ":", as.numeric(parsed[,3]) - window, "-", as.numeric(parsed[,3]) + window)
 }
 
-
-clean_genes <- function(x, type = c("del_ins", "fusion")) {
-  type <- match.arg(type)
-
+clean_genes <- function(x) {
   # remove LOC followed by digits
   x <- str_remove_all(x, "LOC\\d+")
-  # clean up dangling separators
+  # remove any double/trailing separators created by removal
   x <- str_replace_all(x, "^&|&$", "")
   x <- str_replace_all(x, "&{2,}", "&")
-
-  # split into genes
-  parts <- str_split(x, "&", simplify = TRUE)
-
-  if (type == "del_ins") {
-    out <- parts[, 1]   # first gene only
-  } else if (type == "fusion") {
-    out <- ifelse(
-      ncol(parts) >= 2,
-      paste0(parts[,1], "-", parts[,2]), # first two genes
-      parts[,1]
-    )
-  }
-
-  out
+  # keep only the first gene if there are multiple
+  x <- str_replace(x, "&.*$", "")
+  x
 }
-
 
 extract_gene <- function(x) {
   str_extract(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")
 }
 
-process_variant <- function(df, type = c("BND", "DEL_INS"),
-                            window_bnd = 30000, window_delins = 20000) {
+process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, window_delins = 20000) {
   type <- match.arg(type)
 
   df <- df %>%
@@ -81,8 +64,7 @@ process_variant <- function(df, type = c("BND", "DEL_INS"),
       mutate(
         pos = paste0(X1, ":", START - window_bnd, "-", START + window_bnd),
         pos2 = make_range(X5),
-        GENE = clean_genes(GENE, type = "fusion"),
-        GENE = paste(sample_id, GENE, sep = "_")
+        GENE = paste(sample_id, str_replace_all(GENE, "&", "-"), sep = "_")
       ) %>%
       select(GENE, pos, pos2)
 
@@ -91,7 +73,7 @@ process_variant <- function(df, type = c("BND", "DEL_INS"),
       filter(!str_detect(X3, "BND")) %>%
       mutate(
         END = as.numeric(str_extract(X8, "(?<=END=)\\d+")),
-        GENE = clean_genes(GENE, type = "del_ins"),
+        GENE = clean_genes(GENE),
         GENE = ifelse(GENE == "", X1, GENE),
         pos = paste0(X1, ":", START - window_delins, "-", END + window_delins),
         GENE = paste(sample_id, GENE, sep = "_")
@@ -101,6 +83,7 @@ process_variant <- function(df, type = c("BND", "DEL_INS"),
 
   return(df)
 }
+
 # -----------------------------
 # Read Input
 # -----------------------------
@@ -119,7 +102,7 @@ if (nrow(vcf) > 0) {
 }
 
 # -----------------------------
-# Add important genes even if not called by Sniffles
+# Extract genes from sample_id column
 # -----------------------------
 extract_genes_bnd <- function(x) {
   # Remove sample_id prefix
@@ -149,7 +132,7 @@ detected_genes <- unique(detected_genes)
 
 # Identify missing genes only if target list not empty:
 
-if (nrow(targets_df) > 0) {
+if (nrow(targets_df > 0)) {
   missing_genes <- setdiff(targets_df$GENE, detected_genes)
 
 
@@ -167,6 +150,7 @@ if (nrow(missing_rows) > 0) {
   message("Appended ", nrow(missing_rows), " missing target genes to vcf_del_ins")
 }
 
+
 # -----------------------------
 # Save to output
 # -----------------------------
@@ -178,5 +162,5 @@ safe_write <- function(df, file) {
   }
 }
 
-safe_write(vcf_bnd, "region_fusions.txt")
-safe_write(vcf_del_ins, "region_indel.txt")
+safe_write(vcf_bnd, paste(sample_id, "region_fusions.txt", sep = "_"))
+safe_write(vcf_del_ins, paste(sample_id, "region_indel.txt", sep = "_"))

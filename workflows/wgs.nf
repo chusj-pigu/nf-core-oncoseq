@@ -54,7 +54,8 @@ workflow WGS {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed_empty
         )
 
         PHASING_SOMATIC (
@@ -102,7 +103,7 @@ workflow WGS {
 
     } else {
 
-        if (params.demux != null) {
+        if (params.demux) {
 
             BASECALL_MULTIPLEX (
                 samplesheet,
@@ -137,7 +138,8 @@ workflow WGS {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed_empty
         )
 
         PHASING_SOMATIC (
