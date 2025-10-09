@@ -185,7 +185,8 @@ workflow LOCAL_REALTIME {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed
         )
     } else if (params.realtime == 72) {
         CNV_CALLING(
@@ -216,7 +217,8 @@ workflow LOCAL_REALTIME {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database
+            ch_clin_database,
+            bed
         )
 
         ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed

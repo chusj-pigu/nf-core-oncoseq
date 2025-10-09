@@ -29,10 +29,15 @@ workflow CLAIR3_CALLING {
     ref     // channel: from input samplesheet
     basecall_model       // channel: basecalling model
     clinic_database
+    bed
     main:
 
     ch_versions = Channel.empty()
 
+
+    ch_bed = bed
+        .map { meta,bedfile,_padding,_low_fidelity ->
+            tuple(meta,bedfile) }
 
     ch_ref = ref
         .map { meta, _ref, ref_fasta, ref_fai ->
@@ -50,6 +55,7 @@ workflow CLAIR3_CALLING {
                     : { throw new IllegalArgumentException("Unsupported model: ${model}") }()
             tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clair3)
         }
+        .join(ch_bed)
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
