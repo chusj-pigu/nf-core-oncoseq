@@ -174,8 +174,8 @@ workflow COVERAGE_SEPARATE {
 
 
     emit:
-    coverage_background = MOSDEPTH_GENERAL.out.summary              // TODO: QUARTO REPORT
-    coverage_plot       = COVERAGE_PLOT.out.cov_plot           // TODO: QUARTO REPORT
+    coverage_plot       = COVERAGE_PLOT.out.cov_plot_svg           // TODO: QUARTO REPORT
+    coverage_tbl        = COVERAGE_PLOT.out.cov_df                  // TODO: QUARTO REPORT
     split_bed           = REMOVE_PADDING.out.bed
     versions            = ch_versions
 
