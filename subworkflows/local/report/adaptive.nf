@@ -40,7 +40,6 @@ workflow ADAPTIVE_REPORT {
             def panel_cov = lines[1].tokenize(',')[1]
             def bg_cov = lines[1].tokenize(',')[2]
             tuple(meta.id, panel_cov, bg_cov) }
-        .view()
         .collectFile { table ->
             def content = [table[1] + '\t' + table[2] ].join('\n')
             return [ "${table[0]}_adaptive_coverage.tsv", content + '\n' ]
