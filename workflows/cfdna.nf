@@ -33,7 +33,7 @@ workflow CFDNA {
             ref
         )
 
-        ch_fastq = BASECALL_SIMPLEX.out.fastq
+        ch_fastq = BASECALL_MULTIPLEX.out.fastq
 
     } else if (params.skip_basecalling) {
 
