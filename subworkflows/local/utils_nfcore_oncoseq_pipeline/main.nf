@@ -262,6 +262,10 @@ workflow PIPELINE_INITIALISATION {
                 }
                 .set { ch_samplesheet }
         }
+    } else {
+        Channel
+            .empty()
+            .set { ch_cfdna }
     }
 
     Channel
