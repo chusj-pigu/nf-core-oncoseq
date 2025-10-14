@@ -63,28 +63,27 @@ workflow CFDNA {
         )
 
         ch_fastq_processed = READS_FILTER.out.reads
+
+        MAPPING (
+            ch_fastq_processed,
+            ref
+        )
+
+        MARLIN(
+            MAPPING.out.bam,
+            ref
+        )
+
+        CNV_CALLING (
+            MAPPING.out.bam,
+            ref
+        )
+
+        ICHORCNA_CALLING (
+            MAPPING.out.bam,
+            cfdna_samplesheet,
+            ichor_bin,
+            mapq_wig
+        )
     }
-
-    MAPPING (
-        ch_fastq_processed,
-        ref
-    )
-
-    MARLIN(
-        MAPPING.out.bam,
-        ref
-    )
-
-    CNV_CALLING (
-        MAPPING.out.bam,
-        ref
-    )
-
-    ICHORCNA_CALLING (
-        MAPPING.out.bam,
-        cfdna_samplesheet,
-        ichor_bin,
-        mapq_wig
-    )
-
 }
