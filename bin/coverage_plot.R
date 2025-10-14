@@ -250,6 +250,7 @@ tryCatch({
   median <- median(bed_list[["primary"]]$primary)
   mean <- bed_list[["primary"]] %>%
       filter(!gene %in% genes_low_fidelity) %>%
+      filter(!chr %in% c("chrY", "chrX")) %>%
       pull(primary) %>%
       mean()
 
@@ -272,9 +273,15 @@ tryCatch({
 
   # Generate the plot
   generate_plot(bed_long, max_normal_coverage, ann_df, ann_facet, opt$output)
+
+  means_df <- data.frame(sample = sub("_mapq.pdf", "", opt$output),
+                        panel_cov = mean,
+                        background_cov = opt$bcov)
+
+  write.csv(means_df, paste0(means_df$sample,"_mean_coverage.csv"), quote = FALSE, row.names = FALSE)
+
 }, error = function(e) {
   warning("[WARNING] No plot generated: ", e$message)
 }
-
 )
 
