@@ -62,16 +62,20 @@ workflow MIDNIGHT_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-ch_report_sections = ch_sections
-    .groupTuple()
-    .map { id, section, filePaths, reports ->
-        [id, section, filePaths, reports]
-    }
+    ch_report_sections = ch_sections
+        .groupTuple()
+        .map { id, section, filePaths, reports ->
+            [id, section, filePaths, reports]
+        }
+
+    ch_title = ch_samples
+        .map { meta, bam, bai ->
+        "Oncoseq Pipeline Adaptive Report for ${meta.id}" }
 
     QUARTO_REPORT(
         ch_report_sections,
         params.report_template,
-        'Oncoseq Pipeline Adaptive Report',
+        ch_title,
         'Outputs for the adaptive sampling branch of the Oncoseq pipeline'
         )
 
