@@ -66,14 +66,26 @@
 	path = modules/local/subchrom
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = subchrom
-[submodule "modules/local/marlin"]
-	path = modules/local/marlin
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = marlin
 [submodule "modules/local/figeno"]
 	path = modules/local/figeno
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = figeno
+[submodule "modules/local/chopper"]
+	path = modules/local/chopper
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = chopper
+[submodule "modules/local/ichorcna"]
+	path = modules/local/ichorcna
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = ichorcna
+[submodule "modules/local/tidehunter"]
+	path = modules/local/tidehunter
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = tidehunter
+[submodule "modules/local/nanoplot"]
+	path = modules/local/nanoplot
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = nanoplot
 [submodule "modules/local/sturgeon"]
 	path = modules/local/sturgeon
 	url = https://github.com/chusj-pigu/wf-modules
@@ -82,3 +94,7 @@
 	path = modules/local/modkit
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = modkit
+[submodule "modules/local/marlin"]
+	path = modules/local/marlin
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = marlin
