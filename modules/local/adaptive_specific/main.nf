@@ -86,6 +86,9 @@ process COVERAGE_PLOT {
     tuple val(meta),
         path("*.svg"),
         emit: cov_plot_svg
+    tuple val(meta),
+        path("*.csv"),
+        emit: cov_df
     path "versions.yml",
         emit: versions
 
