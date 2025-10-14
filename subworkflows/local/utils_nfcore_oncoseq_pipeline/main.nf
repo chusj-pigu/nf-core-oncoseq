@@ -52,19 +52,31 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform input samplesheet entries to tuples with file handling
-    def transformInputEntry = { meta, input, _ref, _ref_path, kit, _tumor_type ->
-        if(!kit) {
-            return(tuple(meta.id, meta, file(input)))
-        } else {
-            return(tuple(meta.id, meta, file(input), kit))
-        }
-    }
 
-    def transformTumorType = { meta, _input, _ref, _ref_path, _kit, tumor_type ->
+    def transformTumorType = { meta, _input, _ref, _ref_path, _kit, _purity, _filter, tumor_type ->
         if(!tumor_type) {
             return(tuple(meta, "leukemia"))
         } else {
             return(tuple(meta, tumor_type))
+        }
+    }
+
+    def transformInputEntry = { meta, input, _ref, _ref_path, kit, purity, filter, _tumor_type ->
+        if(!kit && !purity && !filter) {                // No demultiplexing & no cfdna
+            tuple(meta.id, meta, file(input))
+        } else if (!purity && !filter) {                // Demultiplexing but no cfdna
+            tuple(meta.id, meta, file(input), kit)
+        } else {                              // cfdna but no demultiplexing
+            tuple(meta.id, meta, file(input), purity, filter)
+        }
+    }
+
+    // Transform input samplesheet entries to tuples with file handling
+    def transformDemuxEntry = { meta, sample, barcode, purity, filter ->
+        if(!purity && !filter) {                //  no cfdna
+            tuple(meta, sample, barcode)
+        } else {                                        // cfnda
+            tuple(meta, sample, barcode, purity, filter)
         }
     }
 
@@ -85,7 +97,7 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform reference entries for processing
-    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _tumor_type ->
+    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _purity, _filter, _tumor_type ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
 
@@ -138,33 +150,52 @@ workflow PIPELINE_INITIALISATION {
 
     if (params.demux) {
         Channel
+            .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .map(transformDemuxEntry)
+            .groupTuple()
+            .transpose()
+            .set { ch_demux }
+
+        Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map(transformInputEntry)
             .groupTuple()
             .transpose()
             .map{samplesheet ->
-                validateDemuxSamplesheet(samplesheet)}
+                    validateDemuxSamplesheet(samplesheet)}
             .set { ch_samplesheet }
 
         Channel
-            .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformReferenceEntry)
             .groupTuple()
-            .transpose()
-            .set { ch_demux }
+            .map(processGroupedReference)
+            .combine(ch_demux, by:0)
+            .map { meta, ref_id, ref, ref_index, sample, barcode, purity, filter ->
+                tuple(id:sample, ref_id, ref, ref_index) }
+            .set { ch_ref }
 
     } else {
-        Channel.empty()
+        Channel
+            .empty()
             .set { ch_demux }
 
         Channel
             .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map(transformInputEntry)
             .groupTuple()
-            .map { samplesheet ->
-                validateInputSamplesheet(samplesheet)
-            }
             .transpose()
+            .map { tuple ->
+                tuple[1..-1]   // remove duplicated meta
+            }
             .set { ch_samplesheet }
+
+        Channel
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformReferenceEntry)
+            .groupTuple()
+            .map(processGroupedReference)
+            .set { ch_ref }
     }
 
     if (params.adaptive_samplesheet != null) {
@@ -203,13 +234,35 @@ workflow PIPELINE_INITIALISATION {
         ch_ubam = Channel
             .fromPath("${projectDir}/assets/NOFILE")
     }
+    // Separate samplesheet for purity and filtering (cfDNA)
 
-    Channel
-        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-        .map(transformReferenceEntry)
-        .groupTuple()
-        .map(processGroupedReference)
-        .set { ch_ref }
+    if (params.cfdna) {
+        if (params.demux) {
+            ch_demux
+                .map { meta, sample, barcode, purity, filter ->
+                tuple(id:sample, purity, filter)
+                }
+                .set { ch_cfdna }
+
+            ch_demux
+                .map { meta, sample, barcode, purity, filter ->
+                tuple(meta, sample, barcode)
+                }
+                .set { ch_demux }
+        } else {
+            ch_samplesheet
+                .map { meta, input, purity, filter ->
+                tuple(meta, purity, filter)
+                }
+                .set { ch_cfdna }
+
+            ch_samplesheet
+                .map { meta, input, purity, filter ->
+                tuple(meta, input)
+                }
+                .set { ch_samplesheet }
+        }
+    }
 
     Channel
         .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
@@ -223,6 +276,7 @@ workflow PIPELINE_INITIALISATION {
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     ref_ch      = ch_ref
+    cfdna_ch    = ch_cfdna
     versions    = ch_versions
 }
 
@@ -407,3 +461,13 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
     return new_meta
 }
 
+def getMinQC(model) {
+    model_string = model.toString()
+        if (model_string.contains('sup')) {
+            return Channel.of(10)
+        } else if (model_string.contains('hac')) {
+            return Channel.of(9)
+        } else {
+            return Channel.of(8)
+        }
+    }

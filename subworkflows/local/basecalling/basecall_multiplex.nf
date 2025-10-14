@@ -35,19 +35,19 @@ workflow BASECALL_MULTIPLEX {
     ch_versions = Channel.empty()
 
     ch_samplesheet_to_basecall = ch_samplesheet
-        .map { meta, pod5, _kit, ubam, model ->
-            tuple(meta,pod5,ubam,model) }
+        .map { meta, pod5, _kit, ubam, model, modif ->
+            tuple(meta,pod5,ubam,model, modif) }
 
     ch_demux_corrected_barcode = ch_samplesheet
         .combine(ch_demux, by:0)
-        .map { meta, _pod5, kit, _ubam, _model, barcode, sample ->
+        .map { meta, _pod5, kit, _ubam, _model, _modif, sample, barcode ->
             def new_barcode = kit + '_' + barcode
-            tuple(meta,new_barcode,sample) }
+            tuple(meta,sample,new_barcode) }
 
     DORADO_BASECALL(ch_samplesheet_to_basecall)
 
     ch_to_dmux = ch_samplesheet
-        .map { meta, _pod5, kit, _ubam, _model ->
+        .map { meta, _pod5, kit, _ubam, _model, _modif ->
             tuple(meta,kit) }
         .join(DORADO_BASECALL.out.ubam)
 
@@ -67,7 +67,7 @@ workflow BASECALL_MULTIPLEX {
 
      // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
     ch_new_sample_ids_pass = ch_demux_corrected_barcode
-        .map { meta, barcode, sample_id ->
+        .map { meta, sample_id, barcode ->
             def new_meta = meta.id + '_' + barcode
             tuple(new_meta, sample_id)    // flatten key to string
         }
@@ -86,7 +86,7 @@ workflow BASECALL_MULTIPLEX {
         }
 
     ch_new_sample_ids_fail = ch_demux_corrected_barcode
-        .map { meta, barcode, sample_id ->
+        .map { meta, sample_id, barcode ->
             def new_meta = meta.id + '_' + barcode
             tuple(new_meta, sample_id)    // flatten key to string
         }
