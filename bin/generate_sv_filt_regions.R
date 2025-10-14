@@ -150,12 +150,19 @@ if (nrow(missing_rows) > 0) {
   message("Appended ", nrow(missing_rows), " missing target genes to vcf_del_ins")
 }
 
+# Define unwanted suffixes
+unwanted_suffixes <- c("BAGE2-KMT2C", "chr2", "chr16", "GPR42", "FAM230D", "FAM230F", "RNF213", "FRG1FP", "MPPED1")
+
+# Create the full unwanted names with sample_id prefix
+unwanted_genes <- paste(sample_id, unwanted_suffixes, sep = "_")
 
 # -----------------------------
 # Save to output
 # -----------------------------
 safe_write <- function(df, file) {
   if (nrow(df) > 0) {
+    df <- df %>%
+        filter(!GENE %in% unwanted_genes)
     write_tsv(df, file, col_names = FALSE, quote = "none")
   } else {
     message(paste("Skipping", file, "- dataframe is empty"))
