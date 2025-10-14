@@ -83,6 +83,12 @@
             "filter": {
                 "type": "boolean",
                 "errorMessage": " Must be set to true to pre-process reads by filtering out longer reads or to false to skip this step"
+            },
+            "tumor_type": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "enum": ["leukemia", "cns", "other"],
+                "default": "leukemia"
             }
         },
         "required": ["sample", "input", "ref", "ref_path"]
