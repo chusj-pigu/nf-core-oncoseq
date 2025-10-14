@@ -52,7 +52,16 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform input samplesheet entries to tuples with file handling
-    def transformInputEntry = { meta, input, _ref, _ref_path, kit, purity, filter ->
+
+    def transformTumorType = { meta, _input, _ref, _ref_path, _kit, _purity, _filter, tumor_type ->
+        if(!tumor_type) {
+            return(tuple(meta, "leukemia"))
+        } else {
+            return(tuple(meta, tumor_type))
+        }
+    }
+
+    def transformInputEntry = { meta, input, _ref, _ref_path, kit, purity, filter, _tumor_type ->
         if(!kit && !purity && !filter) {                // No demultiplexing & no cfdna
             tuple(meta.id, meta, file(input))
         } else if (!purity && !filter) {                // Demultiplexing but no cfdna
@@ -88,7 +97,7 @@ workflow PIPELINE_INITIALISATION {
     }
 
     // Transform reference entries for processing
-    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _purity, _filter ->
+    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _purity, _filter, _tumor_type ->
         tuple(meta.id, meta, ref, file(ref_path))
     }
 
@@ -223,7 +232,7 @@ workflow PIPELINE_INITIALISATION {
 
     } else {
         ch_ubam = Channel
-            .fromPath("${projectDir}/assets/NO_UBAM")
+            .fromPath("${projectDir}/assets/NOFILE")
     }
     // Separate samplesheet for purity and filtering (cfDNA)
 
@@ -259,9 +268,15 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_cfdna }
     }
 
+    Channel
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+        .map(transformTumorType)
+        .set { ch_tumor }
+
     emit:
     bed_sheet   = ch_bed
     ubam_ch     = ch_ubam
+    tumor_type  = ch_tumor
     demux_sheet = ch_demux
     samplesheet = ch_samplesheet
     ref_ch      = ch_ref
@@ -324,7 +339,7 @@ workflow PIPELINE_COMPLETION {
 // Validate channels from input samplesheet
 //
 def validateInputSamplesheet(file) {
-    def (metas, input) = file[1..2]
+    def (metas, input, tumor_type) = file[1..2]
 
     return [ metas[0], input ]
 }

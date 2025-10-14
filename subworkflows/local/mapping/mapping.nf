@@ -136,16 +136,16 @@ workflow MAPPING {
         } else {
             // Prepare reference channel: extract meta and fasta path
             ch_ref = ref
-                .map { meta, _ref, ref_fasta, _ref_fai ->
-                    tuple(meta, ref_fasta) }
+                .map { meta, ref, ref_fasta, _ref_fai ->
+                    tuple(meta, ref, ref_fasta) }
 
             // Prepare mapping input: clean up meta.id and join with reference
             ch_mapping_in = in_ch
-                .map { meta, reads ->
-                    def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
-                    tuple(new_meta, reads)
-                }
                 .join(ch_ref)
+                .map { meta, fastq, ref, ref_fasta ->
+                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${ref}")
+                    tuple(meta_ref, fastq, ref_fasta)
+                    }
 
             // Run minimap2 alignment
             MINIMAP2_ALIGN(ch_mapping_in)
@@ -155,7 +155,18 @@ workflow MAPPING {
             // Sort and index BAM
             SAMTOOLS_SORT(SAMTOOLS_TOBAM.out.bamfile)
             SAMTOOLS_INDEX(SAMTOOLS_SORT.out.sortedbam)
+
+            // Restore meta ID by removing ref id
+
+            ch_ref_id = ch_ref
+                .map { meta, ref, _ref_fasta ->
+                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${ref}")
+                    tuple(meta_ref, meta.id) }
+
             bam_ch = SAMTOOLS_INDEX.out.bamfile_index
+                .join(ch_ref_id)
+                .map { meta, bam, bai, meta_restore ->
+                    tuple(id:meta_restore, bam, bai) }
 
             // Compute coverage stats
             CRAMINO_STATS(bam_ch)
