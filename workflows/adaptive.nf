@@ -31,7 +31,7 @@ include { SPLIT_BAMS_TIME_FASTQ   } from '../subworkflows/local/time_series_eval
 
 // Reporting
 include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
-include { QDNASEQ_REPORT  } from '../subworkflows/local/report/variants.nf'
+include { FIGENO_REPORT  } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT } from '../subworkflows/local/report/adaptive.nf'
 // Utility functions
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
@@ -341,7 +341,11 @@ workflow ADAPTIVE {
             COVERAGE_SEPARATE.out.coverage_plot
         )
 
-        QDNASEQ_REPORT(CNV_CALLING.out.qdnaseq_plot)
+        FIGENO_REPORT(
+            VARIANT_PROCESS.out.circos_plot,
+            VARIANT_PROCESS.out.sv_plot,
+            VARIANT_PROCESS.out.fusion_plot
+        )
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -352,7 +356,7 @@ workflow ADAPTIVE {
     // Collect sections from all analysis steps
     // ch_sections = ch_sections.mix(SUMMARIZE_ANALYSIS.out.ch_section)
     ch_sections = ADAPTIVE_REPORT.out.sections
-    ch_sections = ch_sections.mix(QDNASEQ_REPORT.out.sections)
+    ch_sections = ch_sections.mix(FIGENO_REPORT.out.sections)
 
     bam_input = PHASING_GERMLINE.out.haptag_bam
         .map { meta, bamfile, bai ->

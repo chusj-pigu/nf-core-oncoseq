@@ -4,41 +4,39 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { QUARTO_TEXT } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_SECTION } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_FIGURE } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TEXT                             } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_CNV_SECTION    } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_SV_SECTION     } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_FUSION_SECTION } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_FIGURE_CNV      } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_FIGURE_SV       } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_FIGURE_FUSION   } from '../../../modules/local/quarto/main.nf'
+include { modifyMetaId                            } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
-workflow QDNASEQ_REPORT {
+workflow FIGENO_REPORT {
 
     take:
-    ch_qdnaseq_figure
+    ch_circos_figure
+    ch_sv_figures
+    ch_fusion_figures
 
     main:
 
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    COLLECT SECTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-    // Collect sections from all analysis steps
-    // ch_sections = ch_sections.mix(SUMMARIZE_ANALYSIS.out.ch_section)
-    ch_section_inputs = Channel.empty()
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    QDNASEQ FIGURE
+    CIRCOS FIGURE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_plot_files = ch_qdnaseq_figure
+    ch_circos_files = ch_circos_figure
         .map { tuple ->
             // Extract the existing values from the tuple
             def (meta, file) = tuple
 
             // Transform chrom into two new variables
-            def caption = "CNV Plot for ${meta.id}."
+            def caption = "CNV Plot for ${meta.id}"
             def section = "CNV"
             def process = "qdnaseq-call-${meta.id}"
 
@@ -47,22 +45,105 @@ workflow QDNASEQ_REPORT {
         }
 
 
-    QUARTO_FIGURE(
-        ch_plot_files
+    QUARTO_FIGURE_CNV(
+        ch_circos_files
         )
 
-    ch_section_inputs = ch_section_inputs.mix(QUARTO_FIGURE.out.quarto_figure)
+    ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
 
-    ch_section_inputs = ch_section_inputs
-    .groupTuple()
-    .map { id, section, filePaths ->
-        [id, section[0], filePaths]
-    }
+    ch_section_cnv = ch_section_cnv
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths]
+        }
 
-    QUARTO_SECTION(
-        ch_section_inputs,
-        "QDNASEQ CNV Plot."
+    QUARTO_CNV_SECTION(
+        ch_section_cnv,
+        "qDNAseq CNV Plot by Figeno"
     )
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FIGENO FOR SV
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    ch_sv_files = ch_sv_figures
+        .transpose()
+        .map { tuple ->
+            // Extract the existing values from the tuple
+            def (meta, file) = tuple
+            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
+            def sv_type = file.name.replace("${meta.id}_", "")
+            def sv_type_noext = sv_type.replace(".png", "")
+
+            // Transform chrom into two new variables
+            def caption = "Figeno Plot for ${new_meta.id} in ${sv_type_noext}"
+            def section = "Structural-Variants"
+            def process = "figeno-sv-${new_meta.id}-${sv_type_noext}"
+
+            // Return a new tuple with the additional variables
+            return [new_meta, file, caption, section, process ]
+        }
+        .view()
+
+
+    QUARTO_FIGURE_SV(
+        ch_sv_files
+        )
+
+    ch_section_sv = QUARTO_FIGURE_SV.out.quarto_figure
+
+    ch_section_sv = ch_section_sv
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths]
+        }
+
+    QUARTO_SV_SECTION(
+        ch_section_sv,
+        "Figeno SV plots"
+    )
+
+    ch_fusion_files = ch_fusion_figures
+        .transpose()
+        .map { tuple ->
+            // Extract the existing values from the tuple
+            def (meta, file) = tuple
+            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
+            def sv_type = file.name.replace("${meta.id}_", "")
+            def sv_type_noext = sv_type.replace(".png", "")
+
+            // Transform chrom into two new variables
+            def caption = "Figeno Plot for ${new_meta.id} in ${sv_type_noext}"
+            def section = "Fusions"
+            def process = "figeno-fusion-${new_meta.id}-${sv_type_noext}"
+
+            // Return a new tuple with the additional variables
+            return [new_meta, file, caption, section, process ]
+        }
+
+
+    QUARTO_FIGURE_FUSION(
+        ch_fusion_files
+        )
+
+    ch_section_fusion = QUARTO_FIGURE_FUSION.out.quarto_figure
+
+    ch_section_fusion = ch_section_fusion
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths]
+        }
+
+    QUARTO_FUSION_SECTION(
+       ch_section_fusion,
+        "Figeno Gene Fusion plots"
+    )
+
+    ch_sections = QUARTO_CNV_SECTION.out.quarto_section
+        .mix(QUARTO_FUSION_SECTION.out.quarto_section)
+        .mix(QUARTO_SV_SECTION.out.quarto_section)
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -71,5 +152,5 @@ workflow QDNASEQ_REPORT {
 */
 
     emit:
-    sections = QUARTO_SECTION.out.quarto_section
+    sections = ch_sections
 }
