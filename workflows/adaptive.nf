@@ -31,8 +31,8 @@ include { SPLIT_BAMS_TIME_FASTQ   } from '../subworkflows/local/time_series_eval
 
 // Reporting
 include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
-include { QDNASEQ_REPORT } from '../subworkflows/local/report/variants.nf'
-include { COVERAGE_REPORT } from '../subworkflows/local/report/mapping.nf'
+include { QDNASEQ_REPORT  } from '../subworkflows/local/report/variants.nf'
+include { ADAPTIVE_REPORT } from '../subworkflows/local/report/adaptive.nf'
 // Utility functions
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
@@ -66,6 +66,8 @@ workflow ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
+
+    ch_versions = Channel.empty()
 
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling || params.skip_mapping) {
@@ -180,6 +182,9 @@ workflow ADAPTIVE {
                 BASECALL_MULTIPLEX.out.fastq,
                 BASECALL_MULTIPLEX.out.ref
             )
+
+            ch_versions = ch_versions
+                .mix(BASECALL_MULTIPLEX.out.versions)
         } else {
             // Sub-branch 2b: Simplex basecalling (single sample per flow cell)
 
@@ -193,6 +198,9 @@ workflow ADAPTIVE {
                 BASECALL_SIMPLEX.out.fastq,
                 ref
             )
+
+            ch_versions = ch_versions
+                .mix(BASECALL_SIMPLEX.out.versions)
 
         }
 
@@ -305,6 +313,7 @@ workflow ADAPTIVE {
             CLAIR3_CALLING.out.vcf,
             ch_panel_bin
         )
+    }
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -312,12 +321,14 @@ workflow ADAPTIVE {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_versions = MAPPING.out.versions
+
+    ch_versions = ch_versions
+        .mix(MAPPING.out.versions)
         .mix(CLAIRS_TO_CALLING.out.versions)
         .mix(CLAIR3_CALLING.out.versions)
         .mix(PHASING_SOMATIC.out.versions)
         .mix(PHASING_GERMLINE.out.versions)
-        .mix(SV_CALLING.out.versions)
+        .mix(SV_PHASED.out.versions)
         .mix(CNV_CALLING.out.versions)
 
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -327,8 +338,8 @@ workflow ADAPTIVE {
 
         QDNASEQ_REPORT(CNV_CALLING.out.qdnaseq_plot)
 
-        COVERAGE_REPORT(
-            COVERAGE_SEPARATE.out.coverage_separated,
+        ADAPTIVE_REPORT(
+            COVERAGE_SEPARATE.out.coverage_tbl,
             COVERAGE_SEPARATE.out.coverage_plot
         )
 
@@ -341,21 +352,19 @@ workflow ADAPTIVE {
     // Collect sections from all analysis steps
     // ch_sections = ch_sections.mix(SUMMARIZE_ANALYSIS.out.ch_section)
     ch_sections = QDNASEQ_REPORT.out.sections
-    ch_sections = ch_sections.mix(COVERAGE_REPORT.out.sections)
+    ch_sections = ch_sections.mix(ADAPTIVE_REPORT.out.sections)
 
     bam_input = PHASING_GERMLINE.out.haptag_bam
         .map { meta, bamfile, bai ->
             // Restore original sample ID for output naming
-            def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-            meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_phased', '', '')
             tuple(meta_restore, bamfile, bai)
         }
+        .view()
 
         MIDNIGHT_REPORT(
             bam_input,
             ch_sections,
             ch_versions
         )
-
-    }
 }
