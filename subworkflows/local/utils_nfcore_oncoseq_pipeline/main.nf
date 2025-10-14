@@ -176,7 +176,7 @@ workflow PIPELINE_INITIALISATION {
             .map(transformInputEntry)
             .groupTuple()
             .transpose()
-            .map { tuple -> 
+            .map { tuple ->
                 tuple[1..-1]   // remove duplicated meta
             }
             .set { ch_samplesheet }
@@ -253,6 +253,10 @@ workflow PIPELINE_INITIALISATION {
                 }
                 .set { ch_samplesheet }
         }
+    } else {
+        Channel
+            .empty()
+            .set { ch_cfdna }
     }
 
     emit:
