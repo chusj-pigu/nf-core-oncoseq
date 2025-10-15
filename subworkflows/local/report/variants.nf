@@ -85,7 +85,6 @@ workflow FIGENO_REPORT {
             // Return a new tuple with the additional variables
             return [new_meta, file, caption, section, process ]
         }
-        .view()
 
 
     QUARTO_FIGURE_SV(
