@@ -8,9 +8,13 @@ include { QUARTO_TEXT                             } from '../../../modules/local
 include { QUARTO_SECTION as QUARTO_CNV_SECTION    } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_SV_SECTION     } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_FUSION_SECTION } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_CNLOH_SECTION  } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_FOCAL_SECTION  } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_CNV      } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_SV       } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_FUSION   } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_FIGURE_CNLOH    } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_FIGURE_FOCAL    } from '../../../modules/local/quarto/main.nf'
 include { modifyMetaId                            } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
@@ -20,34 +24,34 @@ workflow FIGENO_REPORT {
     ch_circos_figure
     ch_sv_figures
     ch_fusion_figures
+    ch_subchrom_figure
+    ch_subchrom_focal
 
     main:
 
-
+    // channels for type of figures:
+    ch_qdnaseq = Channel.of("CNV")
+    ch_subchrom = Channel.of("CNLOH")
+    ch_focal = Channel.of("CNLOH-Focal")
+    ch_fusion = Channel.of("Fusion")
+    ch_sv = Channel.of("Structural-Variants")
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     CIRCOS FIGURE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_circos_files = ch_circos_figure
-        .map { tuple ->
-            // Extract the existing values from the tuple
-            def (meta, file) = tuple
+    ch_in_circos = ch_circos_figure
+        .combine(ch_qdnaseq)
 
-            // Transform chrom into two new variables
-            def caption = "CNV Plot for ${meta.id}"
-            def section = "CNV"
-            def process = "qdnaseq-call-${meta.id}"
-
-            // Return a new tuple with the additional variables
-            return [meta, file, caption, section, process ]
+    ch_circos_files = ch_in_circos
+        .map { meta, file, type ->
+        CreateFigureCNVInput(meta, file, type)
         }
-
 
     QUARTO_FIGURE_CNV(
         ch_circos_files
-        )
+    )
 
     ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
 
@@ -64,28 +68,69 @@ workflow FIGENO_REPORT {
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    CNLOH FIGURES
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    ch_cnloh_in = ch_subchrom_figure
+        .combine(ch_subchrom)
+
+    ch_subchrom_files = ch_cnloh_in
+        .map { meta, file, type ->
+        CreateFigureCNVInput(meta, file, type)
+        }
+
+    QUARTO_FIGURE_CNLOH(
+        ch_subchrom_files
+        )
+
+    ch_section_cnloh = QUARTO_FIGURE_CNLOH.out.quarto_figure
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths]
+        }
+
+    QUARTO_CNLOH_SECTION(
+        ch_section_cnloh,
+        "SubChrom CN-LOH plot"
+    )
+
+    ch_focal_in = ch_subchrom_focal
+        .combine(ch_focal)
+
+    ch_focal_files = ch_focal_in
+        .map { meta, file, type ->
+        CreateFigureCNVInput(meta, file, type)
+        }
+
+    QUARTO_FIGURE_FOCAL(
+        ch_focal_files
+    )
+
+    ch_section_cnloh = QUARTO_FIGURE_CNLOH.out.quarto_figure
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths]
+        }
+
+    QUARTO_FOCAL_SECTION(
+        ch_section_cnloh,
+        "SubChrom Focal CN-LOH plot"
+    )
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     FIGENO FOR SV
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_sv_files = ch_sv_figures
-        .transpose()
-        .map { tuple ->
-            // Extract the existing values from the tuple
-            def (meta, file) = tuple
-            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
-            def sv_type = file.name.replace("${meta.id}_", "")
-            def sv_type_noext = sv_type.replace(".png", "")
+    ch_sv_in = ch_sv_figures
+        .combine(ch_sv)
 
-            // Transform chrom into two new variables
-            def caption = "Figeno Plot for ${new_meta.id} in ${sv_type_noext}"
-            def section = "Structural-Variants"
-            def process = "figeno-sv-${new_meta.id}-${sv_type_noext}"
-
-            // Return a new tuple with the additional variables
-            return [new_meta, file, caption, section, process ]
+    ch_sv_files = ch_sv_in
+        .map { meta, file, type ->
+        CreateSVInput(meta, file, type)
         }
-
 
     QUARTO_FIGURE_SV(
         ch_sv_files
@@ -104,24 +149,13 @@ workflow FIGENO_REPORT {
         "Figeno SV plots"
     )
 
-    ch_fusion_files = ch_fusion_figures
-        .transpose()
-        .map { tuple ->
-            // Extract the existing values from the tuple
-            def (meta, file) = tuple
-            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
-            def sv_type = file.name.replace("${meta.id}_", "")
-            def sv_type_noext = sv_type.replace(".png", "")
+    ch_fusion_in = ch_fusion_figures
+        .combine(ch_fusion)
 
-            // Transform chrom into two new variables
-            def caption = "Figeno Plot for ${new_meta.id} in ${sv_type_noext}"
-            def section = "Fusions"
-            def process = "figeno-fusion-${new_meta.id}-${sv_type_noext}"
-
-            // Return a new tuple with the additional variables
-            return [new_meta, file, caption, section, process ]
-        }
-
+    ch_fusion_files = ch_fusion_in
+        .map { meta, file, type ->
+            CreateSVInput(meta, file, type)
+            }
 
     QUARTO_FIGURE_FUSION(
         ch_fusion_files
@@ -143,6 +177,8 @@ workflow FIGENO_REPORT {
     ch_sections = QUARTO_CNV_SECTION.out.quarto_section
         .mix(QUARTO_FUSION_SECTION.out.quarto_section)
         .mix(QUARTO_SV_SECTION.out.quarto_section)
+        .mix(QUARTO_CNLOH_SECTION.out.quarto_section)
+        .mix(QUARTO_FOCAL_SECTION.out.quarto_section)
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -152,4 +188,34 @@ workflow FIGENO_REPORT {
 
     emit:
     sections = ch_sections
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FUNCTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+def CreateFigureCNVInput(meta, file, type) {
+    // Transform chrom into two new variables
+    def caption = "${type} Plot for ${meta.id}"
+    def section = "CNV"
+    def process = "${type}-call-${meta.id}"
+
+    // Return a new tuple with the additional variables
+    return [meta, file, caption, section, process ]
+}
+
+def CreateSVInput(meta, file, type) {
+    def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
+    def sv_type = file.name.replace("${meta.id}_", "")
+    def sv_type_noext = sv_type.replace(".png", "")
+
+    // Transform chrom into two new variables
+    def caption = "Figeno Plot for ${new_meta.id} in ${sv_type_noext}"
+    def section = "${type}"
+    def process = "figeno-${type}-${new_meta.id}-${sv_type_noext}"
+
+    // Return a new tuple with the additional variables
+    return [new_meta, file, caption, section, process ]
 }
