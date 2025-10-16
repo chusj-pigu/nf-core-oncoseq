@@ -1,11 +1,13 @@
-include { BASECALL_MULTIPLEX   } from '../subworkflows/local/basecalling/basecall_multiplex'
-include { BASECALL_SIMPLEX     } from '../subworkflows/local/basecalling/basecall_simplex'
-include { READS_FILTER         } from '../subworkflows/local/read_processing/reads_filter.nf'
-include { MAPPING              } from '../subworkflows/local/mapping/mapping'
-include { TIDEHUNTER_CONCENSUS } from '../subworkflows/local/read_processing/tidehunter'
-include { CNV_CALLING          } from '../subworkflows/local/variant_calling/cnv_calling.nf'
-include { ICHORCNA_CALLING     } from '../subworkflows/local/variant_calling/ichor_calling.nf'
-include { MARLIN               } from '../subworkflows/local/methylation_analysis/marlin.nf'
+include { BASECALL_MULTIPLEX     } from '../subworkflows/local/basecalling/basecall_multiplex'
+include { BASECALL_SIMPLEX       } from '../subworkflows/local/basecalling/basecall_simplex'
+include { READS_FILTER           } from '../subworkflows/local/read_processing/reads_filter.nf'
+include { MAPPING as MAPPING_HG  } from '../subworkflows/local/mapping/mapping'
+include { MAPPING as MAPPING_T2T } from '../subworkflows/local/mapping/mapping'
+include { TIDEHUNTER_CONCENSUS   } from '../subworkflows/local/read_processing/tidehunter'
+include { CNV_CALLING            } from '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/ichor_calling.nf'
+include { MARLIN                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
+include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 
 workflow CFDNA {
 
@@ -13,7 +15,9 @@ workflow CFDNA {
     samplesheet // channel: samplesheet read in from --input
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
     cfdna_samplesheet   // channel : from demux or samplesheeet
+    tumor_type      // channel: to decide if marlin or sturgeon is run
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
+    ref_t2t
     max_len
     minqs
     ichor_bin
@@ -64,14 +68,41 @@ workflow CFDNA {
 
         ch_fastq_processed = READS_FILTER.out.reads
 
-        MAPPING (
+        ch_tumor_type = tumor_type
+            .branch { meta, tumor ->
+                leukemia: tumor == "leukemia"
+                cns: tumor == "cns"
+                other: tumor == "other"
+            }
+
+        ch_mapping_t2t = tumor_type.cns
+            .join(ch_fastq_processed)
+            .map { meta, _tumor, input ->
+                tuple(meta, input)}
+
+        MAPPING_HG(
             ch_fastq_processed,
             ref
         )
 
+        MAPPING_T2T(
+            ch_mapping_t2t,
+            ref_t2t
+        )
+
+        // Run Marlin on leukemia samples only:
+        ch_marlin_bam = MAPPING_HG.out.bam
+            .join(ch_tumor_type.leukemia)
+            .map { meta, bam, bai, _tumor ->
+                tuple(meta, bam, bai)}
+
         MARLIN(
-            MAPPING.out.bam,
+            ch_marlin_bam,
             ref
+        )
+
+        STURGEON(
+            MAPPING_T2T.out.bam
         )
 
         CNV_CALLING (
