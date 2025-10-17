@@ -81,7 +81,9 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     samplesheet         // channel: samplesheet read in from --input
     demux               // channel: demux_samplesheet read in from --demux_samplesheet
     cfdna_samplesheet   // channel : from demux or samplesheeet
+    tumor_type
     ref                 // channel : reference for mapping, either empty if skipping mapping, or a path
+    ref_t2t
     max_len
     minqs
     ichor_bin
@@ -96,7 +98,9 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         samplesheet,
         demux,
         cfdna_samplesheet,
+        tumor_type,
         ref,
+        ref_t2t,
         max_len,
         minqs,
         ichor_bin,
