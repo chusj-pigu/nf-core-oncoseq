@@ -44,7 +44,7 @@ workflow ICHORCNA_CALLING {
         .mix(ICHORCNA.out.versions)
 
     emit:
-    ichorcna_plot       = ICHORCNA.out.ichor_dir   // TODO: Quarto report
+    ichorcna_plot       = ICHORCNA.out.plot   // TODO: Quarto report
     versions            = ch_versions
 
 }
