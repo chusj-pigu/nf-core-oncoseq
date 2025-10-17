@@ -16,6 +16,7 @@ workflow MIDNIGHT_REPORT {
     ch_samples
     ch_sections
     ch_versions
+    ch_mode
 
     main:
 
@@ -69,14 +70,19 @@ workflow MIDNIGHT_REPORT {
         }
 
     ch_title = ch_samples
-        .map { meta, bam, bai ->
-        "Oncoseq Pipeline Adaptive Report for ${meta.id}" }
+        .combine(ch_mode)
+        .map { meta, _bam, _bai, mode ->
+        "Oncoseq Pipeline ${mode} Report for ${meta.id}" }
+
+    ch_subtitle = ch_mode
+        .map { mode ->
+        "Outputs for the ${mode} branch of the Oncoseq pipeline" }
 
     QUARTO_REPORT(
         ch_report_sections,
         params.report_template,
         ch_title,
-        'Outputs for the adaptive sampling branch of the Oncoseq pipeline'
+        ch_subtitle
         )
 
     ch_report = QUARTO_REPORT.out.report

@@ -179,23 +179,6 @@ workflow MAPPING {
                 .mix(CRAMINO_STATS.out.versions)
         }
 
-    /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        (Optional) Example for coverage reporting with QUARTO_TABLE
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ch_mosdepth_coverage = MOSDEPTH_GENERAL.out.summary
-        .map { meta, table ->
-            def lines = table.readLines()
-            def coverage = lines[-1].tokenize('\t')[3].toDouble()
-            tuple(meta, coverage)
-        }
-        .collectFile { item ->
-            def sample_id = item[0].id
-            [ "coverage.txt", sample_id + '\t' + item[1] + '\n']
-        }
-    QUARTO_TABLE( ch_mosdepth_coverage_table, "Mean coverage", "T", "Mosdepth_coverage", "mosdepth-general")
-    */
-
     emit:
     bam      = bam_ch                                   // Final sorted BAM with index
     coverage = CRAMINO_STATS.out.stats                // Coverage stats

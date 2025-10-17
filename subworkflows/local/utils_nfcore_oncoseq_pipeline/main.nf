@@ -61,6 +61,14 @@ workflow PIPELINE_INITIALISATION {
         }
     }
 
+    def transformTumorTypeDemux = { _meta, sample, _barcode, _purity, _filter, tumor_type ->
+        if(!tumor_type) {
+            return(tuple(id:sample, "leukemia"))
+        } else {
+            return(tuple(id:sample, tumor_type))
+        }
+    }
+
     def transformInputEntry = { meta, input, _ref, _ref_path, kit, purity, filter, _tumor_type ->
         if(!kit && !purity && !filter) {                // No demultiplexing & no cfdna
             tuple(meta.id, meta, file(input))
@@ -249,6 +257,11 @@ workflow PIPELINE_INITIALISATION {
                 tuple(meta, sample, barcode)
                 }
                 .set { ch_demux }
+
+            Channel
+                .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
+                .map(transformTumorTypeDemux)
+                .set { ch_tumor }
         } else {
             ch_samplesheet
                 .map { meta, input, purity, filter ->
@@ -261,17 +274,20 @@ workflow PIPELINE_INITIALISATION {
                 tuple(meta, input)
                 }
                 .set { ch_samplesheet }
+            Channel
+                .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+                .map(transformTumorType)
+                .set { ch_tumor }
         }
     } else {
         Channel
             .empty()
             .set { ch_cfdna }
+        Channel
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
+            .map(transformTumorType)
+            .set { ch_tumor }
     }
-
-    Channel
-        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-        .map(transformTumorType)
-        .set { ch_tumor }
 
     emit:
     bed_sheet   = ch_bed
