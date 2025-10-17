@@ -46,12 +46,22 @@ workflow MARLIN {
 
     MARLIN_PLOT(MARLIN_PREDICT.out.pred)
 
+    // Add marlin to type for report
+    ch_type = Channel.of("Marlin")
+
+    ch_marlin_plot = MARLIN_PLOT.out.pred_pdf
+        .combine(ch_type)
+
+    ch_marlin_pred = MARLIN_PREDICT.out.pred
+        .combine(ch_type)
+
     // Collect versions from all modules
     ch_versions = MARLIN_PILEUP.out.versions
         .mix(MARLIN_PREDICT.out.versions)
 
     emit:
-    plot     = MARLIN_PLOT.out.pred_pdf                 // TODO: Quarto report
+    plot     = ch_marlin_plot                 // TODO: Quarto report
+    pred     = ch_marlin_pred
     versions = ch_versions                            // All tool versions
 }
 /*
