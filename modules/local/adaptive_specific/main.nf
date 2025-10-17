@@ -34,7 +34,6 @@ process PIGZ_BED {
 
     //TODO: FIND A BETTER SOLUTION FOR THIS
     container 'ghcr.io/chusj-pigu/samtools:latest'
-    label 'local'
     label 'process_low'
     label 'process_low_cpu'
     label 'process_very_low_memory'
