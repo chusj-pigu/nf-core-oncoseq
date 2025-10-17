@@ -8,8 +8,6 @@ include { QUARTO_TEXT                             } from '../../../modules/local
 include { QUARTO_SECTION as QUARTO_CNV_SECTION    } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_SV_SECTION     } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_FUSION_SECTION } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_SECTION as QUARTO_CNLOH_SECTION  } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_SECTION as QUARTO_FOCAL_SECTION  } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_CNV      } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_SV       } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_FUSION   } from '../../../modules/local/quarto/main.nf'
@@ -53,18 +51,11 @@ workflow FIGENO_REPORT {
         ch_circos_files
     )
 
-    ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
-
-    ch_section_cnv = ch_section_cnv
+    ch_section_qdnaseq = QUARTO_FIGURE_CNV.out.quarto_figure
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths]
         }
-
-    QUARTO_CNV_SECTION(
-        ch_section_cnv,
-        "qDNAseq CNV Plot by Figeno"
-    )
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,11 +81,6 @@ workflow FIGENO_REPORT {
             [id, section[0], filePaths]
         }
 
-    QUARTO_CNLOH_SECTION(
-        ch_section_cnloh,
-        "SubChrom CN-LOH plot"
-    )
-
     ch_focal_in = ch_subchrom_focal
         .combine(ch_focal)
 
@@ -107,15 +93,19 @@ workflow FIGENO_REPORT {
         ch_focal_files
     )
 
-    ch_section_cnloh = QUARTO_FIGURE_CNLOH.out.quarto_figure
+    ch_section_focal = QUARTO_FIGURE_FOCAL.out.quarto_figure
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths]
         }
 
-    QUARTO_FOCAL_SECTION(
-        ch_section_cnloh,
-        "SubChrom Focal CN-LOH plot"
+    ch_section_cnv = ch_section_qdnaseq
+        .mix(ch_section_cnloh)
+        .mix(ch_section_focal)
+
+    QUARTO_CNV_SECTION(
+        ch_section_cnv,
+        "CNV Plots"
     )
 
 /*
