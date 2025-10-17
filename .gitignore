@@ -13,6 +13,7 @@ scratch/
 scratch*
 test_data/adaptive/*
 test_data/realistic_data/*
+test_data/cfdna/
 test_data/variant_calling/cnv_calling/*
 test_data/methylation_analysis/*
 .nf-test/
