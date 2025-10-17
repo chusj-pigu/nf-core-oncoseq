@@ -342,8 +342,6 @@ workflow ADAPTIVE {
             COVERAGE_SEPARATE.out.coverage_plot
         )
 
-        // Only input subchrom adaptive if WGS didn't run, and only input WGS if it did.
-
         ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
             .mix(SUBCHROM_CALL.out.subchrom_plot_panel)
 
