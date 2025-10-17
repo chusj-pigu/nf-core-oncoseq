@@ -9,6 +9,11 @@ include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/i
 include { MARLIN                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 
+// Reporting
+include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
+include { CFNDA_REPORT    } from '../subworkflows/local/report/cfdna.nf'
+include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
+
 workflow CFDNA {
 
     take:
@@ -29,6 +34,8 @@ workflow CFDNA {
     // WORKFLOW: Run pipeline
     //
 
+    ch_versions = Channel.empty()
+
     if (params.demux) {
 
         BASECALL_MULTIPLEX (
@@ -38,6 +45,8 @@ workflow CFDNA {
         )
 
         ch_fastq = BASECALL_MULTIPLEX.out.fastq
+
+        ch_versions = BASECALL_MULTIPLEX.out.versions
 
     } else if (params.skip_basecalling) {
 
@@ -50,6 +59,8 @@ workflow CFDNA {
         )
 
         ch_fastq = BASECALL_SIMPLEX.out.fastq
+
+        ch_versions = BASECALL_SIMPLEX.out.versions
 
     }
 
@@ -75,7 +86,7 @@ workflow CFDNA {
                 other: tumor == "other"
             }
 
-        ch_mapping_t2t = tumor_type.cns
+        ch_mapping_t2t = ch_tumor_type.cns
             .join(ch_fastq_processed)
             .map { meta, _tumor, input ->
                 tuple(meta, input)}
@@ -106,15 +117,74 @@ workflow CFDNA {
         )
 
         CNV_CALLING (
-            MAPPING.out.bam,
+            MAPPING_HG.out.bam,
             ref
         )
 
         ICHORCNA_CALLING (
-            MAPPING.out.bam,
+            MAPPING_HG.out.bam,
             cfdna_samplesheet,
             ichor_bin,
             mapq_wig
+        )
+
+        /*
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            COLLECT VERSIONS
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        */
+
+
+        ch_versions = ch_versions
+            .mix(MAPPING_HG.out.versions)
+            .mix(MAPPING_T2T.out.versions)
+            .mix(MARLIN.out.versions)
+            .mix(STURGEON.out.versions)
+            .mix(CNV_CALLING.out.versions)
+            .mix(ICHORCNA_CALLING.out.versions)
+
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            COMPILE SECTIONS
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        */
+
+        ch_classifiers_plots = STURGEON.out.plot
+            .mix(MARLIN.out.plot)
+
+        ch_classifiers_pred = STURGEON.out.pred
+            .mix(MARLIN.out.pred)
+
+        CFNDA_REPORT(
+            READS_FILTER.out.read_dist,
+            READS_FILTER.out.stats,
+            MAPPING_HG.out.coverage,
+            ICHORCNA_CALLING.out.ichorcna_plot
+        )
+
+        CLASSIFIER_REPORT(
+            ch_classifiers_plots,
+            ch_classifiers_pred
+        )
+
+        /*
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            COLLECT SECTIONS
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        */
+
+        // Collect sections from all analysis steps
+        ch_sections = CFNDA_REPORT.out.sections
+            .mix(CLASSIFIER_REPORT.out.sections)
+
+        bam_input = MAPPING_HG.out.bam
+
+        ch_mode = Channel.of("cfDNA")
+
+        MIDNIGHT_REPORT(
+            bam_input,
+            ch_sections,
+            ch_versions,
+            ch_mode
         )
     }
 }
