@@ -375,9 +375,12 @@ workflow ADAPTIVE {
             tuple(meta_restore, bamfile, bai)
         }
 
-        MIDNIGHT_REPORT(
-            bam_input,
-            ch_sections,
-            ch_versions
-        )
+    ch_mode = Channel.of("Adaptive Sampling")
+
+    MIDNIGHT_REPORT(
+        bam_input,
+        ch_sections,
+        ch_versions,
+        ch_mode
+    )
 }
