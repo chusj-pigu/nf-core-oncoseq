@@ -8,6 +8,7 @@ include { QUARTO_SECTION as QUARTO_SECTION_QC  } from '../../../modules/local/qu
 include { QUARTO_SECTION as QUARTO_SECTION_CNV } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_QC    } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_CNV   } from '../../../modules/local/quarto/main.nf'
+include { CONVERT_PDF_PNG                      } from '../../../modules/local/magick/main.nf'
 include { QUARTO_TABLE                         } from '../../../modules/local/quarto/main.nf'
 
 
@@ -126,7 +127,9 @@ workflow CFNDA_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_ichor_files = ch_ichor_fig
+    CONVERT_PDF_PNG(ch_ichor_fig)
+
+    ch_ichor_files = CONVERT_PDF_PNG.out.png
         .map { tuple ->
             // Extract the existing values from the tuple
             def (meta, file) = tuple

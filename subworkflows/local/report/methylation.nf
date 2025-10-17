@@ -4,9 +4,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { QUARTO_SECTION } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_FIGURE  } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_TABLE   } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION        } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE         } from '../../../modules/local/quarto/main.nf'
+include { CONVERT_PDF_PNG       } from '../../../modules/local/magick/main.nf'
 include { QUARTO_TABLE_COLNAMES } from '../../../modules/local/quarto/main.nf'
 
 
@@ -24,7 +24,17 @@ workflow CLASSIFIER_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_meth_files = ch_methylation_plot
+    ch_to_convert = ch_methylation_plot
+        .map { meta, file, _type ->
+            tuple(meta,file)}
+    CONVERT_PDF_PNG(ch_to_convert)
+
+    ch_plots = CONVERT_PDF_PNG.out.png
+        .join(ch_methylation_plot)
+        .map { meta, png, _pdf, type ->
+        tuple(meta,png,type)}
+
+    ch_meth_files = ch_plots
         .map { tuple ->
             // Extract the existing values from the tuple
             def (meta, file, type) = tuple
