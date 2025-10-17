@@ -98,3 +98,7 @@
 	path = modules/local/marlin
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = marlin
+[submodule "modules/local/magick"]
+	path = modules/local/magick
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = magick
