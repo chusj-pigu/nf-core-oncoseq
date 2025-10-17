@@ -31,6 +31,12 @@ include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
 include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
+// Reporting
+include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
+include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
+include { FIGENO_REPORT  } from '../subworkflows/local/report/variants.nf'
+include { ADAPTIVE_REPORT } from '../subworkflows/local/report/adaptive.nf'
+
 workflow LOCAL_REALTIME {
 
     take:
@@ -45,6 +51,9 @@ workflow LOCAL_REALTIME {
     targets                 // channel : list of genes with their position to represent in Figeno
 
     main:
+
+    ch_versions = Channel.empty()
+    ch_sections = Channel.empty()
 
     // Branch by tumor type
     ch_tumor_type = tumor_type
@@ -98,6 +107,9 @@ workflow LOCAL_REALTIME {
                 ref_t2t
             )
 
+            ch_versions = ch_versions
+                .mix(BASECALL_MULTIPLEX.out.versions)
+
         } else {
             // Sub-branch 2b: Simplex basecalling (single sample per flow cell)
 
@@ -122,6 +134,9 @@ workflow LOCAL_REALTIME {
                 ch_mapping_t2t,
                 ref_t2t
             )
+
+            ch_versions = ch_versions
+                .mix(BASECALL_SIMPLEX.out.versions)
         }
     }
 
@@ -161,6 +176,33 @@ workflow LOCAL_REALTIME {
             targets
         )
 
+        COVERAGE_SEPARATE(
+            MAPPING_HG.out.bam,
+            bed
+        )
+
+        // Placeholders for report
+        ch_subchrom_focal = Channel.empty()
+        ch_subchrom_plot = Channel.empty()
+
+        ch_versions = ch_versions
+            .mix(MAPPING_T2T.out.versions)
+            .mix(MARLIN.out.versions)
+            .mix(STURGEON.out.versions)
+
+        ch_classifiers_plots = STURGEON.out.plot
+            .mix(MARLIN.out.plot)
+
+        ch_classifiers_pred = STURGEON.out.pred
+            .mix(MARLIN.out.pred)
+
+        CLASSIFIER_REPORT(
+            ch_classifiers_plots,
+            ch_classifiers_pred
+        )
+
+        ch_sections = CLASSIFIER_REPORT.out.sections
+
     } else if (params.realtime >=6 & params.realtime < 72 ) {
 
         CNV_CALLING(
@@ -194,6 +236,14 @@ workflow LOCAL_REALTIME {
             ch_clin_database,
             bed
         )
+
+        // Placeholders for report
+        ch_subchrom_focal = Channel.empty()
+        ch_subchrom_plot = Channel.empty()
+
+        ch_versions = ch_versions
+            .mix(CLAIR3_CALLING.out.versions)
+
     } else if (params.realtime == 72) {
         CNV_CALLING(
             MAPPING_HG.out.bam,
@@ -246,5 +296,68 @@ workflow LOCAL_REALTIME {
             CLAIR3_CALLING.out.vcf,
             ch_panel_bin
         )
+
+        ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
+            .mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+
+        ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
+            .mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+
+        ch_versions = ch_versions
+            .mix(SUBCHROM_CALL.out.versions)
     }
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COLLECT VERSIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    ch_versions = ch_versions
+        .mix(MAPPING_HG.out.versions)
+        .mix(COVERAGE_SEPARATE.out.versions)
+        .mix(CNV_CALLING.out.versions)
+        .mix(SV_UNPHASED.out.versions)
+        .mix(VARIANT_PROCESS.out.versions)
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COMPILE SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    ADAPTIVE_REPORT(
+        COVERAGE_SEPARATE.out.coverage_tbl,
+        COVERAGE_SEPARATE.out.coverage_plot
+    )
+
+    FIGENO_REPORT(
+        VARIANT_PROCESS.out.circos_plot,
+        VARIANT_PROCESS.out.sv_plot,
+        VARIANT_PROCESS.out.fusion_plot,
+        ch_subchrom_plot,
+        ch_subchrom_focal
+    )
+
+    /*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COLLECT SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    // Collect sections from all analysis steps
+    ch_sections = ch_sections
+        .mix(ADAPTIVE_REPORT.out.sections)
+        .mix(FIGENO_REPORT.out.sections)
+
+    bam_input = MAPPING_HG.out.bam
+
+    ch_mode = Channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
+
+    MIDNIGHT_REPORT(
+        bam_input,
+        ch_sections,
+        ch_versions,
+        ch_mode
+    )
+
 }
