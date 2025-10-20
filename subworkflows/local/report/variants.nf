@@ -73,13 +73,7 @@ workflow FIGENO_REPORT {
 
         QUARTO_FIGURE_CNLOH(
             ch_subchrom_files
-            )
-
-        ch_section_cnloh = QUARTO_FIGURE_CNLOH.out.quarto_figure
-            .groupTuple()
-            .map { id, section, filePaths ->
-                [id, section[0], filePaths]
-            }
+        )
 
         ch_focal_in = ch_subchrom_focal
             .combine(ch_focal)
@@ -93,16 +87,18 @@ workflow FIGENO_REPORT {
             ch_focal_files
         )
 
-        ch_section_focal = QUARTO_FIGURE_FOCAL.out.quarto_figure
+        ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
+            .mix(QUARTO_FIGURE_CNLOH.out.quarto_figure)
+            .mix(QUARTO_FIGURE_FOCAL.out.quarto_figure)
             .groupTuple()
             .map { id, section, filePaths ->
                 [id, section[0], filePaths]
             }
-
-        ch_section_cnv = ch_section_cnv
-            .mix(ch_section_cnloh)
-            .mix(ch_section_focal)
+    } else {
+        ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
     }
+
+    ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
 
     QUARTO_CNV_SECTION(
         ch_section_cnv,
