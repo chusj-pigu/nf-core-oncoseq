@@ -74,8 +74,9 @@ workflow MIDNIGHT_REPORT {
         .map { meta, _bam, _bai, mode ->
         "Oncoseq Pipeline ${mode} Report for ${meta.id}" }
 
-    ch_subtitle = ch_mode
-        .map { mode ->
+    ch_subtitle = ch_samples
+        .combine(ch_mode)
+        .map { _meta, _bam, _bai, mode ->
         "Outputs for the ${mode} branch of the Oncoseq pipeline" }
 
     QUARTO_REPORT(
