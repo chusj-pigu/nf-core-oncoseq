@@ -145,6 +145,7 @@ workflow FIGENO_REPORT {
         .combine(ch_fusion)
 
     ch_fusion_files = ch_fusion_in
+        .transpose()
         .map { meta, file, type ->
             CreateSVInput(meta, file, type)
             }
@@ -198,7 +199,7 @@ def CreateFigureCNVInput(meta, file, type) {
 
 def CreateSVInput(meta, file, type) {
     def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
-    def sv_type = file.name.replaceAll("${meta.id}_", "")
+    def sv_type = file.name.toString().replaceAll("${meta.id}_", "")
     def sv_type_noext = sv_type.replaceAll(".png", "")
 
     // Transform chrom into two new variables
