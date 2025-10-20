@@ -53,8 +53,6 @@ workflow READS_FILTER {
                 }
                 .set { ch_sep_fastq }
 
-            ch_test = ch_sep_fastq.single
-
             CAT_FASTQ(ch_sep_fastq.multi.map{meta, files, _type -> tuple(meta, files)})
 
             ch_fastq = CAT_FASTQ.out.merged_fq
@@ -106,7 +104,7 @@ workflow READS_FILTER {
 
         ch_versions = CHOPPER_LENGTH.out.versions
     } else {
-        ch_reads_filtered = ch_chopper_result
+        ch_reads_filtered = Channel.empty()
         ch_versions = Channel.empty()
     }
 
@@ -120,6 +118,8 @@ workflow READS_FILTER {
 
     emit:
     reads     = ch_reads_out_final
+    stats     = NANOPLOT_FASTQ.out.txt
+    read_dist = NANOPLOT_FASTQ.out.figure
     versions  = ch_versions                            // All tool versions
 }
 /*

@@ -45,7 +45,23 @@ workflow STURGEON {
 
     STURGEON_INPUT_TOBED(MODKIT_PILEUP.out.bedmethyl)
 
-    STURGEON_PREDICT(STURGEON_INPUT_TOBED.out.dir)
+    // Remove mod-adj from meta :
+
+    ch_predict_in = STURGEON_INPUT_TOBED.out.dir
+        .map { meta, dir ->
+        def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', "_mod-adj")
+        tuple(meta_restore,dir)
+        }
+
+    STURGEON_PREDICT(ch_predict_in)
+
+    ch_type = Channel.of("Sturgeon")
+
+    sturgeon_plot = STURGEON_PREDICT.out.pdf
+        .combine(ch_type)
+
+    sturgeon_csv = STURGEON_PREDICT.out.pred
+        .combine(ch_type)
 
     // Collect versions from all modules
     ch_versions = MODKIT_ADJUST.out.versions
@@ -55,7 +71,8 @@ workflow STURGEON {
         .mix(STURGEON_PREDICT.out.versions)
 
     emit:
-    plot     = STURGEON_PREDICT.out.dir                // TODO: Quarto report
+    plot     = sturgeon_plot                        // TODO: Quarto report
+    pred     = sturgeon_csv
     versions = ch_versions                            // All tool versions
 }
 /*

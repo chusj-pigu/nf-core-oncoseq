@@ -330,6 +330,7 @@ workflow ADAPTIVE {
         .mix(PHASING_GERMLINE.out.versions)
         .mix(SV_PHASED.out.versions)
         .mix(CNV_CALLING.out.versions)
+        .mix(VARIANT_PROCESS.out.versions)
 
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COMPILE SECTIONS
@@ -341,10 +342,18 @@ workflow ADAPTIVE {
             COVERAGE_SEPARATE.out.coverage_plot
         )
 
+        ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
+            .mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+
+        ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
+            .mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+
         FIGENO_REPORT(
             VARIANT_PROCESS.out.circos_plot,
             VARIANT_PROCESS.out.sv_plot,
-            VARIANT_PROCESS.out.fusion_plot
+            VARIANT_PROCESS.out.fusion_plot,
+            ch_subchrom_plot,
+            ch_subchrom_focal
         )
 
 /*
@@ -354,9 +363,8 @@ workflow ADAPTIVE {
 */
 
     // Collect sections from all analysis steps
-    // ch_sections = ch_sections.mix(SUMMARIZE_ANALYSIS.out.ch_section)
     ch_sections = ADAPTIVE_REPORT.out.sections
-    ch_sections = ch_sections.mix(FIGENO_REPORT.out.sections)
+        .mix(FIGENO_REPORT.out.sections)
 
     bam_input = PHASING_GERMLINE.out.haptag_bam
         .map { meta, bamfile, bai ->
@@ -365,9 +373,12 @@ workflow ADAPTIVE {
             tuple(meta_restore, bamfile, bai)
         }
 
-        MIDNIGHT_REPORT(
-            bam_input,
-            ch_sections,
-            ch_versions
-        )
+    ch_mode = Channel.of("Adaptive Sampling")
+
+    MIDNIGHT_REPORT(
+        bam_input,
+        ch_sections,
+        ch_versions,
+        ch_mode
+    )
 }
