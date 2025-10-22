@@ -18,6 +18,11 @@ include { modifyMetaId                         } from '../subworkflows/local/uti
 // Variant processing and visualization subworkflow
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
 
+// Reporting
+include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
+include { FIGENO_REPORT   } from '../subworkflows/local/report/variants.nf'
+include { WGS_REPORT      } from '../subworkflows/local/report/wgs.nf'
+
 workflow WGS {
 
     take:
@@ -29,12 +34,15 @@ workflow WGS {
     ch_clin_database
     bed_empty
     targets                 // channel : list of genes with their position to represent in Figeno
+    minqs                   // Channel obtained dynamically from params.basecall_model
 
     main:
 
     //
     // WORKFLOW: Run pipeline
     //
+
+    ch_versions = Channel.empty()
 
     if (params.skip_basecalling || params.skip_mapping) {
 
@@ -43,63 +51,7 @@ workflow WGS {
             ref
         )
 
-        CLAIRS_TO_CALLING (
-            MAPPING.out.bam,
-            ref,
-            clairs_model,
-            ch_clin_database
-        )
-
-        CLAIR3_CALLING (
-            MAPPING.out.bam,
-            ref,
-            basecall_model,
-            ch_clin_database,
-            bed_empty
-        )
-
-        PHASING_SOMATIC (
-            MAPPING.out.bam,
-            ref,
-            CLAIRS_TO_CALLING.out.vcf
-        )
-
-        PHASING_GERMLINE (
-            MAPPING.out.bam,
-            ref,
-            CLAIR3_CALLING.out.vcf
-        )
-
-        SV_CALLING (
-            PHASING_GERMLINE.out.haptag_bam
-                .map { meta, bamfile, bai ->
-                    // Restore original sample ID for output naming
-                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
-                    tuple(meta_restore, bamfile, bai)
-                },
-            ref
-        )
-
-        CNV_CALLING (
-            MAPPING.out.bam,
-            ref
-        )
-
-        SUBCHROM_CALL (
-            MAPPING.out.bam,
-            ref,
-            CLAIR3_CALLING.out.vcf,
-            bed_empty
-        )
-        // Filter variants to visualize :
-        VARIANT_PROCESS (
-            MAPPING.out.bam,
-            SV_CALLING.out.vcf,
-            CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs,
-            targets
-        )
+        ch_seqkit = MAPPING.out.seqkit
 
     } else {
 
@@ -115,6 +67,10 @@ workflow WGS {
                 BASECALL_MULTIPLEX.out.fastq,
                 BASECALL_MULTIPLEX.out.ref
             )
+
+            ch_seqkit   = BASECALL_MULTIPLEX.out.stats_pass
+            ch_versions = BASECALL_MULTIPLEX.out.versions
+
         } else {
 
             BASECALL_SIMPLEX (
@@ -125,7 +81,11 @@ workflow WGS {
                 BASECALL_SIMPLEX.out.fastq,
                 ref
             )
+
+            ch_seqkit   = BASECALL_SIMPLEX.out.stats_pass
+            ch_versions = BASECALL_SIMPLEX.out.versions
         }
+    }
 
         CLAIRS_TO_CALLING (
             MAPPING.out.bam,
@@ -184,5 +144,66 @@ workflow WGS {
             CNV_CALLING.out.qdnaseq_segs,
             targets
         )
-    }
+
+    ch_versions = ch_versions
+        .mix(MAPPING.out.versions)
+        .mix(CLAIRS_TO_CALLING.out.versions)
+        .mix(CLAIR3_CALLING.out.versions)
+        .mix(PHASING_SOMATIC.out.versions)
+        .mix(PHASING_GERMLINE.out.versions)
+        .mix(SV_CALLING.out.versions)
+        .mix(CNV_CALLING.out.versions)
+        .mix(VARIANT_PROCESS.out.versions)
+        .mix(SUBCHROM_CALL.out.versions)
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COMPILE SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+        WGS_REPORT(
+            MAPPING.out.coverage,
+            ch_seqkit,
+            minqs
+        )
+
+        ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
+            //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+
+        ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
+            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+
+        FIGENO_REPORT(
+            VARIANT_PROCESS.out.circos_plot,
+            VARIANT_PROCESS.out.sv_plot,
+            VARIANT_PROCESS.out.fusion_plot,
+            ch_subchrom_plot,
+            ch_subchrom_focal
+        )
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COLLECT SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    // Collect sections from all analysis steps
+    ch_sections = WGS_REPORT.out.sections
+        .mix(FIGENO_REPORT.out.sections)
+
+    bam_input = PHASING_GERMLINE.out.haptag_bam
+        .map { meta, bamfile, bai ->
+            // Restore original sample ID for output naming
+            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_phased', '', '')
+            tuple(meta_restore, bamfile, bai)
+        }
+
+    ch_mode = Channel.of("WGS")
+
+    MIDNIGHT_REPORT(
+        bam_input,
+        ch_sections,
+        ch_versions,
+        ch_mode
+    )
 }
