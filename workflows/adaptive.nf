@@ -331,6 +331,7 @@ workflow ADAPTIVE {
         .mix(SV_PHASED.out.versions)
         .mix(CNV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
+        .mix(SUBCHROM_CALL.out.versions)
 
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COMPILE SECTIONS
