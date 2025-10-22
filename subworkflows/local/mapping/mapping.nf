@@ -16,7 +16,8 @@ include { SAMTOOLS_SORT                          } from '../../../modules/local/
 include { SAMTOOLS_INDEX                         } from '../../../modules/local/samtools/main.nf'         // Index BAM
 include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_CHUNK } from '../../../modules/local/samtools/main.nf'         // Merge BAMs
 include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_FINAL } from '../../../modules/local/samtools/main.nf'         // Merge BAMs
-include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'          // Coverage stats
+include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'
+include { SEQKIT_STATS           } from '../../../modules/local/seqkit/main.nf'          // Coverage stats
 include { modifyMetaId           } from '../utils_nfcore_oncoseq_pipeline'
 include { QUARTO_TABLE           } from '../../../modules/local/quarto/main.nf'           // Reporting (optional)
 include { paramsSummaryMap       } from 'plugin/nf-schema'                                // Parameter summary
@@ -61,6 +62,12 @@ workflow MAPPING {
                 }
             }
             .set { in_ch }
+
+            SEQKIT_STATS(in_ch)
+
+            ch_seqkit_out = SEQKIT_STATS.out.stats
+        } else {
+            ch_seqkit_out = Channel.empty()
         }
 
     // Merge bams if multiple bam are provided when skip_mapping is used
@@ -182,6 +189,7 @@ workflow MAPPING {
     emit:
     bam      = bam_ch                                   // Final sorted BAM with index
     coverage = CRAMINO_STATS.out.stats                // Coverage stats
+    seqkit   = ch_seqkit_out                          // Input fastq stats
     versions = ch_versions                            // All tool versions
 }
 /*
