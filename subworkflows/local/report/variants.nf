@@ -20,6 +20,7 @@ workflow FIGENO_REPORT {
 
     take:
     ch_circos_figure
+    ch_bin_sizes          // from params qdnaseq_binsize and subchrom_binsize
     ch_sv_figures
     ch_fusion_figures
     ch_subchrom_figure
@@ -39,12 +40,21 @@ workflow FIGENO_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+    // Channel for figure subtitle
+
+    ch_subtitle_cnv = ch_bin_sizes
+        .filter { meta, _value ->
+        meta == "qDNAseq" }
+        .map { meta, value ->
+        "Circos plot showing ${meta} calls with bin size of ${value} kb" }
+
     ch_in_circos = ch_circos_figure
         .combine(ch_qdnaseq)
+        .combine(ch_subtitle_cnv)
 
     ch_circos_files = ch_in_circos
-        .map { meta, file, type ->
-        CreateFigureCNVInput(meta, file, type)
+        .map { meta, file, type, text ->
+            CreateFigureCNVInput(meta, file, type, text)
         }
 
     QUARTO_FIGURE_CNV(
@@ -63,12 +73,20 @@ workflow FIGENO_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
     if (params.realtime == null || params.realtime == 72) {
+
+        ch_subtitle_cnloh = ch_bin_sizes
+            .filter { meta, _value ->
+            meta == "Subchrom" }
+            .map { meta, value ->
+            "CNLOH calls by ${meta} with a bin size of ${value} kb" }
+
         ch_cnloh_in = ch_subchrom_figure
             .combine(ch_subchrom)
+            .combine(ch_subtitle_cnloh)
 
         ch_subchrom_files = ch_cnloh_in
-            .map { meta, file, type ->
-            CreateFigureCNVInput(meta, file, type)
+            .map { meta, file, type, text ->
+            CreateFigureCNVInput(meta, file, type, text)
             }
 
         QUARTO_FIGURE_CNLOH(
@@ -183,9 +201,9 @@ workflow FIGENO_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-def CreateFigureCNVInput(meta, file, type) {
+def CreateFigureCNVInput(meta, file, type, text) {
     // Transform chrom into two new variables
-    def caption = "${type} Plot for ${meta.id}"
+    def caption = text
     def section = "CNV"
     def process = "${type}-call-${meta.id}"
 
@@ -199,7 +217,7 @@ def CreateSVInput(meta, file, type) {
     def sv_type_noext = sv_type.replaceAll(".png", "")
 
     // Transform chrom into two new variables
-    def caption = "Figeno Plot for ${new_meta.id} in ${sv_type_noext}"
+    def caption = "Figeno Plot showing sv in ${sv_type_noext}"
     def section = "${type}"
     def process = "figeno-${type}-${new_meta.id}-${sv_type_noext}"
 
