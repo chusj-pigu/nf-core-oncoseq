@@ -101,12 +101,19 @@ workflow FIGENO_REPORT {
             ch_subchrom_files
         )
 
+        ch_subtitle_focal = ch_bin_sizes
+            .filter { meta, _value ->
+            meta == "Subchrom" }
+            .map { meta, value ->
+            "Gene Focal view by ${meta} with a bin size of ${value} kb" }
+
         ch_focal_in = ch_subchrom_focal
             .combine(ch_focal)
+            .combine(ch_subtitle_focal)
 
         ch_focal_files = ch_focal_in
-            .map { meta, file, type ->
-            CreateFigureCNVInput(meta, file, type)
+            .map { meta, file, type, text ->
+            CreateFigureCNVInput(meta, file, type, text)
             }
 
         QUARTO_FIGURE_FOCAL(
