@@ -188,6 +188,8 @@ if (nrow(missing_rows) > 0) {
   target_final <- missing_rows %>%
     mutate(GENE=paste(sample_id, GENE, sep = "_"))
   message("Added ", nrow(missing_rows), " missing target genes")
+} else {
+    target_final <- data.frame()
 }
 
 # Define unwanted suffixes
