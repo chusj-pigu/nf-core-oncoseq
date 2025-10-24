@@ -349,10 +349,25 @@ workflow ADAPTIVE {
         ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
             //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
 
+        ch_binsize_qdnaseq = Channel.of(params.qdnaseq_binsize)
+            .map { value ->
+            def meta = "qDNAseq"
+            tuple(meta, value) }
+        ch_binsize_subchrom = Channel.of(params.subchrom_binsize)
+            .map { value ->
+            def meta = "Subchrom"
+            tuple(meta, value) }
+        ch_binsizes = ch_binsize_qdnaseq
+            .mix(ch_binsize_subchrom)
+
         FIGENO_REPORT(
             VARIANT_PROCESS.out.circos_plot,
+            ch_binsizes,
             VARIANT_PROCESS.out.sv_plot,
             VARIANT_PROCESS.out.fusion_plot,
+            VARIANT_PROCESS.out.targets_plot,
+            VARIANT_PROCESS.out.sv_table,
+            VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
             ch_subchrom_focal
         )
