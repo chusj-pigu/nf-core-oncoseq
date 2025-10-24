@@ -9,6 +9,7 @@ include { BCFTOOLS_FILTER_ID                } from '../../../modules/local/bcfto
 include { SV_PROCESS                        } from '../../../modules/local/vcf_process/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_FUSION } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_OTHER  } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_SV_FIGURE as FIGENO_TARGETS} from '../../../modules/local/figeno/main.nf'
 include { FIGENO_CIRCOS                     } from '../../../modules/local/figeno/main.nf'
 include { BGZIP_VCF                         } from '../../../modules/local/bcftools/main.nf'
 include { QDNASEQ_PROCESS                   } from '../../../modules/local/vcf_process/main.nf'
@@ -83,9 +84,15 @@ workflow VARIANT_PROCESS {
         .join(sv_vcf)
         .join(SV_PROCESS.out.indel_txt)
 
+    ch_figeno_targets = ch_bam
+        .join(sv_vcf)
+        .join(SV_PROCESS.out.targets)
+
     FIGENO_OTHER(ch_figeno_sv)
 
     FIGENO_FUSION(ch_figeno_fusion)
+
+    FIGENO_TARGETS(ch_figeno_targets)
 
     ch_versions = BCFTOOLS_FILTER_SUPPORT.out.versions
         .mix(BCFTOOLS_FILTER_ID.out.versions)
@@ -95,9 +102,12 @@ workflow VARIANT_PROCESS {
         .mix(FIGENO_OTHER.out.versions)
 
     emit:
-    circos_plot         = FIGENO_CIRCOS.out.figure              // TODO: Quarto report
-    sv_plot             = FIGENO_OTHER.out.figure               // TODO: Quarto report
-    fusion_plot         = FIGENO_FUSION.out.figure              // TODO: Quarto report
+    circos_plot         = FIGENO_CIRCOS.out.figure
+    sv_plot             = FIGENO_OTHER.out.figure
+    fusion_plot         = FIGENO_FUSION.out.figure
+    targets_plot        = FIGENO_TARGETS.out.figure
+    sv_table            = SV_PROCESS.out.indel_tsv
+    fusion_table        = SV_PROCESS.out.fusion_tsv
     versions            = ch_versions
 
 }

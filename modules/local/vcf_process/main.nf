@@ -16,7 +16,7 @@ process SV_PROCESS {
 
     output:
     tuple val(meta),
-        path("*.tsv"),
+        path("*filt.tsv"),
         emit: filt_tsv
     tuple val(meta),
         path("*ids.txt"),
@@ -28,6 +28,18 @@ process SV_PROCESS {
     tuple val(meta),
         path("*region_indel.txt"),
         emit: indel_txt,
+        optional:true
+    tuple val(meta),
+        path("*table_fusions.tsv"),
+        emit: fusion_tsv,
+        optional:true
+    tuple val(meta),
+        path("*table_indel.tsv"),
+        emit: indel_tsv,
+        optional:true
+    tuple val(meta),
+        path("*targets_nohit.txt"),
+        emit: targets,
         optional:true
     path "versions.yml",
         emit: versions
