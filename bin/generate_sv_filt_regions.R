@@ -28,25 +28,41 @@ sample_id <- sub("_filt\\.tsv$", "", basename(input))
 # -----------------------------
 # Helper Functions
 # -----------------------------
-make_range <- function(x, window = 30000) {
-  parsed <- str_match(x, "CHR(\\w+):(\\d+)")
-  if (is.na(parsed[1])) return(NA_character_)
-  paste0("chr", parsed[,2], ":", as.numeric(parsed[,3]) - window, "-", as.numeric(parsed[,3]) + window)
-}
 
 clean_genes <- function(x) {
-  # remove LOC followed by digits
-  x <- str_remove_all(x, "LOC\\d+")
-  # remove any double/trailing separators created by removal
+  # Remove leading/trailing or double separators
   x <- str_replace_all(x, "^&|&$", "")
   x <- str_replace_all(x, "&{2,}", "&")
-  # keep only the first gene if there are multiple
-  x <- str_replace(x, "&.*$", "")
-  x
+
+  # Split by '&' and keep first and last gene
+  parts <- str_split(x, "&", simplify = FALSE)
+
+  sapply(parts, function(p) {
+    p <- p[p != ""]  # remove empty
+    if (length(p) == 0) return(NA_character_)
+    if (length(p) == 1) return(p)
+    paste0(p[1], "-", p[length(p)])
+  })
 }
 
 extract_gene <- function(x) {
   str_extract(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")
+}
+
+# Detect direction based on ALT
+get_fusion_direction <- function(alt) {
+  dplyr::case_when(
+    str_detect(alt, "^[ATCGN]\\[") ~ "->->",    # like A[CHR2:123[
+    str_detect(alt, "^[ATCGN]\\]") ~ "-><-",    # like A]CHR2:123]
+    str_detect(alt, "^\\]") ~ "<-<-",           # like ]CHR2:123]A
+    str_detect(alt, "^\\[") ~ "<-->",           # like [CHR2:123[A
+    TRUE ~ NA_character_
+  )
+}
+
+# Extract the chromosome from ALT (e.g. ]CHR7:152401117]T → chr7)
+get_chr_from_alt <- function(alt) {
+  str_to_lower(str_extract(alt, "CHR\\d+|CHRX|CHRY"))
 }
 
 process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, window_delins = 20000) {
@@ -55,34 +71,45 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
   df <- df %>%
     mutate(
       GENE = extract_gene(X8),
-      START = as.numeric(X2)
+      START = as.numeric(X2),
+      SUPPORT = as.numeric(str_extract(X8, "(?<=SUPPORT=)\\d+")),
+      ALT = X5
     )
 
   if (type == "BND") {
     df <- df %>%
       filter(str_detect(X3, "BND")) %>%
       mutate(
-        pos = paste0(X1, ":", START - window_bnd, "-", START + window_bnd),
-        pos2 = make_range(X5),
-        GENE = paste(sample_id, str_replace_all(GENE, "&", "-"), sep = "_")
+        direction = get_fusion_direction(ALT),
+        chr_alt = get_chr_from_alt(ALT),
+        END = as.numeric(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")),
+        CHR1 = X1,
+        CHR2 = chr_alt,
+        BREAKPOINT1 = START,
+        BREAKPOINT2 = END
       ) %>%
-      select(GENE, pos, pos2)
-
+      mutate(
+        pos = paste0(CHR1, ":", BREAKPOINT1 - window_bnd, "-", BREAKPOINT1 + window_bnd),
+        pos2 = paste0(CHR2, ":", BREAKPOINT2 - window_bnd, "-", BREAKPOINT2 + window_bnd),
+        TYPE = str_extract(X8, "(?<=\\|)[^|]+(?=\\|(HIGH|MODERATE)\\|)"),
+        GENE = clean_genes(GENE)
+      )
   } else {
     df <- df %>%
       filter(!str_detect(X3, "BND")) %>%
       mutate(
         END = as.numeric(str_extract(X8, "(?<=END=)\\d+")),
+        LEN = abs(END-START),
+        TYPE = str_extract(X8, "(?<=SVTYPE=)[^;]+"),
         GENE = clean_genes(GENE),
         GENE = ifelse(GENE == "", X1, GENE),
-        pos = paste0(X1, ":", START - window_delins, "-", END + window_delins),
-        GENE = paste(sample_id, GENE, sep = "_")
-      ) %>%
-      select(GENE, pos)
+        pos = paste0(X1, ":", START - window_delins, "-", END + window_delins)
+      )
   }
 
   return(df)
 }
+
 
 # -----------------------------
 # Read Input
@@ -94,15 +121,30 @@ targets_df <- read.csv(target_list)
 # Process Variants
 # -----------------------------
 if (nrow(vcf) > 0) {
-    vcf_bnd     <- process_variant(vcf, type = "BND")
-    vcf_del_ins <- process_variant(vcf, type = "DEL_INS")
+  vcf_bnd     <- process_variant(vcf, type = "BND") %>%
+    select(GENE, pos, pos2) %>%
+    mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
+    distinct()
+  vcf_del_ins <- process_variant(vcf, type = "DEL_INS") %>%
+    select(GENE, pos) %>%
+    mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
+    distinct()
+  delin_table <- process_variant(vcf, type = "DEL_INS") %>%
+    rename(CHR = X1) %>%
+    select(CHR,GENE,TYPE,SUPPORT,START,END,LEN)
+  bnd_table <- process_variant(vcf, type = "BND") %>%
+    rename(FUSION = GENE) %>%
+    select(FUSION,CHR1,BREAKPOINT1,CHR2,BREAKPOINT2,TYPE,direction,SUPPORT) %>%
+    arrange(FUSION,CHR1)
 } else {
-    vcf_bnd <- vcf
-    vcf_del_ins <- vcf
+  vcf_bnd <- vcf
+  vcf_del_ins <- vcf
+  delin_table <- vcf
+  bnd_table <- vcf
 }
 
 # -----------------------------
-# Extract genes from sample_id column
+# Add gene to sample_id column
 # -----------------------------
 extract_genes_bnd <- function(x) {
   # Remove sample_id prefix
@@ -133,36 +175,34 @@ detected_genes <- unique(detected_genes)
 # Identify missing genes only if target list not empty:
 
 if (nrow(targets_df > 0)) {
-  missing_genes <- setdiff(targets_df$GENE, detected_genes)
-
-
   missing_rows <- targets_df %>%
-    filter(GENE %in% missing_genes)
+    rowwise() %>%
+    filter(!any(str_detect(detected_genes, paste0("\\b", GENE, "\\b")))) %>%
+    ungroup()
 } else {
   missing_rows <- data.frame()
 }
 
 # Append missing rows to vcf_del_ins if any and match GENE to vcf_del_ins
 if (nrow(missing_rows) > 0) {
-  missing_rows <- missing_rows %>%
+  target_final <- missing_rows %>%
     mutate(GENE=paste(sample_id, GENE, sep = "_"))
-  vcf_del_ins <- bind_rows(vcf_del_ins, missing_rows)
-  message("Appended ", nrow(missing_rows), " missing target genes to vcf_del_ins")
+  message("Added ", nrow(missing_rows), " missing target genes")
 }
 
 # Define unwanted suffixes
-unwanted_suffixes <- c("BAGE2-KMT2C", "chr2", "chr16", "GPR42", "FAM230D", "FAM230F", "RNF213", "FRG1FP", "MPPED1")
+#unwanted_suffixes <- c("BAGE2-KMT2C", "chr2", "chr16", "GPR42", "FAM230D", "FAM230F", "RNF213", "FRG1FP", "MPPED1")
 
 # Create the full unwanted names with sample_id prefix
-unwanted_genes <- paste(sample_id, unwanted_suffixes, sep = "_")
+#unwanted_genes <- paste(sample_id, unwanted_suffixes, sep = "_")
 
 # -----------------------------
 # Save to output
 # -----------------------------
 safe_write <- function(df, file) {
   if (nrow(df) > 0) {
-    df <- df %>%
-        filter(!GENE %in% unwanted_genes)
+    # df <- df %>%
+    #   filter(!GENE %in% unwanted_genes)
     write_tsv(df, file, col_names = FALSE, quote = "none")
   } else {
     message(paste("Skipping", file, "- dataframe is empty"))
@@ -171,3 +211,6 @@ safe_write <- function(df, file) {
 
 safe_write(vcf_bnd, paste(sample_id, "region_fusions.txt", sep = "_"))
 safe_write(vcf_del_ins, paste(sample_id, "region_indel.txt", sep = "_"))
+safe_write(target_final, paste(sample_id, "targets_nohit.txt", sep = "_"))
+safe_write(bnd_table, paste(sample_id, "table_fusions.tsv", sep = "_"))
+safe_write(delin_table, paste(sample_id, "table_indel.tsv", sep = "_"))
