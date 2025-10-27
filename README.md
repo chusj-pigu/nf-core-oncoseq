@@ -28,51 +28,64 @@
 
 ![nf-core-oncoseq summary of full workflow](assets/nf-core-oncoseq_schema.jpg)
 
-1. Basecalling with [Dorado](https://github.com/nanoporetech/dorado), it's possible to skip this step by supplying fastq files and using `--skip_basecalling`
-2. Reads QC with [Seqkit](https://bioinf.shenwei.me/seqkit/)
+---
 
-### Adaptive mode:
+## Pipeline Overview
 
-3. Alignment with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)
-4. Sorting and indexing with [samtools](https://www.htslib.org/)
-5. Separating the bam file between the background (off-panel) and region of interest (panel, including padding) with [samtools](https://www.htslib.org/)
-6. Coverage calculation for ROIs in Panel with [mosdepth](https://github.com/brentp/mosdepth) and background coverage calculation with [Cramino](https://github.com/wdecoster/cramino)
-7. Visualisation with [R](https://www.r-project.org/)
+The general steps are as followed:
+
+1. **Basecalling** – [Dorado](https://github.com/nanoporetech/dorado)
+   *(Optional: skip using `--skip_basecalling` if FASTQ input is provided)*
+   *(Optional: Demultiplexing is done if kit is included in samplesheet and demux_samplesheet is provided*
+2. **Read QC** – [Seqkit](https://bioinf.shenwei.me/seqkit/)
+3. **Alignment** – [minimap2](https://lh3.github.io/minimap2/minimap2.html)
+   *(Optional: skip using `--skip_mapping` if bam input is provided)*
+4. **Alignment QC** – [Cramino](https://github.com/wdecoster/cramino)
+5. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom)
+6. **Variant calling** – [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3)
+7. **Structural variants** – [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+8. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/)
+9. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/)
+10. **Reporting** - [Quarto](https://quarto.org/) report summarizing coverage and variant information
+
+---
+
+#### Adaptive specific:
+
+When `--adaptive` is used, additional steps are included to show region specific coverage
+
+1. **Bam splitting** – [samtools](https://www.htslib.org/)
+2. **Coverage calculation** – [mosdepth](https://github.com/brentp/mosdepth)
+3. **Visualization and reporting** – [R](https://www.r-project.org/)
+
+---
 
 #### Time Series Breakdown Analysis
-8. Separation of bam files by time point with [Ontime](https://github.com/mbhall88/ontime)
 
-#### Variant Calling
-9. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3) and [bcftools](https://samtools.github.io/bcftools/bcftools.html)
-10. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
-11. VCF annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
-12. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
-13. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
-14. CNV and cnLOH calling with [SubChrom](https://github.com/Shaohua-Lei/SubChrom), WGS and panel mode
+For prospectively run the workflow on different timepoints, [Ontime](https://github.com/mbhall88/ontime) is run after the **Alignment** step.
 
-### WGS mode:
+---
 
-3. Alignment with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)
-4. Sorting and indexing with [samtools](https://www.htslib.org/)
+#### Tumor classification
 
-#### Variant Calling
-5. SNP calling with [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3) and [bcftools](https://samtools.github.io/bcftools/bcftools.html)
-6. SV calling with [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
-7. VCF annotation with [SnpEff](https://pcingola.github.io/SnpEff/)
-8. Phasing of SNP variants and aligned BAM with [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
-9. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
-10. CNV and cnLOH calling with [SubChrom](https://github.com/Shaohua-Lei/SubChrom), WGS mode
+Only included when `--realtime 1` is used, depends on tumor_type column in samplesheet.
 
-### cf-DNA mode (In Development):
+- **Leukemia samples:** [Marlin](https://github.com/hovestadt/MARLIN)
+- **CNS samples:** [Sturgeon](https://github.com/UMCUGenetics/sturgeon)
+  ↳ Includes alignment to the [T2T CHM13v2.0 reference genome](https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz)
 
-3. *TO COME* : Filter reads longer than 700 bp (if not a retinoblastoma) with [chopper](https://github.com/wdecoster/chopper)
-3. Alignment of filtered reads with [minimap2](https://lh3.github.io/minimap2/minimap2.html) and alignment QC with [Cramino](https://github.com/wdecoster/cramino)
-4. Sorting and indexing with [samtools](https://www.htslib.org/)
+---
 
-#### Variant Calling
-5. CNV calling with [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
-6. *TO COME* : Preparation of bins with [hmmcopy_utils](https://github.com/shahcompbio/hmmcopy_utils)
-7. *TO COME* : CNV calling with [IchorCNA](https://github.com/broadinstitute/ichorCNA)
+#### cf-DNA specific:
+
+- Reads **>700 bp** are filtered out using [chopper](https://github.com/wdecoster/chopper)
+  *(only if the “filter” column is set to `true` in the samplesheet)*
+
+- Only **CNV calling** is performed using:
+  - [IchorCNA](https://github.com/broadinstitute/ichorCNA)
+  - [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
+
+---
 
 ## Usage
 
@@ -86,10 +99,10 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
-```csv
-sample,input,ref,ref_path
-sample1,/path/to/[pod5|fastq|bam],hg38,path/to/hg38.fa*
-```
+| sample <br> *(required)* | input <br> *(required)* | ref <br> *(required)* | ref_path <br> *(required)* | kit <br> *(only with `--demux`)* | purity <br> *(only with `--cfdna`)* | filter <br> *(only with `--cfdna`)* | tumor_type <br> *(with `--realtime` only)* |
+|---------------------------|-------------------------|-----------------------|-----------------------------|----------------------------------|------------------------------------|-----------------------------------|------------------------------------------|
+| sample1 | path to <br> pod5, fastq or bams | hg38 | Path to reference genome <br> and its index (ex. `hg38.fa*`) | Multiplexing kit <br> used | Estimated tumor purity <br> (between 0 and 1) | `true` or `false`, <br> whether to filter out genomic DNA | leukemia, cns or other, <br> will run tumor classifier |
+
 
 Each row represents the pod5/fastq/bam directory for one sample, and the reference to map it to.
 
@@ -208,6 +221,7 @@ For more details about the output files and reports, please refer to the
 | variants/qdnaseq{sample}_cnv_calls.vcf | VCF file of CNV called by [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html) | Always |
 | phasing/{sample}_haplotagged.bam<br>phasing/{sample}_haplotagged.bam.bai | Aligned bam and index file including phasing HP tags added by [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html) | If `--adaptive` or `--wgs` mode is used |
 | phasing/{sample}.haploblocks.gtf | Gtf files containing phase blocks | If `--adaptive` or `--wgs` mode is used |
+| reports/{sample}_report_output | Directory containing Quarto files and report | Always |
 
 
 ## Credits
