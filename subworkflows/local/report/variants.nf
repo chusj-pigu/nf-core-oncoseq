@@ -131,8 +131,6 @@ workflow FIGENO_REPORT {
         ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
     }
 
-    ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
-
     QUARTO_CNV_SECTION(
         ch_section_cnv,
         "CNV Plots"
