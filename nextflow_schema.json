@@ -368,6 +368,21 @@
         "report_template": {
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/templates/report_template.qmd"
+        },
+        "ref": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/{NOFILE, NOLIST}",
+            "description": "Glob of path to reference genome and it's index, use if same reference is to be used for all samples"
+        },
+        "ref_id": {
+            "type": "string",
+            "default": "hg38",
+            "description": "Reference ID, either hg38/GRCh38 or hg19/GRCh37"
+        },
+        "ubam": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOFILE",
+            "description": "Placeholder for incomplete ubam, to use basecalling resume, specify path to incomplete ubam in samplesheet"
         }
     },
     "required": ["clin_database"]
