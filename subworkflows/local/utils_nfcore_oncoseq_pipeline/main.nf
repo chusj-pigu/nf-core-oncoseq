@@ -167,7 +167,7 @@ workflow PIPELINE_INITIALISATION {
             .combine(ch_padding)
             .combine(ch_low_fidelity)
             .branch {
-                meta, _input, _ubam, _ref, _ref_path ,kit, _barcode, id, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+                meta, _input, _ubam, _ref, _ref_path ,kit, barcode, id, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
                 common: (!bed && !padding && !lf && !id)
                     return [ meta, bed_c, padding_c, lf_c ]
                 common_demux: (!bed && !padding && !lf && kit && barcode && id)
