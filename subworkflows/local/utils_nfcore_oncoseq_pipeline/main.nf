@@ -41,90 +41,7 @@ workflow PIPELINE_INITIALISATION {
 
     main:
 
-    /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        NAMED CLOSURE FUNCTIONS
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    */
-    // Transform UBAM samplesheet entries to tuples with file handling
-    def transformUbamEntry = { meta, ubam ->
-        tuple(meta.id, meta, file(ubam))
-    }
-
-    // Transform input samplesheet entries to tuples with file handling
-
-    def transformTumorType = { meta, _input, _ref, _ref_path, _kit, _purity, _filter, tumor_type ->
-        if(!tumor_type) {
-            return(tuple(meta, "leukemia"))
-        } else {
-            return(tuple(meta, tumor_type))
-        }
-    }
-
-    def transformTumorTypeDemux = { _meta, sample, _barcode, _purity, _filter, tumor_type ->
-        if(!tumor_type) {
-            return(tuple(id:sample, "leukemia"))
-        } else {
-            return(tuple(id:sample, tumor_type))
-        }
-    }
-
-    def transformInputEntry = { meta, input, _ref, _ref_path, kit, purity, filter, _tumor_type ->
-        if(!kit && !purity && !filter) {                // No demultiplexing & no cfdna
-            tuple(meta.id, meta, file(input))
-        } else if (!purity && !filter) {                // Demultiplexing but no cfdna
-            tuple(meta.id, meta, file(input), kit)
-        } else {                              // cfdna but no demultiplexing
-            tuple(meta.id, meta, file(input), purity, filter)
-        }
-    }
-
-    // Transform input samplesheet entries to tuples with file handling
-    def transformDemuxEntry = { meta, sample, barcode, purity, filter ->
-        if(!purity && !filter) {                //  no cfdna
-            tuple(meta, sample, barcode)
-        } else {                                        // cfnda
-            tuple(meta, sample, barcode, purity, filter)
-        }
-    }
-
-    // Transform adaptive samplesheet entries with conditional file handling
-    def transformAdaptiveEntry = { meta, bed, padding, low_fidelity ->
-        if(!low_fidelity) {
-            return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
-        } else if(low_fidelity == null) {
-            return(tuple(meta, file(bed), padding, file(params.low_fidelity)))
-        } else {
-            return(tuple(meta, file(bed), padding, file(low_fidelity)))
-        }
-    }
-
-    // Transform bed file entries for default adaptive processing
-    def transformBedEntry = { bed ->
-        tuple(bed, input_padding, list_low_fidelity)
-    }
-
-    // Transform reference entries for processing
-    def transformReferenceEntry = { meta, _input, ref, ref_path, _kit, _purity, _filter, _tumor_type ->
-        tuple(meta.id, meta, ref, file(ref_path))
-    }
-
-    // Process grouped reference data
-    def processGroupedReference = { _meta_id, meta, ref, ref_path ->
-        // Sort ref_path so that reference files (.fa, .fasta) come before indices (.fai)
-        def sorted_ref_path = ref_path.flatten().sort { path ->
-            def filename = file(path).name
-            // Give priority to reference files over index files
-            if (filename.endsWith('.fai')) {
-                return filename.replaceAll('\\.fai$', '') + '_index'
-            } else {
-                return filename
-            }
-        }
-        tuple(meta, ref.flatten(), sorted_ref_path).flatten()
-    }
-
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     //
     // Print version and exit if required and dump pipeline parameters to JSON file
@@ -156,145 +73,197 @@ workflow PIPELINE_INITIALISATION {
     // Create channel from input file provided through params.input
     //
 
-    if (params.demux) {
-        Channel
-            .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
-            .map(transformDemuxEntry)
-            .groupTuple()
-            .transpose()
-            .set { ch_demux }
+    // channels from parameters:
 
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputEntry)
-            .groupTuple()
-            .transpose()
-            .map{samplesheet ->
-                    validateDemuxSamplesheet(samplesheet)}
-            .set { ch_samplesheet }
+    ch_ubam         = channel.fromPath(params.ubam)
+    ch_bed          = channel.fromPath(params.bed)
+    ch_low_fidelity = channel.fromPath(params.low_fidelity)
+    ch_padding      = channel.of(params.padding)
+    ch_ref_set      = channel.fromPath(params.ref)
+                        .toSortedList()
+                        .branch {
+                            empty: (it[0].name == "NOFILE")
+                                return [[], []]
+                            other:true
+                                return it
+                        }
+    ch_ref          = ch_ref_set.empty
+                        .mix(ch_ref_set.other)
+    ch_ref_id       = channel.of(params.ref_id)
 
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformReferenceEntry)
-            .groupTuple()
-            .map(processGroupedReference)
-            .combine(ch_demux, by:0)
-            .map { meta, ref_id, ref, ref_index, sample, barcode, purity, filter ->
-                tuple(id:sample, ref_id, ref, ref_index) }
-            .set { ch_ref }
+    // Initialize empty channels to fall back on:
 
-    } else {
-        Channel
-            .empty()
-            .set { ch_demux }
+    ch_adaptive = channel.empty()
+    ch_cfdna    = channel.empty()
+    ch_tumor    = channel.empty()
 
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformInputEntry)
-            .groupTuple()
-            .transpose()
-            .map { tuple ->
-                tuple[1..-1]   // remove duplicated meta
-            }
-            .set { ch_samplesheet }
+    // Main input channel:
 
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformReferenceEntry)
-            .groupTuple()
-            .map(processGroupedReference)
-            .set { ch_ref }
-    }
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .combine(ch_ubam)
+        .branch {
+            meta, input, ubam, _ref, _ref_path ,kit, barcode, id, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter, ubam_ph ->
+            reg: (!ubam)
+                return [ meta, file(input), ubam_ph ]
+            resume: (ubam)
+                return [ meta, file(input), file(ubam) ]
+            demux: (barcode && id && kit)
+                return [ meta, id, barcode, kit ]
+        }
+        .set { ch_samplesheet_branched }
 
-    if (params.adaptive_samplesheet != null) {
-        Channel
-            .fromList(samplesheetToList(adaptive_samplesheet, "${projectDir}/assets/schema_adaptive.json"))
-            .map(transformAdaptiveEntry)
-            .groupTuple(by:1)
-            .transpose()
-            .set { ch_bed }
-    } else {
-        Channel
-            .fromPath(input_bed)
-            .map(transformBedEntry)
-            .combine(ch_samplesheet)
-            .map { samplesheet ->             // Re-use the sample_id as meta
-                validateAdaptiveSamplesheet(samplesheet) }
-            .set { ch_bed }
-    }
+    ch_samplesheet_branched.reg
+        .mix(ch_samplesheet_branched.resume)
+        .set { ch_in_samplesheet }
 
-    if (params.ubam_samplesheet != null) {
-        Channel
-            .fromList(samplesheetToList(ubam_samplesheet, "${projectDir}/assets/schema_ubam.json"))
-            .map(transformUbamEntry)
-            .groupTuple()
-            .map { samplesheet ->
-                validateUbamSamplesheet(samplesheet)
-            }
-            .transpose()
-            .set { ch_ubam }
-
-
-        ch_samplesheet = ch_input
-            .join(ch_ubam)
-
-    } else {
-        ch_ubam = Channel
-            .fromPath("${projectDir}/assets/NOFILE")
-    }
-    // Separate samplesheet for purity and filtering (cfDNA)
+    ch_samplesheet_branched.demux
+        .set { ch_demux }
 
     if (params.cfdna) {
-        if (params.demux) {
-            ch_demux
-                .map { meta, sample, barcode, purity, filter ->
-                tuple(id:sample, purity, filter)
-                }
-                .set { ch_cfdna }
 
-            ch_demux
-                .map { meta, sample, barcode, purity, filter ->
-                tuple(meta, sample, barcode)
-                }
-                .set { ch_demux }
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .branch {
+                meta, _input, _ubam, _ref, _ref_path ,kit, barcode, id, _tumor_type, _bed, _padding, _low_fidelity, purity, filter ->
+                simplex: (!kit && !barcode && !id)
+                    return [ meta, purity, filter ]
+                multiplex: (kit && barcode && id)
+                    return tuple(id:id, purity, filter)
+            }
+            .set { ch_cfdna_branched }
 
-            Channel
-                .fromList(samplesheetToList(demux_samplesheet, "${projectDir}/assets/schema_demux.json"))
-                .map(transformTumorTypeDemux)
-                .set { ch_tumor }
-        } else {
-            ch_samplesheet
-                .map { meta, input, purity, filter ->
-                tuple(meta, purity, filter)
-                }
-                .set { ch_cfdna }
-
-            ch_samplesheet
-                .map { meta, input, purity, filter ->
-                tuple(meta, input)
-                }
-                .set { ch_samplesheet }
-            Channel
-                .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-                .map(transformTumorType)
-                .set { ch_tumor }
-        }
-    } else {
-        Channel
-            .empty()
+        ch_cfdna_branched.simplex
+            .mix(ch_cfdna_branched.multiplex)
             .set { ch_cfdna }
-        Channel
-            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
-            .map(transformTumorType)
+
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .branch {
+                meta, _input, _ubam, _ref, _ref_path ,_kit, _barcode, id, tumor_type, _bed, _padding, _low_fidelity, _purity, f_ilter ->
+                simplex_default: (!id && !tumor_type)
+                    return tuple(meta, "leukemia")
+                simplex: (!id && tumor_type)
+                    return [ meta, tumor_type ]
+                multiplex_default: (id && !tumor_type)
+                    return tuple(id:id, "leukemia")
+                multiplex: (id && tumor_type)
+                    return tuple(id:id, tumor_type)
+            }
+            .set { ch_tumor_branched }
+
+        ch_tumor_branched.simplex_default
+            .mix(ch_tumor_branched.simplex)
+            .mix(ch_tumor_branched.multiplex_default)
+            .mix(ch_tumor_branched.multiplex)
             .set { ch_tumor }
+
+
+    } else if (params.adaptive) {
+
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .combine(ch_bed)
+            .combine(ch_padding)
+            .combine(ch_low_fidelity)
+            .branch {
+                meta, _input, _ubam, _ref, _ref_path ,kit, barcode, id, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+                common: (!bed && !padding && !lf && !id)
+                    return [ meta, bed_c, padding_c, lf_c ]
+                common_demux: (!bed && !padding && !lf && kit && barcode && id)
+                    return tuple(id:id, bed_c, padding_c, lf_c )
+                bed: (bed && !paddng && !lf && !id)
+                    return [ meta, file(bed), padding_c, lf_c  ]
+                bed_demux: (bed && !padding && !lf && kit && barcode && id)
+                    return tuple(id:id, file(bed), padding_c, lf_c )
+                padding: (bed && padding && !lf && !id)
+                    return [ meta, file(bed), padding, lf_c  ]
+                padding_demux: (bed && padding && !lf && kit && barcode && id)
+                    return tuple(id:id, file(bed), padding, lf_c)
+                bed_diff: (bed && padding && lf && !id)
+                    return [ meta, file(bed), padding, file(lf) ]
+                bed_diff_demux: (bed && padding && lf && kit && barcode && id)
+                    return tuple(id:id, file(bed), padding, file(lf))
+            }
+            .set { ch_adaptive_branched }
+
+        ch_adaptive_branched.common
+            .mix(ch_adaptive_branched.common_demux)
+            .mix(ch_adaptive_branched.bed)
+            .mix(ch_adaptive_branched.bed_demux)
+            .mix(ch_adaptive_branched.padding)
+            .mix(ch_adaptive_branched.padding_demux)
+            .mix(ch_adaptive_branched.bed_diff)
+            .mix(ch_adaptive_branched.bed_diff_demux)
+            .set { ch_adaptive }
+
+
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .branch {
+                meta, _input, _ubam, _ref, _ref_path ,_kit, _barcode, id, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+                simplex_default: (!id && !tumor_type)
+                    return tuple(meta, "leukemia")
+                simplex: (!id && tumor_type)
+                    return [ meta, tumor_type ]
+                multiplex_default: (id && !tumor_type)
+                    return tuple(id:id, "leukemia")
+                multiplex: (id && tumor_type)
+                    return tuple(id:id, tumor_type)
+            }
+            .set { ch_tumor_branched }
+
+        ch_tumor_branched.simplex_default
+            .mix(ch_tumor_branched.simplex)
+            .mix(ch_tumor_branched.multiplex_default)
+            .mix(ch_tumor_branched.multiplex)
+            .set { ch_tumor }
+
     }
 
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .combine(ch_ref)
+        .combine(ch_ref_id)
+        .branch {
+            meta, _input, _ubam, ref, ref_path ,kit, _barcode, id, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, ref_index, ref_id_c ->
+            simplex_common: (!ref && !ref_path && !kit)
+                return [ meta, ref_id_c, ref_c, ref_index ]
+            simplex_diff: (!kit && ref_path && ref)
+                return [ meta, ref, file(ref_path)]
+            multi_common: (kit && !ref_path && !ref)
+                return tuple(id:id, ref_id_c, ref_c, ref_index)
+            multi_diff: (kit && ref_path && ref)
+                return tuple(id:id, ref, file(ref_path))
+        }
+        .set { ch_ref_branched }
+
+    ch_ref_branched.simplex_diff
+        .mix(ch_ref_branched.multi_diff)
+        .set { ch_ref_diff }
+
+    ch_ref_diff
+        .map { meta, ref, ref_path ->
+                def sorted_ref_path = ref_path.flatten().sort { path ->
+                def filename = file(path).name
+                // Give priority to reference files over index files
+                if (filename.endsWith('.fai')) {
+                    return filename.replaceAll('\\.fai$', '') + '_index'
+                } else {
+                    return filename
+                }
+            }
+            tuple(meta, ref, sorted_ref_path).flatten()}
+        .mix(ch_ref_branched.simplex_common)
+        .mix(ch_ref_branched.multi_common)
+        .set { ch_ref }
+
+
     emit:
-    bed_sheet   = ch_bed
-    ubam_ch     = ch_ubam
+    bed_sheet   = ch_adaptive
     tumor_type  = ch_tumor
     demux_sheet = ch_demux
-    samplesheet = ch_samplesheet
+    samplesheet = ch_in_samplesheet
     ref_ch      = ch_ref
     cfdna_ch    = ch_cfdna
     versions    = ch_versions
@@ -350,33 +319,6 @@ workflow PIPELINE_COMPLETION {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-//
-// Validate channels from input samplesheet
-//
-def validateInputSamplesheet(file) {
-    def (metas, input, tumor_type) = file[1..2]
-
-    return [ metas[0], input ]
-}
-
-def validateUbamSamplesheet(file) {
-    def (metas, ubam) = file[1..2]
-
-    return [ metas[0], ubam ]
-}
-
-def validateDemuxSamplesheet(file) {
-    def (meta_id, meta, input_files, kit) = file[0..3]
-
-    return [ meta, input_files, kit ]
-}
-
-def validateAdaptiveSamplesheet(file) {
-    def (bed, padding, low_fidelity, input_files) = file[0..4]
-
-    return [ input_files, bed, padding, low_fidelity ]
-}
 
 //
 // Generate methods description for MultiQC
@@ -484,10 +426,10 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
 def getMinQC(model) {
     model_string = model.toString()
         if (model_string.contains('sup')) {
-            return Channel.of(10)
+            return channel.of(10)
         } else if (model_string.contains('hac')) {
-            return Channel.of(9)
+            return channel.of(9)
         } else {
-            return Channel.of(8)
+            return channel.of(8)
         }
     }
