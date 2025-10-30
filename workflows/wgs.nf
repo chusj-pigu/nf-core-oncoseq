@@ -34,7 +34,7 @@ workflow WGS {
     ch_clin_database
     bed_empty
     targets                 // channel : list of genes with their position to represent in Figeno
-    minqs                   // Channel obtained dynamically from params.basecall_model
+    minqs                   // channel obtained dynamically from params.basecall_model
 
     main:
 
@@ -42,7 +42,7 @@ workflow WGS {
     // WORKFLOW: Run pipeline
     //
 
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     if (params.skip_basecalling || params.skip_mapping) {
 
@@ -59,13 +59,12 @@ workflow WGS {
 
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet,
-                ref
+                demux_samplesheet
             )
 
             MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
-                BASECALL_MULTIPLEX.out.ref
+                ref
             )
 
             ch_seqkit   = BASECALL_MULTIPLEX.out.stats_pass
@@ -198,7 +197,7 @@ workflow WGS {
             tuple(meta_restore, bamfile, bai)
         }
 
-    ch_mode = Channel.of("WGS")
+    ch_mode = channel.of("WGS")
 
     MIDNIGHT_REPORT(
         bam_input,

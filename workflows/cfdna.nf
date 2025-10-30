@@ -34,14 +34,13 @@ workflow CFDNA {
     // WORKFLOW: Run pipeline
     //
 
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     if (params.demux) {
 
         BASECALL_MULTIPLEX (
             samplesheet,
-            demux,
-            ref
+            demux
         )
 
         ch_fastq = BASECALL_MULTIPLEX.out.fastq
@@ -178,7 +177,7 @@ workflow CFDNA {
 
         bam_input = MAPPING_HG.out.bam
 
-        ch_mode = Channel.of("cfDNA")
+        ch_mode = channel.of("cfDNA")
 
         MIDNIGHT_REPORT(
             bam_input,

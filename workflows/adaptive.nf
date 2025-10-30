@@ -67,7 +67,7 @@ workflow ADAPTIVE {
     // WORKFLOW: Run pipeline
     //
 
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling || params.skip_mapping) {
@@ -173,14 +173,13 @@ workflow ADAPTIVE {
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet,
-                ref
+                demux_samplesheet
             )
 
             // Map basecalled reads to reference
             MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
-                BASECALL_MULTIPLEX.out.ref
+                ref
             )
 
             ch_versions = ch_versions
@@ -349,11 +348,11 @@ workflow ADAPTIVE {
         ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
             //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
 
-        ch_binsize_qdnaseq = Channel.of(params.qdnaseq_binsize)
+        ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
             .map { value ->
             def meta = "qDNAseq"
             tuple(meta, value) }
-        ch_binsize_subchrom = Channel.of(params.subchrom_binsize)
+        ch_binsize_subchrom = channel.of(params.subchrom_binsize)
             .map { value ->
             def meta = "Subchrom"
             tuple(meta, value) }
@@ -389,7 +388,7 @@ workflow ADAPTIVE {
             tuple(meta_restore, bamfile, bai)
         }
 
-    ch_mode = Channel.of("Adaptive Sampling")
+    ch_mode = channel.of("Adaptive Sampling")
 
     MIDNIGHT_REPORT(
         bam_input,

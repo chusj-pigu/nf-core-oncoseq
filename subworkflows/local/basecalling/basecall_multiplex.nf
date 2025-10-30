@@ -29,25 +29,20 @@ workflow BASECALL_MULTIPLEX {
     take:
     ch_samplesheet // channel: samplesheet read in from --input
     ch_demux       // channel : demux samplesheet read in from --demux_samplesheet
-    ch_ref
     main:
 
-    ch_versions = Channel.empty()
-
-    ch_samplesheet_to_basecall = ch_samplesheet
-        .map { meta, pod5, _kit, ubam, model, modif ->
-            tuple(meta,pod5,ubam,model, modif) }
+    ch_versions = channel.empty()
 
     ch_demux_corrected_barcode = ch_samplesheet
         .combine(ch_demux, by:0)
-        .map { meta, _pod5, kit, _ubam, _model, _modif, sample, barcode ->
+        .map { meta, _pod5, _ubam, _model, _modif, sample, barcode, kit ->
             def new_barcode = kit + '_' + barcode
             tuple(meta,sample,new_barcode) }
 
-    DORADO_BASECALL(ch_samplesheet_to_basecall)
+    DORADO_BASECALL(ch_samplesheet)
 
-    ch_to_dmux = ch_samplesheet
-        .map { meta, _pod5, kit, _ubam, _model, _modif ->
+    ch_to_dmux = ch_demux
+        .map { meta, _sample, _barcode, kit ->
             tuple(meta,kit) }
         .join(DORADO_BASECALL.out.ubam)
 
@@ -107,13 +102,6 @@ workflow BASECALL_MULTIPLEX {
     SAMTOOLS_TOFASTQ_PASS(ch_new_sample_ids_pass)
     SAMTOOLS_TOFASTQ_FAIL(ch_new_sample_ids_fail)
 
-    ch_rejoin_ref = ch_demux
-        .map { project,_barcode,sample ->
-            tuple(project,sample) }
-        .join(ch_ref)
-        .map { _project, sample, ref_id, ref, ref_index ->
-            tuple(id:sample, ref_id, ref, ref_index) }      // Replace meta id with sample_id which will be used as new meta id downstream
-
     SEQKIT_STATS_PASS(SAMTOOLS_TOFASTQ_PASS.out.fq)              // Read stats for passed reads
     SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
 
@@ -139,7 +127,6 @@ workflow BASECALL_MULTIPLEX {
 
     emit:
     fastq          = ch_fastq
-    ref            = ch_rejoin_ref
     stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
     stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
     versions       = ch_versions              // channel: [ path(versions.yml) ]
