@@ -172,7 +172,7 @@ workflow PIPELINE_INITIALISATION {
                     return [ meta, bed_c, padding_c, lf_c ]
                 common_demux: (!bed && !padding && !lf && kit && barcode && id)
                     return tuple(id:id, bed_c, padding_c, lf_c )
-                bed: (bed && !paddng && !lf && !id)
+                bed: (bed && !padding && !lf && !id)
                     return [ meta, file(bed), padding_c, lf_c  ]
                 bed_demux: (bed && !padding && !lf && kit && barcode && id)
                     return tuple(id:id, file(bed), padding_c, lf_c )
