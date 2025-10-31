@@ -36,7 +36,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     tumor_type  // channel: samplesheet read in from --input, contains only tumor type
-    ch_ref_t2t  // Channel : from params.ref_t2t
+    ch_ref_t2t  // channel : from params.ref_t2t
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     clairs_model  // channel: model for calling snp with ClairS-TO
     basecall_model  // channel : basecalling model used with dorado
@@ -118,7 +118,7 @@ workflow NFCORE_ONCOSEQ_WGS {
     clairs_model
     basecall_model
     ch_clin_database
-    bed_empty       // Channel with empty bed file to trigger subchrom
+    bed_empty       // channel with empty bed file to trigger subchrom
     sv_targets
     ch_minqs
 
@@ -167,49 +167,46 @@ workflow {
         params.low_fidelity
     )
 
-    // Load model Channels from parameters:
+    // Load model channels from parameters:
 
-    ch_model = params.basecall_model ? Channel.of(params.basecall_model) : Channel.fromPath(params.basecall_model_path)
-    ch_modif = Channel.of(params.m_bases)
+    ch_model = params.basecall_model ? channel.of(params.basecall_model) : channel.fromPath(params.basecall_model_path)
+    ch_modif = channel.of(params.m_bases)
 
     // Combine the samplesheet with the model :
     if (params.skip_basecalling || params.skip_mapping) {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
-    } else if (params.ubam_samplesheet == null ) {
-        ch_input = PIPELINE_INITIALISATION.out.samplesheet
-            .combine(PIPELINE_INITIALISATION.out.ubam_ch)
-            .combine(ch_model)
-            .combine(ch_modif)
+            .map { meta, input, _ubam ->
+            tuple(meta, input) }
     } else {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .combine(ch_model)
             .combine(ch_modif)
     }
 
-   // Channels for SNP calling
-    ch_clairs_model = Channel.of(params.clairsto_model)
-    ch_clin_database = Channel.fromPath(params.clin_database)
+   // channels for SNP calling
+    ch_clairs_model = channel.of(params.clairsto_model)
+    ch_clin_database = channel.fromPath(params.clin_database)
 
-    // Channel for sv gene targets
-    ch_sv_targets = Channel.fromPath(params.sv_targets)
+    // channel for sv gene targets
+    ch_sv_targets = channel.fromPath(params.sv_targets)
 
-    // Channels for chopper and IchorCNA (cfDNA)
+    // channels for chopper and IchorCNA (cfDNA)
 
-    ch_max_len   = Channel.of(params.max_length)
+    ch_max_len   = channel.of(params.max_length)
     ch_minqs     = getMinQC(ch_model)
-    ch_ichor_bin = Channel.of(params.ichor_bin_size)
-    ch_min_mapq  = Channel.of(params.min_mapq_ichor)
+    ch_ichor_bin = channel.of(params.ichor_bin_size)
+    ch_min_mapq  = channel.of(params.min_mapq_ichor)
 
-    // Channel for T2T reference:
+    // channel for T2T reference:
 
     ch_cns = PIPELINE_INITIALISATION.out.tumor_type
         .branch { meta, tumor ->
         tumor: tumor == "cns"
         }
 
-    ch_ref_t2t_id = Channel.of("t2t", "no_index")
+    ch_ref_t2t_id = channel.of("t2t", "no_index")
         .toList()
-    ch_ref_t2t = Channel.fromPath(params.ref_t2t)
+    ch_ref_t2t = channel.fromPath(params.ref_t2t)
         .combine(ch_ref_t2t_id)
         .combine(ch_cns.tumor)
         .map { ref_path, ref_id, ref_index, meta, _tumor ->

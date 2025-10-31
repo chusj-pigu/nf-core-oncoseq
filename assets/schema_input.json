@@ -19,6 +19,12 @@
                 "exists": true,
                 "errorMessage": "pod5 or fastq file path must be provided"
             },
+            "ubam": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "errorMessage": "Absolute path to ubam file path must be provided"
+            },
             "ref": {
                 "type": "string",
                 "pattern": "^\\S+$",
@@ -75,6 +81,37 @@
                 ],
                 "errorMessage": "Valid Barcoding Nanopore kit must be provided"
             },
+            "barcode": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "First column must contain barcode"
+            },
+            "id": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Sample name must be provided and cannot contain spaces"
+            },
+            "tumor_type": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "enum": ["leukemia", "cns", "other"],
+                "default": "leukemia"
+            },
+            "bed": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "errorMessage": "Absolute path to bed file path must be provided"
+            },
+            "padding": {
+                "type": "number",
+                "pattern": "^\\d+$",
+                "errorMessage": "Padding used around region of interest must be provided for each bed file (in bp)"
+            },
+            "low_fidelity": {
+                "type": "string",
+                "format": "file-path"
+            },
             "purity": {
                 "type": "number",
                 "pattern": "^\\d+$",
@@ -83,14 +120,8 @@
             "filter": {
                 "type": "boolean",
                 "errorMessage": " Must be set to true to pre-process reads by filtering out longer reads or to false to skip this step"
-            },
-            "tumor_type": {
-                "type": "string",
-                "pattern": "^\\S+$",
-                "enum": ["leukemia", "cns", "other"],
-                "default": "leukemia"
             }
         },
-        "required": ["sample", "input", "ref", "ref_path"]
+        "required": ["sample", "input"]
     }
 }
