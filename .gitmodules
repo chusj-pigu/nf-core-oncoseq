@@ -102,3 +102,7 @@
 	path = modules/local/magick
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = magick
+[submodule "modules/local/bedtools"]
+	path = modules/local/bedtools
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = bedtools

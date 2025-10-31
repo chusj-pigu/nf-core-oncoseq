@@ -84,7 +84,8 @@ workflow ADAPTIVE {
 
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
-            bed
+            bed,
+            ref
         )
 
         // Somatic variant calling using ClairS
@@ -231,7 +232,8 @@ workflow ADAPTIVE {
         // Analyze coverage separation between target and background regions
         COVERAGE_SEPARATE(
             ch_bam_for_calling,
-            ch_bed
+            ch_bed,
+            ch_ref_for_calling
         )
 
         // Somatic variant calling using ClairS
