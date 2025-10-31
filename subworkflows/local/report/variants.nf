@@ -131,8 +131,6 @@ workflow FIGENO_REPORT {
         ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
     }
 
-    ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
-
     QUARTO_CNV_SECTION(
         ch_section_cnv,
         "CNV Plots"
@@ -301,7 +299,7 @@ workflow FIGENO_REPORT {
 
     QUARTO_TARGETS_SECTION (
        ch_section_targets,
-        "Genes of interest shown in figeno WITHOUT any Sniffles2 calls with > 4 reads support and at least one annotation of high or moderate impact by SnpEff"
+        "Genes of interest shown in figeno WITHOUT any Sniffles2 calls with > 4 reads support and at least one annotation of high or moderate impact by SnpEff. SV with length > 1mb is not included in figeno plots."
     )
 
 /*

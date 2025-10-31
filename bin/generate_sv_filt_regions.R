@@ -126,6 +126,7 @@ if (nrow(vcf) > 0) {
     mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
     distinct()
   vcf_del_ins <- process_variant(vcf, type = "DEL_INS") %>%
+    filter(LEN < 1000000) %>%
     select(GENE, pos) %>%
     mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
     distinct()
