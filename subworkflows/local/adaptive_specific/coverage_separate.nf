@@ -93,7 +93,7 @@ workflow COVERAGE_SEPARATE {
     ch_mapq60 = bam
         .join(REMOVE_PADDING.out.bed)
         .map { meta, bamfile, bai, bedfile ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_mapq6')
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_mapq60')
             tuple(new_meta, bamfile, bai, bedfile) }
         .map { new_meta, bamfile, bai, bedfile ->
             tuple(new_meta, bamfile, bai, bedfile, 1796, 60) }
