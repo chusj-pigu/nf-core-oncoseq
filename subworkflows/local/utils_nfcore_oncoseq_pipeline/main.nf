@@ -115,6 +115,7 @@ workflow PIPELINE_INITIALISATION {
 
     ch_samplesheet_branched.reg
         .mix(ch_samplesheet_branched.resume)
+        .unique()
         .set { ch_in_samplesheet }
 
     ch_samplesheet_branched.demux

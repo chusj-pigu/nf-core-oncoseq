@@ -33,9 +33,8 @@ workflow BASECALL_MULTIPLEX {
 
     ch_versions = channel.empty()
 
-    ch_demux_corrected_barcode = ch_samplesheet
-        .combine(ch_demux, by:0)
-        .map { meta, _pod5, _ubam, _model, _modif, sample, barcode, kit ->
+    ch_demux_corrected_barcode = ch_demux
+        .map { meta, sample, barcode, kit ->
             def new_barcode = kit + '_' + barcode
             tuple(meta,sample,new_barcode) }
 
