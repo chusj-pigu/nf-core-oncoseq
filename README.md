@@ -101,7 +101,7 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 | sample <br> *(required)* | input <br> *(required)* | ref <br> *(required)* | ref_path <br> *(required)* | kit <br> *(only with `--demux`)* | purity <br> *(only with `--cfdna`)* | filter <br> *(only with `--cfdna`)* | tumor_type <br> *(with `--realtime` only)* |
 |---------------------------|-------------------------|-----------------------|-----------------------------|----------------------------------|------------------------------------|-----------------------------------|------------------------------------------|
-| sample1 | path to <br> pod5, fastq or bams | hg38 | Path to reference genome <br> and its index (ex. `hg38.fa*`) | Multiplexing kit <br> used | Estimated tumor purity <br> (between 0 and 1) | `true` or `false`, <br> whether to filter out genomic DNA | leukemia, cns or other, <br> will run tumor classifier |
+| sample1 | path to <br> pod5, fastq or bams | hg38 | Glob pattern, path to reference genome <br> and its index (ex. `hg38.fa*`) | Multiplexing kit <br> used | Estimated tumor purity <br> (between 0 and 1) | `true` or `false`, <br> whether to filter out genomic DNA | leukemia, cns or other, <br> will run tumor classifier |
 
 
 Each row represents the pod5/fastq/bam directory for one sample, and the reference to map it to.
