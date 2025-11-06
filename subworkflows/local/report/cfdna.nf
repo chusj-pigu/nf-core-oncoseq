@@ -9,14 +9,14 @@ include { QUARTO_SECTION as QUARTO_SECTION_CNV } from '../../../modules/local/qu
 include { QUARTO_FIGURE as QUARTO_FIGURE_QC    } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_CNV   } from '../../../modules/local/quarto/main.nf'
 include { CONVERT_PDF_PNG                      } from '../../../modules/local/magick/main.nf'
-include { QUARTO_TABLE                         } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TABLE_COLNAMES                } from '../../../modules/local/quarto/main.nf'
 
 
 workflow CFNDA_REPORT {
 
     take:
-    ch_nanoplot_fig
-    ch_nanoplot_txt
+    ch_id
+    ch_seqkit
     ch_cramino
     ch_ichor_fig
 
@@ -27,27 +27,38 @@ workflow CFNDA_REPORT {
     CONSTRUCT QUARTO TABLE FOR CRAMINO and NANOPLOT STATS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
     ch_cramino_txt = ch_cramino
-        .map { meta, table ->
+        .join(ch_id)
+        .map { meta, table, project ->
             def lines = table.readLines()
             def nreads = (lines[3].tokenize('\t')[1].toDouble() / 1000000).toString()
             def nbases = lines[4].tokenize('\t')[1]
             def cov = lines[5].tokenize('\t')[1]
             def n50 = lines[7].tokenize('\t')[1]
-            tuple(meta.id, nreads, nbases, cov, n50)
+            tuple(project, meta.id, nreads, nbases, cov, n50)
         }
 
-    ch_stats = ch_nanoplot_txt
-        .map {meta, table ->
-            def filtered = table.find { it.name.endsWith('NanoStats_post_filtering.txt') }
-            def lines = filtered.readLines()
-            def n_reads = (lines[5].split(':')[1].trim().replace(",", "").toDouble() / 1000000).toString()
-            def n50 = lines[6].split(':')[1].trim()
-            def nbases = (lines[8].split(':')[1].trim().replace(",", "").toDouble() / 1000000000).toString()
-            tuple(meta.id, n_reads, nbases, n50) }
+    ch_stats = ch_seqkit
+        .join(ch_id)
+        .map { meta, table, project ->
+            //Read the file content as a list of lines
+            def lines = table.readLines()
+            // Second line and 4th column, in million of reads
+            def n_reads = (lines[1].tokenize('\t')[3].toDouble() / 1000000) .toString()
+            // In billion of bases
+            def n_bases = (lines[1].tokenize('\t')[4].toDouble() / 1000000000) .toString()
+            def n50 =  lines[1].tokenize('\t')[12]
+            tuple(project, meta.id, n_reads, n_bases, n50) }
         .join(ch_cramino_txt)
-        .map { meta, nreads_filt, nbases_filt, n50_filt, nreads_al, nbases_al, cov, n50_al ->
-            tuple(meta, nreads_filt, nreads_al, nbases_filt, nbases_al, cov, n50_filt, n50_al) }
+        .map { project, meta, nreads_filt, nbases_filt, n50_filt, nreads_al, nbases_al, cov, n50_al ->
+            tuple(project, meta, nreads_filt, nreads_al, nbases_filt, nbases_al, cov, n50_filt, n50_al) }
+        .collectFile { table ->
+            def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
+             '\t' + table[4] + '\t' + table[5] + '\t' + table[6] + '\t' +
+             table[7] + '\t' + table[8] ].join('\n')
+            return [ "${table[0]}_reads_stats.tsv", content + '\n' ]
+        }
         .collectFile { table ->
             def content = ["Metric" + '\t' + "Value" + '\n' +
                 "N reads filtered (M)" + '\t' + table[1] + '\n' +
@@ -67,13 +78,13 @@ workflow CFNDA_REPORT {
     ch_quarto_table = ch_stats
         .map { meta, table ->
             def caption = "Stats of filtered and aligned reads"
-            def col_names = ""
+            def col_names = "Sample, N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases faligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
             def section = "QC"
             def process = "stats_qc-${meta.id}"
             tuple(meta, table, caption, col_names, section, process)
         }
 
-    QUARTO_TABLE(
+    QUARTO_TABLE_COLNAMES(
         ch_quarto_table
     )
 
@@ -84,31 +95,31 @@ workflow CFNDA_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_qc_files = ch_nanoplot_fig
-        .map { meta, fig ->
-            def filtered = fig.find { it.name.endsWith('WeightedLogTransformed_HistogramReadlength.svg') }
-            tuple(meta, filtered)
-        }
-        .map { tuple ->
-            // Extract the existing values from the tuple
-            def (meta, file) = tuple
+    // ch_qc_files = ch_nanoplot_fig
+    //     .map { meta, fig ->
+    //         def filtered = fig.find { it.name.endsWith('WeightedLogTransformed_HistogramReadlength.svg') }
+    //         tuple(meta, filtered)
+    //     }
+    //     .map { tuple ->
+    //         // Extract the existing values from the tuple
+    //         def (meta, file) = tuple
 
-            // Transform chrom into two new variables
-            def caption = "Read length distribution for ${meta.id}"
-            def section = "QC"
-            def process = "length-plot-${meta.id}"
+    //         // Transform chrom into two new variables
+    //         def caption = "Read length distribution for ${meta.id}"
+    //         def section = "QC"
+    //         def process = "length-plot-${meta.id}"
 
-            // Return a new tuple with the additional variables
-            return [meta, file, caption, section, process ]
-        }
+    //         // Return a new tuple with the additional variables
+    //         return [meta, file, caption, section, process ]
+    //     }
 
 
-    QUARTO_FIGURE_QC(
-        ch_qc_files
-    )
+    // QUARTO_FIGURE_QC(
+    //     ch_qc_files
+    // )
 
-    ch_section_qc = QUARTO_TABLE.out.quarto_table
-        .mix(QUARTO_FIGURE_QC.out.quarto_figure)
+    ch_section_qc = QUARTO_TABLE_COLNAMES.out.quarto_table
+    //     .mix(QUARTO_FIGURE_QC.out.quarto_figure)
 
     ch_section_qc = ch_section_qc
         .groupTuple()
@@ -130,9 +141,10 @@ workflow CFNDA_REPORT {
     CONVERT_PDF_PNG(ch_ichor_fig)
 
     ch_ichor_files = CONVERT_PDF_PNG.out.png
+        .join(ch_id)
         .map { tuple ->
             // Extract the existing values from the tuple
-            def (meta, file) = tuple
+            def (meta, file, project) = tuple
 
             // Transform chrom into two new variables
             def caption = "IchorCNA best solution for ${meta.id}"
@@ -140,7 +152,7 @@ workflow CFNDA_REPORT {
             def process = "ichor-plot-${meta.id}"
 
             // Return a new tuple with the additional variables
-            return [meta, file, caption, section, process ]
+            tuple(id:project, file, caption, section, process )
         }
 
     QUARTO_FIGURE_CNV(
