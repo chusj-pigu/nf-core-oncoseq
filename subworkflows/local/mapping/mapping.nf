@@ -63,9 +63,12 @@ workflow MAPPING {
             }
             .set { in_ch }
 
-            SEQKIT_STATS(in_ch)
-
-            ch_seqkit_out = SEQKIT_STATS.out.stats
+            if (!params.cfdna) {
+                SEQKIT_STATS(in_ch)
+                ch_seqkit_out = SEQKIT_STATS.out.stats
+            } else {
+                ch_seqkit_out = Channel.empty()
+            }
         } else {
             ch_seqkit_out = Channel.empty()
         }
