@@ -13,7 +13,7 @@ include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfc
 workflow MIDNIGHT_REPORT {
 
     take:
-    ch_samples
+    ch_id
     ch_sections
     ch_versions
     ch_mode
@@ -26,6 +26,9 @@ workflow MIDNIGHT_REPORT {
     SOFTWARE VERSIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+    ch_samples = ch_id
+        .map { meta, project ->
+        tuple(id:project) }
 
     // Extract all versions into a single channel of values
     versions = softwareVersionsToYAML(ch_versions)
@@ -40,7 +43,7 @@ workflow MIDNIGHT_REPORT {
             def section = "Versions"
             def process = "versions"
 
-            [versions_out[0], versions_out[3]] + [section, process]
+            [versions_out[0], versions_out[1]] + [section, process]
             }
 
     QUARTO_TEXT(
@@ -71,12 +74,12 @@ workflow MIDNIGHT_REPORT {
 
     ch_title = ch_samples
         .combine(ch_mode)
-        .map { meta, _bam, _bai, mode ->
+        .map { meta, mode ->
         "Oncoseq Pipeline ${mode} Report for ${meta.id}" }
 
     ch_subtitle = ch_samples
         .combine(ch_mode)
-        .map { _meta, _bam, _bai, mode ->
+        .map { _meta, mode ->
         "Outputs for the ${mode} branch of the Oncoseq pipeline" }
 
     QUARTO_REPORT(

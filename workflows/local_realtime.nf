@@ -49,6 +49,7 @@ workflow LOCAL_REALTIME {
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
+    ch_id
 
     main:
 
@@ -178,7 +179,8 @@ workflow LOCAL_REALTIME {
 
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
-            bed
+            bed,
+            ref
         )
 
         // Placeholders for report
@@ -226,7 +228,8 @@ workflow LOCAL_REALTIME {
 
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
-            bed
+            bed,
+            ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
@@ -266,7 +269,8 @@ workflow LOCAL_REALTIME {
 
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
-            bed
+            bed,
+            ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
@@ -364,12 +368,10 @@ workflow LOCAL_REALTIME {
         .mix(ADAPTIVE_REPORT.out.sections)
         .mix(FIGENO_REPORT.out.sections)
 
-    bam_input = MAPPING_HG.out.bam
-
     ch_mode = Channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
 
     MIDNIGHT_REPORT(
-        bam_input,
+        ch_id,
         ch_sections,
         ch_versions,
         ch_mode
