@@ -26,15 +26,12 @@ workflow MIDNIGHT_REPORT {
     SOFTWARE VERSIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-    ch_samples = ch_id
-        .map { meta, project ->
-        tuple(id:project) }
 
     // Extract all versions into a single channel of values
     versions = softwareVersionsToYAML(ch_versions)
     // Collapse the channel of versions into a single value
     versions = versions.collect().map { it.join('\n\n') }
-    versions = ch_samples.combine(versions)
+    versions = ch_id.combine(versions)
 
     // Give it an ID of versions
     versions = versions
@@ -43,7 +40,7 @@ workflow MIDNIGHT_REPORT {
             def section = "Versions"
             def process = "versions"
 
-            [versions_out[0], versions_out[1]] + [section, process]
+            [versions_out[0], versions_out[2]] + [section, process]
             }
 
     QUARTO_TEXT(
@@ -51,14 +48,24 @@ workflow MIDNIGHT_REPORT {
         )
 
     ch_section_inputs = QUARTO_TEXT.out.quarto_text
+        .join(ch_id)
+        .map { meta, section, text, project ->
+        }
 
     QUARTO_SECTION(
         ch_section_inputs,
         "Software Versions"
     )
+
+    ch_section_vers = QUARTO_SECTION.out.quarto_section
+        .join(ch_id)
+        .map { meta, section, input, qmd, project ->
+            tuple(id:project, section, input, qmd) }
+
+
     // // Add the versions to the channel of sections for every report
 
-    ch_sections = ch_sections.mix(QUARTO_SECTION.out.quarto_section)
+    ch_sections = ch_sections.mix(ch_section_vers)
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -72,14 +79,14 @@ workflow MIDNIGHT_REPORT {
             [id, section, filePaths, reports]
         }
 
-    ch_title = ch_samples
+    ch_title = ch_id
         .combine(ch_mode)
-        .map { meta, mode ->
-        "Oncoseq Pipeline ${mode} Report for ${meta.id}" }
+        .map { meta, project, mode ->
+        "Oncoseq Pipeline ${mode} Report for ${project}" }
 
-    ch_subtitle = ch_samples
+    ch_subtitle = ch_id
         .combine(ch_mode)
-        .map { _meta, mode ->
+        .map { _meta, _project, mode ->
         "Outputs for the ${mode} branch of the Oncoseq pipeline" }
 
     QUARTO_REPORT(
