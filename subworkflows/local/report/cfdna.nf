@@ -28,20 +28,21 @@ workflow CFNDA_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+    ch_id_table = ch_id
+        .map { meta, project ->
+        tuple(meta.id, project) }
     ch_cramino_txt = ch_cramino
-        .join(ch_id)
-        .map { meta, table, project ->
+        .map { meta, table ->
             def lines = table.readLines()
             def nreads = (lines[3].tokenize('\t')[1].toDouble() / 1000000).toString()
             def nbases = lines[4].tokenize('\t')[1]
             def cov = lines[5].tokenize('\t')[1]
             def n50 = lines[7].tokenize('\t')[1]
-            tuple(project, meta.id, nreads, nbases, cov, n50)
+            tuple(meta.id, nreads, nbases, cov, n50)
         }
 
     ch_stats = ch_seqkit
-        .join(ch_id)
-        .map { meta, table, project ->
+        .map { meta, table ->
             //Read the file content as a list of lines
             def lines = table.readLines()
             // Second line and 4th column, in million of reads
@@ -49,31 +50,21 @@ workflow CFNDA_REPORT {
             // In billion of bases
             def n_bases = (lines[1].tokenize('\t')[4].toDouble() / 1000000000) .toString()
             def n50 =  lines[1].tokenize('\t')[12]
-            tuple(project, meta.id, n_reads, n_bases, n50) }
+            tuple(meta.id, n_reads, n_bases, n50) }
         .join(ch_cramino_txt)
-        .map { project, meta, nreads_filt, nbases_filt, n50_filt, nreads_al, nbases_al, cov, n50_al ->
+        .join(ch_id_table)
+        .map { meta, nreads_filt, nbases_filt, n50_filt, nreads_al, nbases_al, cov, n50_al, project ->
             tuple(project, meta, nreads_filt, nreads_al, nbases_filt, nbases_al, cov, n50_filt, n50_al) }
         .collectFile { table ->
             def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
              '\t' + table[4] + '\t' + table[5] + '\t' + table[6] + '\t' +
              table[7] + '\t' + table[8] ].join('\n')
-            return [ "${table[0]}_reads_stats.tsv", content + '\n' ]
-        }
-        .collectFile { table ->
-            def content = ["Metric" + '\t' + "Value" + '\n' +
-                "N reads filtered (M)" + '\t' + table[1] + '\n' +
-                "N reads aligned (M)" + '\t' + table[2] + '\n' +
-                "N bases filtered (GB)" + '\t' + table[3] + '\n' +
-                "N bases faligned (GB)" + '\t' + table[4] + '\n' +
-                "Coverage (X)" + '\t' + table[5] + '\n' +
-                "N50 reads filtered" + '\t' + table[6] + '\n' +
-                "N50 reads aligned" + '\t' + table[7]].join('\n')
             return [ "${table[0]}_cfdna_stats.tsv", content + '\n' ]
         }
         .map { table ->
             def meta = table.name.replace('_cfdna_stats.tsv', '')
             tuple(id:meta,table)
-            }                                                                   // Add back meta to the new table
+            }                                                             // Add back meta to the new table
 
     ch_quarto_table = ch_stats
         .map { meta, table ->
@@ -142,10 +133,7 @@ workflow CFNDA_REPORT {
 
     ch_ichor_files = CONVERT_PDF_PNG.out.png
         .join(ch_id)
-        .map { tuple ->
-            // Extract the existing values from the tuple
-            def (meta, file, project) = tuple
-
+        .map { meta, file, project ->
             // Transform chrom into two new variables
             def caption = "IchorCNA best solution for ${meta.id}"
             def section = "CNV"
