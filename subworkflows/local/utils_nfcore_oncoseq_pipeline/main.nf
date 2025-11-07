@@ -121,7 +121,6 @@ workflow PIPELINE_INITIALISATION {
         .mix(ch_samplesheet_branched.demux_reg)
         .mix(ch_samplesheet_branched.demux_resume)
         .unique()
-        .view()
         .set { ch_in_samplesheet }
 
     channel
