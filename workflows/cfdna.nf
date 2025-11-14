@@ -174,7 +174,7 @@ workflow CFDNA {
 
         ch_classifier_out = CLASSIFIER_REPORT.out.sections
             .join(ch_id)
-            .map { meta, section, inputs, quatro, project ->
+            .map { _meta, section, inputs, quarto, project ->
                 tuple(id:project, section, inputs, quarto) }
 
         // Collect sections from all analysis steps
