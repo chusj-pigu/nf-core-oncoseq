@@ -244,7 +244,6 @@ workflow FIGENO_REPORT {
             tuple(meta_refined, meta, figure, type)
         }
         .join(ch_fusion_stats)
-        .view()
         .map { _meta, old_meta, file, type, support, sv ->
         CreateSVInput(old_meta, file, type, support, sv)
         }
