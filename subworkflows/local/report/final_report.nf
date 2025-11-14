@@ -48,9 +48,6 @@ workflow MIDNIGHT_REPORT {
         )
 
     ch_section_inputs = QUARTO_TEXT.out.quarto_text
-        .join(ch_id)
-        .map { meta, section, text, project ->
-        }
 
     QUARTO_SECTION(
         ch_section_inputs,
@@ -82,18 +79,25 @@ workflow MIDNIGHT_REPORT {
     ch_title = ch_id
         .combine(ch_mode)
         .map { meta, project, mode ->
-        "Oncoseq Pipeline ${mode} Report for ${project}" }
+            def title = "Oncoseq Pipeline ${mode} Report for ${project}"
+            tuple(id:project, title) }
 
     ch_subtitle = ch_id
         .combine(ch_mode)
-        .map { _meta, _project, mode ->
-        "Outputs for the ${mode} branch of the Oncoseq pipeline" }
+        .map { _meta, project, mode ->
+            def subtitles = "Outputs for the ${mode} branch of the Oncoseq pipeline"
+            tuple(id:project, subtitles)}
+
+    ch_template = channel.fromPath(params.report_template)
+
+    ch_report_in = ch_report_sections
+        .join(ch_title)
+        .join(ch_subtitle)
+        .combine(ch_template)
+        .view()
 
     QUARTO_REPORT(
-        ch_report_sections,
-        params.report_template,
-        ch_title,
-        ch_subtitle
+        ch_report_in
         )
 
     ch_report = QUARTO_REPORT.out.report
