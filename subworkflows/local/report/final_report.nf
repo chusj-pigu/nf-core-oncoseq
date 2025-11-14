@@ -94,7 +94,6 @@ workflow MIDNIGHT_REPORT {
         .join(ch_title)
         .join(ch_subtitle)
         .combine(ch_template)
-        .view()
 
     QUARTO_REPORT(
         ch_report_in
