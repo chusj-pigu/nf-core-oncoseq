@@ -53,8 +53,8 @@ workflow LOCAL_REALTIME {
 
     main:
 
-    ch_versions = Channel.empty()
-    ch_sections = Channel.empty()
+    ch_versions = channel.empty()
+    ch_sections = channel.empty()
 
     // Branch by tumor type
     ch_tumor_type = tumor_type
@@ -184,8 +184,8 @@ workflow LOCAL_REALTIME {
         )
 
         // Placeholders for report
-        ch_subchrom_focal = Channel.empty()
-        ch_subchrom_plot = Channel.empty()
+        ch_subchrom_focal = channel.empty()
+        ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
             .mix(MAPPING_T2T.out.versions)
@@ -241,8 +241,8 @@ workflow LOCAL_REALTIME {
         )
 
         // Placeholders for report
-        ch_subchrom_focal = Channel.empty()
-        ch_subchrom_plot = Channel.empty()
+        ch_subchrom_focal = channel.empty()
+        ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
@@ -334,11 +334,11 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE.out.coverage_plot
     )
 
-    ch_binsize_qdnaseq = Channel.of(params.qdnaseq_binsize)
+    ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
         .map { value ->
         def meta = "qDNAseq"
         tuple(meta, value) }
-    ch_binsize_subchrom = Channel.of(params.subchrom_binsize)
+    ch_binsize_subchrom = channel.of(params.subchrom_binsize)
         .map { value ->
         def meta = "Subchrom"
         tuple(meta, value) }
@@ -368,7 +368,7 @@ workflow LOCAL_REALTIME {
         .mix(ADAPTIVE_REPORT.out.sections)
         .mix(FIGENO_REPORT.out.sections)
 
-    ch_mode = Channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
+    ch_mode = channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
 
     MIDNIGHT_REPORT(
         ch_id,
