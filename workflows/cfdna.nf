@@ -172,9 +172,14 @@ workflow CFDNA {
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         */
 
+        ch_classifier_out = CLASSIFIER_REPORT.out.sections
+            .join(ch_id)
+            .map { meta, section, inputs, quatro, project ->
+                tuple(id:project, section, inputs, quarto) }
+
         // Collect sections from all analysis steps
         ch_sections = CFNDA_REPORT.out.sections
-            .mix(CLASSIFIER_REPORT.out.sections)
+            .mix(ch_classifier_out)
 
 
         ch_mode = channel.of("cfDNA")
