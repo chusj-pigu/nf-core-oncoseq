@@ -73,7 +73,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             basecall_model,
             ch_clin_database,
             sv_targets,
-            ch_clairs_model
+            ch_id
         )
     }
 }
