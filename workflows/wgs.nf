@@ -142,7 +142,9 @@ workflow WGS {
             SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
-            targets
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs
         )
 
     ch_versions = ch_versions
@@ -171,16 +173,37 @@ workflow WGS {
             //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
 
         ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
-            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)s
+
+        ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
+            .map { value ->
+            def meta = "qDNAseq"
+            tuple(meta, value) }
+        ch_binsize_subchrom = channel.of(params.subchrom_binsize)
+            .map { value ->
+            def meta = "Subchrom"
+            tuple(meta, value) }
+        ch_binsize_delly = channel.of(params.delly_bin_size)
+            .map { value ->
+            def meta = "Delly"
+            tuple(meta, value) }
+
+        ch_binsizes = ch_binsize_qdnaseq
+            .mix(ch_binsize_subchrom)
+            .mix(ch_binsize_delly)
 
         FIGENO_REPORT(
             VARIANT_PROCESS.out.circos_plot,
+            VARIANT_PROCESS.out.panchr_plot,
+            ch_binsizes,
             VARIANT_PROCESS.out.sv_plot,
             VARIANT_PROCESS.out.fusion_plot,
+            VARIANT_PROCESS.out.targets_plot,
+            VARIANT_PROCESS.out.sv_table,
+            VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
             ch_subchrom_focal
         )
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COLLECT SECTIONS
