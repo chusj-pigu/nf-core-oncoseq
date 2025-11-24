@@ -198,10 +198,11 @@ workflow {
 
     // channels for chopper and IchorCNA (cfDNA)
 
-    ch_max_len   = channel.of(params.max_length)
-    ch_minqs     = getMinQC(ch_model)
-    ch_ichor_bin = channel.of(params.ichor_bin_size)
-    ch_min_mapq  = channel.of(params.min_mapq_ichor)
+    ch_max_len    = channel.of(params.max_length)
+    ch_minqs      = ch_model.map { model -> getMinQC(model) }
+        .view()
+    ch_ichor_bin  = channel.of(params.ichor_bin_size)
+    ch_min_mapq   = channel.of(params.min_mapq_ichor)
 
     // channel for T2T reference:
 
