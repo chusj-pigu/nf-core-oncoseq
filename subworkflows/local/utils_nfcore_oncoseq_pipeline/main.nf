@@ -112,7 +112,7 @@ workflow PIPELINE_INITIALISATION {
                 return tuple(id:project, file(input), ubam_ph )
             demux_resume: (project && kit && barcode)
                 return tuple(id:project, file(input), file(ubam))
-            
+
         }
         .set { ch_samplesheet_branched }
 
@@ -192,6 +192,18 @@ workflow PIPELINE_INITIALISATION {
             }
             .set { ch_id }
     } else {
+
+        // Make channel with empty bed file for clair3 calling
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .combine(ch_bed)
+            .combine(ch_padding)
+            .combine(ch_low_fidelity)
+            .map {
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+                tuple(meta, bed_c, padding_c, lf_c)
+            }
+            .set { ch_adaptive }
 
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
@@ -417,10 +429,10 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
 def getMinQC(model) {
     model_string = model.toString()
         if (model_string.contains('sup')) {
-            return channel.of(10)
+            return 10
         } else if (model_string.contains('hac')) {
-            return channel.of(9)
+            return 9
         } else {
-            return channel.of(8)
+            return 8
         }
     }

@@ -102,3 +102,7 @@
 	path = modules/local/bedtools
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = bedtools
+[submodule "modules/local/delly"]
+	path = modules/local/delly
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = delly
