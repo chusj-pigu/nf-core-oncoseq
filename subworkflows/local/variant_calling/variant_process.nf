@@ -69,8 +69,6 @@ workflow VARIANT_PROCESS {
             tuple(meta_restore, vcf, index) }
         .join(QDNASEQ_PROCESS.out.cnv_file)
         .join(QDNASEQ_PROCESS.out.ratio_file)
-        .join(delly_cov)
-        .join(delly_bed)
 
     FIGENO_CIRCOS(ch_to_circos)
 
