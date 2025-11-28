@@ -103,61 +103,61 @@ workflow PIPELINE_INITIALISATION {
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .combine(ch_ubam)
         .branch {
-            meta, input, ubam, _ref, _ref_path ,kit, barcode, id, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter, ubam_ph ->
-            reg: (!ubam)
+            meta, project, input, ubam, _ref, _ref_path ,kit, barcode, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter, ubam_ph ->
+            reg: (!ubam && !kit && !barcode)
                 return [ meta, file(input), ubam_ph ]
-            resume: (ubam)
+            resume: (ubam && !kit && !barcode)
                 return [ meta, file(input), file(ubam) ]
-            demux: (barcode && id && kit)
-                return [ meta, id, barcode, kit ]
+            demux_reg: (project && kit && barcode && !ubam)
+                return tuple(id:project, file(input), ubam_ph )
+            demux_resume: (project && kit && barcode)
+                return tuple(id:project, file(input), file(ubam))
+
         }
         .set { ch_samplesheet_branched }
 
     ch_samplesheet_branched.reg
         .mix(ch_samplesheet_branched.resume)
+        .mix(ch_samplesheet_branched.demux_reg)
+        .mix(ch_samplesheet_branched.demux_resume)
+        .unique()
         .set { ch_in_samplesheet }
 
-    ch_samplesheet_branched.demux
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .map {
+            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+            if (project && kit && barcode) {
+                tuple(id:project, meta.id, barcode, kit )
+            } else {
+                tuple()
+            }
+        }
         .set { ch_demux }
 
     if (params.cfdna) {
 
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .branch {
-                meta, _input, _ubam, _ref, _ref_path ,kit, barcode, id, _tumor_type, _bed, _padding, _low_fidelity, purity, filter ->
-                simplex: (!kit && !barcode && !id)
-                    return [ meta, purity, filter ]
-                multiplex: (kit && barcode && id)
-                    return tuple(id:id, purity, filter)
+            .map {
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, _bed, _padding, _low_fidelity, purity, filter ->
+                    tuple(meta, purity, filter)
             }
-            .set { ch_cfdna_branched }
-
-        ch_cfdna_branched.simplex
-            .mix(ch_cfdna_branched.multiplex)
             .set { ch_cfdna }
 
+        // Make it possible to merge reports together for cfdna
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .branch {
-                meta, _input, _ubam, _ref, _ref_path ,_kit, _barcode, id, tumor_type, _bed, _padding, _low_fidelity, _purity, f_ilter ->
-                simplex_default: (!id && !tumor_type)
-                    return tuple(meta, "leukemia")
-                simplex: (!id && tumor_type)
-                    return [ meta, tumor_type ]
-                multiplex_default: (id && !tumor_type)
-                    return tuple(id:id, "leukemia")
-                multiplex: (id && tumor_type)
-                    return tuple(id:id, tumor_type)
-            }
-            .set { ch_tumor_branched }
+            .branch { meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+                individual: (!project)
+                    return tuple(meta, meta.id)
+                common: (project)
+                    return tuple(meta, project) }
+            .set { ch_id_branched }
 
-        ch_tumor_branched.simplex_default
-            .mix(ch_tumor_branched.simplex)
-            .mix(ch_tumor_branched.multiplex_default)
-            .mix(ch_tumor_branched.multiplex)
-            .set { ch_tumor }
-
+        ch_id_branched.individual
+            .mix(ch_id_branched.common)
+            .set { ch_id }
 
     } else if (params.adaptive) {
 
@@ -167,79 +167,82 @@ workflow PIPELINE_INITIALISATION {
             .combine(ch_padding)
             .combine(ch_low_fidelity)
             .branch {
-                meta, _input, _ubam, _ref, _ref_path ,kit, barcode, id, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
-                common: (!bed && !padding && !lf && !id)
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+                common: (!bed && !padding && !lf)
                     return [ meta, bed_c, padding_c, lf_c ]
-                common_demux: (!bed && !padding && !lf && kit && barcode && id)
-                    return tuple(id:id, bed_c, padding_c, lf_c )
-                bed: (bed && !padding && !lf && !id)
+                bed: (bed && !padding && !lf)
                     return [ meta, file(bed), padding_c, lf_c  ]
-                bed_demux: (bed && !padding && !lf && kit && barcode && id)
-                    return tuple(id:id, file(bed), padding_c, lf_c )
-                padding: (bed && padding && !lf && !id)
+                padding: (bed && padding && !lf)
                     return [ meta, file(bed), padding, lf_c  ]
-                padding_demux: (bed && padding && !lf && kit && barcode && id)
-                    return tuple(id:id, file(bed), padding, lf_c)
-                bed_diff: (bed && padding && lf && !id)
+                bed_diff: (bed && padding && lf)
                     return [ meta, file(bed), padding, file(lf) ]
-                bed_diff_demux: (bed && padding && lf && kit && barcode && id)
-                    return tuple(id:id, file(bed), padding, file(lf))
             }
             .set { ch_adaptive_branched }
 
         ch_adaptive_branched.common
-            .mix(ch_adaptive_branched.common_demux)
             .mix(ch_adaptive_branched.bed)
-            .mix(ch_adaptive_branched.bed_demux)
             .mix(ch_adaptive_branched.padding)
-            .mix(ch_adaptive_branched.padding_demux)
             .mix(ch_adaptive_branched.bed_diff)
-            .mix(ch_adaptive_branched.bed_diff_demux)
             .set { ch_adaptive }
-
 
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .branch {
-                meta, _input, _ubam, _ref, _ref_path ,_kit, _barcode, id, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
-                simplex_default: (!id && !tumor_type)
-                    return tuple(meta, "leukemia")
-                simplex: (!id && tumor_type)
-                    return [ meta, tumor_type ]
-                multiplex_default: (id && !tumor_type)
-                    return tuple(id:id, "leukemia")
-                multiplex: (id && tumor_type)
-                    return tuple(id:id, tumor_type)
+            .map { meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+                tuple(meta, meta.id)
             }
-            .set { ch_tumor_branched }
+            .set { ch_id }
+    } else {
 
-        ch_tumor_branched.simplex_default
-            .mix(ch_tumor_branched.simplex)
-            .mix(ch_tumor_branched.multiplex_default)
-            .mix(ch_tumor_branched.multiplex)
-            .set { ch_tumor }
+        // Make channel with empty bed file for clair3 calling
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .combine(ch_bed)
+            .combine(ch_padding)
+            .combine(ch_low_fidelity)
+            .map {
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+                tuple(meta, bed_c, padding_c, lf_c)
+            }
+            .set { ch_adaptive }
 
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .map { meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+                tuple(meta, meta.id)
+            }
+            .set { ch_id }
     }
+
+
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .branch {
+            meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+            leukemia: (!tumor_type)
+                return tuple(meta, "leukemia")
+            other: (tumor_type)
+                return tuple(meta, tumor_type)
+        }
+        .set { ch_tumor_branched }
+
+   ch_tumor_branched.leukemia
+        .mix(ch_tumor_branched.other)
+        .set { ch_tumor }
 
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .combine(ch_ref)
         .combine(ch_ref_id)
         .branch {
-            meta, _input, _ubam, ref, ref_path ,kit, _barcode, id, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, ref_index, ref_id_c ->
-            simplex_common: (!ref && !ref_path && !kit)
+            meta, project, _input, _ubam, ref, ref_path ,kit, _barcode, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, ref_index, ref_id_c ->
+            common: (!ref && !ref_path)
                 return [ meta, ref_id_c, ref_c, ref_index ]
-            simplex_diff: (!kit && ref_path && ref)
+            diff: (ref_path && ref)
                 return [ meta, ref, file(ref_path)]
-            multi_common: (kit && !ref_path && !ref)
-                return tuple(id:id, ref_id_c, ref_c, ref_index)
-            multi_diff: (kit && ref_path && ref)
-                return tuple(id:id, ref, file(ref_path))
         }
         .set { ch_ref_branched }
 
-    ch_ref_branched.simplex_diff
-        .mix(ch_ref_branched.multi_diff)
+    ch_ref_branched.diff
         .set { ch_ref_diff }
 
     ch_ref_diff
@@ -254,8 +257,7 @@ workflow PIPELINE_INITIALISATION {
                 }
             }
             tuple(meta, ref, sorted_ref_path).flatten()}
-        .mix(ch_ref_branched.simplex_common)
-        .mix(ch_ref_branched.multi_common)
+        .mix(ch_ref_branched.common)
         .set { ch_ref }
 
 
@@ -266,6 +268,7 @@ workflow PIPELINE_INITIALISATION {
     samplesheet = ch_in_samplesheet
     ref_ch      = ch_ref
     cfdna_ch    = ch_cfdna
+    id_ch       = ch_id
     versions    = ch_versions
 }
 
@@ -426,10 +429,10 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
 def getMinQC(model) {
     model_string = model.toString()
         if (model_string.contains('sup')) {
-            return channel.of(10)
+            return 10
         } else if (model_string.contains('hac')) {
-            return channel.of(9)
+            return 9
         } else {
-            return channel.of(8)
+            return 8
         }
     }

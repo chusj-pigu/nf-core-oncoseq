@@ -6,7 +6,7 @@
 */
 include { CAT_FASTQ      } from '../../../modules/local/cfdna_specific/main.nf'
 include { CHOPPER_LENGTH } from '../../../modules/local/chopper/main.nf'
-include { NANOPLOT_FASTQ } from '../../../modules/local/nanoplot/main.nf'
+include { SEQKIT_STATS   } from '../../../modules/local/seqkit/main.nf'
 include { modifyMetaId   } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
@@ -111,15 +111,14 @@ workflow READS_FILTER {
     ch_reads_out_final = ch_reads_filtered
         .mix(ch_reads_nofilt)
 
-    NANOPLOT_FASTQ(ch_reads_out_final)
+    SEQKIT_STATS(ch_reads_out_final)
 
     ch_versions = ch_versions
-        .mix(NANOPLOT_FASTQ.out.versions)
+        .mix(SEQKIT_STATS.out.versions)
 
     emit:
     reads     = ch_reads_out_final
-    stats     = NANOPLOT_FASTQ.out.txt
-    read_dist = NANOPLOT_FASTQ.out.figure
+    stats     = SEQKIT_STATS.out.stats
     versions  = ch_versions                            // All tool versions
 }
 /*

@@ -6,10 +6,12 @@
 
 include { QUARTO_TEXT                                   } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_CNV_SECTION          } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_DELLY_SECTION        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_SV_SECTION           } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_FUSION_SECTION       } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_TARGETS_SECTION      } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_FIGURE as QUARTO_FIGURE_CNV            } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_FIGURE_QDNASEQ        } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_FIGURE_DELLY          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_SV             } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_FUSION         } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_CNLOH          } from '../../../modules/local/quarto/main.nf'
@@ -24,6 +26,7 @@ workflow FIGENO_REPORT {
 
     take:
     ch_circos_figure
+    ch_delly_figure
     ch_bin_sizes          // from params qdnaseq_binsize and subchrom_binsize
     ch_sv_figures
     ch_fusion_figures
@@ -36,19 +39,20 @@ workflow FIGENO_REPORT {
     main:
 
     // channels for type of figures:
-    ch_qdnaseq = Channel.of("CNV")
-    ch_subchrom = Channel.of("CNLOH")
-    ch_focal = Channel.of("CNLOH-Focal")
-    ch_fusion = Channel.of("Fusions")
-    ch_sv = Channel.of("Structural-Variants")
-    ch_targets = Channel.of("Important-Genes")
+    ch_qdnaseq = channel.of("CNV")
+    ch_delly = channel.of("PanChr")
+    ch_subchrom = channel.of("CNLOH")
+    ch_focal = channel.of("CNLOH-Focal")
+    ch_fusion = channel.of("Fusions")
+    ch_sv = channel.of("Structural-Variants")
+    ch_targets = channel.of("Important-Genes")
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     CIRCOS FIGURE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    // Channel for figure subtitle
+    // channel for figure subtitle
 
     ch_subtitle_cnv = ch_bin_sizes
         .filter { meta, _value ->
@@ -65,15 +69,74 @@ workflow FIGENO_REPORT {
             CreateFigureCNVInput(meta, file, type, text)
         }
 
-    QUARTO_FIGURE_CNV(
+    QUARTO_FIGURE_QDNASEQ(
         ch_circos_files
     )
 
-    ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
+    ch_section_cnv = QUARTO_FIGURE_QDNASEQ.out.quarto_figure
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths]
         }
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    DELLY FIGURE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    // channel for figure subtitle
+
+    ch_in_panchr = ch_delly_figure
+        .transpose()
+        .combine(ch_delly)
+        .map { meta, figure, type ->
+            // Add chromosome to meta to avoid file collision
+            def chr = (figure.baseName =~ /.*_(chr\w+)$/)[0][1]
+            def new_meta = [
+                id      : meta.id + '_' + chr,
+                sample  : meta.id     // store original once
+            ]
+            def subtitle = chr
+            tuple(new_meta, figure, type, chr)
+            }
+
+    ch_delly_files = ch_in_panchr
+        .map { meta, file, type, text ->
+            // Transform chrom into two new variables
+            def caption = text
+            def section = "Pan-Chromosome"
+            def process = "${type}-call-${meta.id}"
+
+            // Return a new tuple with the additional variables
+            return [meta, file, caption, section, process ]
+        }
+
+    QUARTO_FIGURE_DELLY(
+        ch_delly_files
+    )
+
+    ch_section_delly = QUARTO_FIGURE_DELLY.out.quarto_figure
+        .map { meta, section, figure ->
+            tuple(id:meta.sample, section, figure) }
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths]
+        }
+
+    ch_delly_section_caption = ch_bin_sizes
+        .filter { meta, _value ->
+        meta == "Delly" }
+        .map { meta, value ->
+        "Pan chromosome plots showing ${meta} calls with bin size of ${value} kb" }
+
+    QUARTO_DELLY_SECTION(
+        ch_section_delly,
+        ch_delly_section_caption
+    )
+
+
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -120,7 +183,7 @@ workflow FIGENO_REPORT {
             ch_focal_files
         )
 
-        ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
+        ch_section_cnv = QUARTO_FIGURE_QDNASEQ.out.quarto_figure
             .mix(QUARTO_FIGURE_CNLOH.out.quarto_figure)
             .mix(QUARTO_FIGURE_FOCAL.out.quarto_figure)
             .groupTuple()
@@ -128,7 +191,7 @@ workflow FIGENO_REPORT {
                 [id, section[0], filePaths]
             }
     } else {
-        ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
+        ch_section_cnv = QUARTO_FIGURE_QDNASEQ.out.quarto_figure
     }
 
     QUARTO_CNV_SECTION(
@@ -244,7 +307,6 @@ workflow FIGENO_REPORT {
             tuple(meta_refined, meta, figure, type)
         }
         .join(ch_fusion_stats)
-        .view()
         .map { _meta, old_meta, file, type, support, sv ->
         CreateSVInput(old_meta, file, type, support, sv)
         }
@@ -312,6 +374,7 @@ workflow FIGENO_REPORT {
         .mix(QUARTO_FUSION_SECTION.out.quarto_section)
         .mix(QUARTO_SV_SECTION.out.quarto_section)
         .mix(QUARTO_TARGETS_SECTION.out.quarto_section)
+        .mix(QUARTO_DELLY_SECTION.out.quarto_section)
 
     emit:
     sections = ch_sections

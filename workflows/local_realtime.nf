@@ -49,11 +49,12 @@ workflow LOCAL_REALTIME {
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
+    ch_id
 
     main:
 
-    ch_versions = Channel.empty()
-    ch_sections = Channel.empty()
+    ch_versions = channel.empty()
+    ch_sections = channel.empty()
 
     // Branch by tumor type
     ch_tumor_type = tumor_type
@@ -173,17 +174,20 @@ workflow LOCAL_REALTIME {
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
-            targets
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs
         )
 
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
-            bed
+            bed,
+            ref
         )
 
         // Placeholders for report
-        ch_subchrom_focal = Channel.empty()
-        ch_subchrom_plot = Channel.empty()
+        ch_subchrom_focal = channel.empty()
+        ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
             .mix(MAPPING_T2T.out.versions)
@@ -221,12 +225,15 @@ workflow LOCAL_REALTIME {
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
-            targets
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs
         )
 
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
-            bed
+            bed,
+            ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
@@ -238,8 +245,8 @@ workflow LOCAL_REALTIME {
         )
 
         // Placeholders for report
-        ch_subchrom_focal = Channel.empty()
-        ch_subchrom_plot = Channel.empty()
+        ch_subchrom_focal = channel.empty()
+        ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
@@ -261,12 +268,15 @@ workflow LOCAL_REALTIME {
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
-            targets
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs
         )
 
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
-            bed
+            bed,
+            ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
@@ -298,10 +308,10 @@ workflow LOCAL_REALTIME {
         )
 
         ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
-            .mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+            //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
 
         ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
-            .mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
 
         ch_versions = ch_versions
             .mix(SUBCHROM_CALL.out.versions)
@@ -330,19 +340,25 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE.out.coverage_plot
     )
 
-    ch_binsize_qdnaseq = Channel.of(params.qdnaseq_binsize)
+    ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
         .map { value ->
         def meta = "qDNAseq"
         tuple(meta, value) }
-    ch_binsize_subchrom = Channel.of(params.subchrom_binsize)
+    ch_binsize_subchrom = channel.of(params.subchrom_binsize)
         .map { value ->
         def meta = "Subchrom"
         tuple(meta, value) }
+    ch_binsize_delly = channel.of(params.delly_bin_size)
+        .map { value ->
+        def meta = "Delly"
+        tuple(meta, value) }
     ch_binsizes = ch_binsize_qdnaseq
         .mix(ch_binsize_subchrom)
+        .mix(ch_binsize_delly)
 
     FIGENO_REPORT(
         VARIANT_PROCESS.out.circos_plot,
+        VARIANT_PROCESS.out.panchr_plot,
         ch_binsizes,
         VARIANT_PROCESS.out.sv_plot,
         VARIANT_PROCESS.out.fusion_plot,
@@ -364,12 +380,10 @@ workflow LOCAL_REALTIME {
         .mix(ADAPTIVE_REPORT.out.sections)
         .mix(FIGENO_REPORT.out.sections)
 
-    bam_input = MAPPING_HG.out.bam
-
-    ch_mode = Channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
+    ch_mode = channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
 
     MIDNIGHT_REPORT(
-        bam_input,
+        ch_id,
         ch_sections,
         ch_versions,
         ch_mode

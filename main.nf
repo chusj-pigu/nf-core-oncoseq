@@ -42,6 +42,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     basecall_model  // channel : basecalling model used with dorado
     ch_clin_database            // channel : from path, vcf containing the ClinVar database for annotating vcf
     sv_targets              // channel : list of genes with their position to represent in Figeno
+    ch_id
 
     main:
 
@@ -51,26 +52,28 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
 
     if (params.realtime == null) {
         ADAPTIVE (
-        samplesheet,
-        demux,
-        ref,
-        bed,
-        clairs_model,
-        basecall_model,
-        ch_clin_database,
-        sv_targets
+            samplesheet,
+            demux,
+            ref,
+            bed,
+            clairs_model,
+            basecall_model,
+            ch_clin_database,
+            sv_targets,
+            ch_id
         )
     } else {
         LOCAL_REALTIME (
-        samplesheet,
-        demux,
-        ref,
-        tumor_type,
-        ch_ref_t2t,
-        bed,
-        basecall_model,
-        ch_clin_database,
-        sv_targets
+            samplesheet,
+            demux,
+            ref,
+            tumor_type,
+            ch_ref_t2t,
+            bed,
+            basecall_model,
+            ch_clin_database,
+            sv_targets,
+            ch_id
         )
     }
 }
@@ -88,6 +91,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     minqs
     ichor_bin
     mapq_wig
+    ch_id
 
     main:
 
@@ -105,7 +109,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         minqs,
         ichor_bin,
         mapq_wig,
-
+        ch_id
     )
 }
 
@@ -121,6 +125,7 @@ workflow NFCORE_ONCOSEQ_WGS {
     bed_empty       // channel with empty bed file to trigger subchrom
     sv_targets
     ch_minqs
+    ch_id
 
     main:
 
@@ -136,7 +141,8 @@ workflow NFCORE_ONCOSEQ_WGS {
         ch_clin_database,
         bed_empty,
         sv_targets,
-        ch_minqs
+        ch_minqs,
+        ch_id
     )
 }
 
@@ -192,10 +198,11 @@ workflow {
 
     // channels for chopper and IchorCNA (cfDNA)
 
-    ch_max_len   = channel.of(params.max_length)
-    ch_minqs     = getMinQC(ch_model)
-    ch_ichor_bin = channel.of(params.ichor_bin_size)
-    ch_min_mapq  = channel.of(params.min_mapq_ichor)
+    ch_max_len    = channel.of(params.max_length)
+    ch_minqs      = ch_model.map { model -> getMinQC(model) }
+        .view()
+    ch_ichor_bin  = channel.of(params.ichor_bin_size)
+    ch_min_mapq   = channel.of(params.min_mapq_ichor)
 
     // channel for T2T reference:
 
@@ -219,16 +226,17 @@ workflow {
 
     if ( params.adaptive) {
         NFCORE_ONCOSEQ_ADAPTIVE (
-        ch_input,
-        PIPELINE_INITIALISATION.out.demux_sheet,
-        PIPELINE_INITIALISATION.out.ref_ch,
-        PIPELINE_INITIALISATION.out.tumor_type,
-        ch_ref_t2t,
-        ch_clairs_model,
-        ch_model,
-        ch_clin_database,
-        PIPELINE_INITIALISATION.out.bed_sheet,
-        ch_sv_targets
+            ch_input,
+            PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.ref_ch,
+            PIPELINE_INITIALISATION.out.tumor_type,
+            ch_ref_t2t,
+            ch_clairs_model,
+            ch_model,
+            ch_clin_database,
+            PIPELINE_INITIALISATION.out.bed_sheet,
+            ch_sv_targets,
+            PIPELINE_INITIALISATION.out.id_ch
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
@@ -241,19 +249,21 @@ workflow {
             ch_max_len,
             ch_minqs,
             ch_ichor_bin,
-            ch_min_mapq
+            ch_min_mapq,
+            PIPELINE_INITIALISATION.out.id_ch
         )
     } else if ( params.wgs ) {
         NFCORE_ONCOSEQ_WGS (
-        ch_input,
-        PIPELINE_INITIALISATION.out.demux_sheet,
-        PIPELINE_INITIALISATION.out.ref_ch,
-        ch_clairs_model,
-        ch_model,
-        ch_clin_database,
-        PIPELINE_INITIALISATION.out.bed_sheet,
-        ch_sv_targets,
-        ch_minqs
+            ch_input,
+            PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.ref_ch,
+            ch_clairs_model,
+            ch_model,
+            ch_clin_database,
+            PIPELINE_INITIALISATION.out.bed_sheet,
+            ch_sv_targets,
+            ch_minqs,
+            PIPELINE_INITIALISATION.out.id_ch
         )
     }
     //

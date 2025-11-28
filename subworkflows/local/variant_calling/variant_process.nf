@@ -11,6 +11,7 @@ include { FIGENO_SV_FIGURE as FIGENO_FUSION } from '../../../modules/local/figen
 include { FIGENO_SV_FIGURE as FIGENO_OTHER  } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_TARGETS} from '../../../modules/local/figeno/main.nf'
 include { FIGENO_CIRCOS                     } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_PAN_CHR                    } from '../../../modules/local/figeno/main.nf'
 include { BGZIP_VCF                         } from '../../../modules/local/bcftools/main.nf'
 include { QDNASEQ_PROCESS                   } from '../../../modules/local/vcf_process/main.nf'
 include { modifyMetaId                      } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
@@ -32,6 +33,8 @@ workflow VARIANT_PROCESS {
     qdnaseq_calls
     qdnaseq_segm
     sv_targets
+    delly_cov
+    delly_bed
     main:
 
     // Circos with cnv
@@ -94,6 +97,11 @@ workflow VARIANT_PROCESS {
 
     FIGENO_TARGETS(ch_figeno_targets)
 
+    ch_delly_figeno = delly_cov
+        .join(delly_bed)
+
+    FIGENO_PAN_CHR(ch_delly_figeno)
+
     ch_versions = BCFTOOLS_FILTER_SUPPORT.out.versions
         .mix(BCFTOOLS_FILTER_ID.out.versions)
         .mix(SV_PROCESS.out.versions)
@@ -108,6 +116,7 @@ workflow VARIANT_PROCESS {
     targets_plot        = FIGENO_TARGETS.out.figure
     sv_table            = SV_PROCESS.out.indel_tsv
     fusion_table        = SV_PROCESS.out.fusion_tsv
+    panchr_plot         = FIGENO_PAN_CHR.out.figure
     versions            = ch_versions
 
 }

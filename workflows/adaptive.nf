@@ -59,6 +59,7 @@ workflow ADAPTIVE {
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
+    ch_id
 
     main:
 
@@ -292,7 +293,9 @@ workflow ADAPTIVE {
             SV_PHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
-            targets
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs
         )
 
         ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
@@ -358,11 +361,18 @@ workflow ADAPTIVE {
             .map { value ->
             def meta = "Subchrom"
             tuple(meta, value) }
+        ch_binsize_delly = channel.of(params.delly_bin_size)
+            .map { value ->
+            def meta = "Delly"
+            tuple(meta, value) }
+
         ch_binsizes = ch_binsize_qdnaseq
             .mix(ch_binsize_subchrom)
+            .mix(ch_binsize_delly)
 
         FIGENO_REPORT(
             VARIANT_PROCESS.out.circos_plot,
+            VARIANT_PROCESS.out.panchr_plot,
             ch_binsizes,
             VARIANT_PROCESS.out.sv_plot,
             VARIANT_PROCESS.out.fusion_plot,
@@ -383,17 +393,10 @@ workflow ADAPTIVE {
     ch_sections = ADAPTIVE_REPORT.out.sections
         .mix(FIGENO_REPORT.out.sections)
 
-    bam_input = PHASING_GERMLINE.out.haptag_bam
-        .map { meta, bamfile, bai ->
-            // Restore original sample ID for output naming
-            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_phased', '', '')
-            tuple(meta_restore, bamfile, bai)
-        }
-
     ch_mode = channel.of("Adaptive Sampling")
 
     MIDNIGHT_REPORT(
-        bam_input,
+        ch_id,
         ch_sections,
         ch_versions,
         ch_mode

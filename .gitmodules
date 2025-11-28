@@ -82,10 +82,6 @@
 	path = modules/local/tidehunter
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = tidehunter
-[submodule "modules/local/nanoplot"]
-	path = modules/local/nanoplot
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = nanoplot
 [submodule "modules/local/sturgeon"]
 	path = modules/local/sturgeon
 	url = https://github.com/chusj-pigu/wf-modules
@@ -106,3 +102,7 @@
 	path = modules/local/bedtools
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = bedtools
+[submodule "modules/local/delly"]
+	path = modules/local/delly
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = delly

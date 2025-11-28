@@ -27,6 +27,7 @@ workflow CFDNA {
     minqs
     ichor_bin
     mapq_wig
+    ch_id
 
     main:
 
@@ -154,7 +155,7 @@ workflow CFDNA {
             .mix(MARLIN.out.pred)
 
         CFNDA_REPORT(
-            READS_FILTER.out.read_dist,
+            ch_id,
             READS_FILTER.out.stats,
             MAPPING_HG.out.coverage,
             ICHORCNA_CALLING.out.ichorcna_plot
@@ -171,16 +172,20 @@ workflow CFDNA {
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         */
 
+        ch_classifier_out = CLASSIFIER_REPORT.out.sections
+            .join(ch_id)
+            .map { _meta, section, inputs, quarto, project ->
+                tuple(id:project, section, inputs, quarto) }
+
         // Collect sections from all analysis steps
         ch_sections = CFNDA_REPORT.out.sections
-            .mix(CLASSIFIER_REPORT.out.sections)
+            .mix(ch_classifier_out)
 
-        bam_input = MAPPING_HG.out.bam
 
         ch_mode = channel.of("cfDNA")
 
         MIDNIGHT_REPORT(
-            bam_input,
+            ch_id,
             ch_sections,
             ch_versions,
             ch_mode

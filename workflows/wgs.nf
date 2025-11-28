@@ -35,6 +35,7 @@ workflow WGS {
     bed_empty
     targets                 // channel : list of genes with their position to represent in Figeno
     minqs                   // channel obtained dynamically from params.basecall_model
+    ch_id
 
     main:
 
@@ -141,7 +142,9 @@ workflow WGS {
             SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
-            targets
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs
         )
 
     ch_versions = ch_versions
@@ -170,16 +173,37 @@ workflow WGS {
             //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
 
         ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
-            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)s
+
+        ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
+            .map { value ->
+            def meta = "qDNAseq"
+            tuple(meta, value) }
+        ch_binsize_subchrom = channel.of(params.subchrom_binsize)
+            .map { value ->
+            def meta = "Subchrom"
+            tuple(meta, value) }
+        ch_binsize_delly = channel.of(params.delly_bin_size)
+            .map { value ->
+            def meta = "Delly"
+            tuple(meta, value) }
+
+        ch_binsizes = ch_binsize_qdnaseq
+            .mix(ch_binsize_subchrom)
+            .mix(ch_binsize_delly)
 
         FIGENO_REPORT(
             VARIANT_PROCESS.out.circos_plot,
+            VARIANT_PROCESS.out.panchr_plot,
+            ch_binsizes,
             VARIANT_PROCESS.out.sv_plot,
             VARIANT_PROCESS.out.fusion_plot,
+            VARIANT_PROCESS.out.targets_plot,
+            VARIANT_PROCESS.out.sv_table,
+            VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
             ch_subchrom_focal
         )
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COLLECT SECTIONS
@@ -190,17 +214,10 @@ workflow WGS {
     ch_sections = WGS_REPORT.out.sections
         .mix(FIGENO_REPORT.out.sections)
 
-    bam_input = PHASING_GERMLINE.out.haptag_bam
-        .map { meta, bamfile, bai ->
-            // Restore original sample ID for output naming
-            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_phased', '', '')
-            tuple(meta_restore, bamfile, bai)
-        }
-
     ch_mode = channel.of("WGS")
 
     MIDNIGHT_REPORT(
-        bam_input,
+        ch_id,
         ch_sections,
         ch_versions,
         ch_mode
