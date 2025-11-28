@@ -308,10 +308,10 @@ workflow LOCAL_REALTIME {
         )
 
         ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
-            .mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+            //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
 
         ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
-            .mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
 
         ch_versions = ch_versions
             .mix(SUBCHROM_CALL.out.versions)
