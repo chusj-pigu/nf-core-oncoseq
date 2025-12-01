@@ -75,20 +75,10 @@ workflow PIPELINE_INITIALISATION {
 
     // channels from parameters:
 
-    ch_ubam         = channel.fromPath(params.ubam)
-    ch_bed          = channel.fromPath(params.bed)
-    ch_low_fidelity = channel.fromPath(params.low_fidelity)
+    ch_ubam         = channel.fromPath(params.ubam, checkIfExists: true)
+    ch_bed          = channel.fromPath(params.bed, checkIfExists: true)
+    ch_low_fidelity = channel.fromPath(params.low_fidelity, checkIfExists: true)
     ch_padding      = channel.of(params.padding)
-    ch_ref_set      = channel.fromPath(params.ref)
-                        .toSortedList()
-                        .branch {
-                            empty: (it[0].name == "NOFILE")
-                                return [[], []]
-                            other:true
-                                return it
-                        }
-    ch_ref          = ch_ref_set.empty
-                        .mix(ch_ref_set.other)
     ch_ref_id       = channel.of(params.ref_id)
 
     // Initialize empty channels to fall back on:
@@ -128,7 +118,7 @@ workflow PIPELINE_INITIALISATION {
         .map {
             meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
             if (project && kit && barcode) {
-                tuple(id:project, meta.id, barcode, kit )
+                tuple(id:project, meta.id, barcode, kit)
             } else {
                 tuple()
             }
@@ -141,7 +131,15 @@ workflow PIPELINE_INITIALISATION {
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
                 meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, _bed, _padding, _low_fidelity, purity, filter ->
-                    tuple(meta, purity, filter)
+                if(!purity){
+                    throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
+                }
+                if(!filter){
+                    println "Warning: No filter value provided for sample ${meta.id ?: meta} — defaulting to true (samples will be filtered for fragment length <= 700bp)"
+                    filter = true
+                }
+
+                return tuple(meta, purity, filter)
             }
             .set { ch_cfdna }
 
@@ -191,6 +189,27 @@ workflow PIPELINE_INITIALISATION {
                 tuple(meta, meta.id)
             }
             .set { ch_id }
+
+        /*
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        ERROR MESSAGES
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        */
+
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .combine(ch_bed)
+            .combine(ch_padding)
+            .combine(ch_low_fidelity)
+            .map { meta, project, input, ubam, ref, ref_path ,kit, barcode, tumor_type, bed, padding, low_fidelity, purity, filter, bed_c, padding_c, lf_c ->
+                if (params.adaptive && !padding && padding_c == 20000){
+                    println("Using default padding of 20kb padding around ROI")
+                }
+                if (!bed && bed_c.name == "NO_BED") {
+                    throw new IllegalArgumentException("Missing bed file for adaptive: please provide a bed file containing ROIs")
+                }
+            }
+
     } else {
 
         // Make channel with empty bed file for clair3 calling
@@ -213,6 +232,11 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_id }
     }
 
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Tumor Type
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
 
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
@@ -227,7 +251,41 @@ workflow PIPELINE_INITIALISATION {
 
    ch_tumor_branched.leukemia
         .mix(ch_tumor_branched.other)
+        .view()
         .set { ch_tumor }
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    References files
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
+    if (params.ref == null) {
+        ch_ref = channel.of(params.ref)
+        ch_ref_index = channel.of(params.ref)
+        ch_ref = ch_ref.combine(ch_ref_index)
+    } else {
+        ch_ref = channel.fromPath(params.ref, checkIfExists:true)
+            .map { ref ->
+                def index = file("${ref}.fai")
+                if( !index.exists() )
+                    throw new IllegalArgumentException("Missing index: ${index}")
+                tuple(file(ref), index)
+            }
+    }
+
+    // Throw error if no reference is provided
+
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .combine(ch_ref)
+        .combine(ch_ref_id)
+        .map {
+            meta, project, _input, _ubam, ref, ref_path ,kit, _barcode, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, ref_index, ref_id_c ->
+            if(!ref_path && ref_c == null) {
+                throw new IllegalArgumentException("No reference file provided, please provide a reference throuh --ref or samplesheet")
+            }
+        }
 
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
@@ -238,28 +296,44 @@ workflow PIPELINE_INITIALISATION {
             common: (!ref && !ref_path)
                 return [ meta, ref_id_c, ref_c, ref_index ]
             diff: (ref_path && ref)
-                return [ meta, ref, file(ref_path)]
+                def fai = file("${ref_path}.fai")
+                if(!fai.exists())
+                    throw new IllegalArgumentException("Missing index for reference: ${ref} (expected: ${fai})")
+
+                return [ meta, ref, file(ref_path), fai ]
         }
         .set { ch_ref_branched }
 
     ch_ref_branched.diff
-        .set { ch_ref_diff }
-
-    ch_ref_diff
-        .map { meta, ref, ref_path ->
-                def sorted_ref_path = ref_path.flatten().sort { path ->
-                def filename = file(path).name
-                // Give priority to reference files over index files
-                if (filename.endsWith('.fai')) {
-                    return filename.replaceAll('\\.fai$', '') + '_index'
-                } else {
-                    return filename
-                }
-            }
-            tuple(meta, ref, sorted_ref_path).flatten()}
         .mix(ch_ref_branched.common)
         .set { ch_ref }
 
+    // Error message for demultiplexing
+    if (params.demux) {
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .map {
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+                if (project && kit && !barcode ) {
+                    throw new IllegalArgumentException("Please provide barcode for sample ${meta.id ?: meta}")
+                }
+                if (project && !kit && barcode) {
+                    throw new IllegalArgumentException("Please provide multplexing kit used for sample ${meta.id ?: meta}")
+                }
+                if (project && !kit && !barcode) {
+                    throw new IllegalArgumentException("Please provide multplexing kit used and barcode for sample ${meta.id ?: meta}")
+                }
+            }
+    } else {
+        channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .map {
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
+                if (kit || barcode) {
+                    throw new IllegalArgumentException("Please use --demux option for demultiplexing samples")
+                }
+            }
+    }
 
     emit:
     bed_sheet   = ch_adaptive
@@ -435,4 +509,4 @@ def getMinQC(model) {
         } else {
             return 8
         }
-    }
+}
