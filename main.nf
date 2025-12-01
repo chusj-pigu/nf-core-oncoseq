@@ -200,7 +200,6 @@ workflow {
 
     ch_max_len    = channel.of(params.max_length)
     ch_minqs      = ch_model.map { model -> getMinQC(model) }
-        .view()
     ch_ichor_bin  = channel.of(params.ichor_bin_size)
     ch_min_mapq   = channel.of(params.min_mapq_ichor)
 
