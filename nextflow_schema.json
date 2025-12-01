@@ -177,7 +177,7 @@
                     "type": "string",
                     "fa_icon": "far fa-check-circle",
                     "description": "Base URL or local path to location of pipeline test dataset files",
-                    "default": "/workspaces/nf-core-oncoseq/test_data/",
+                    "default": "\"${projectDir}/test_data/\"",
                     "hidden": true
                 },
                 "trace_report_suffix": {
@@ -212,8 +212,8 @@
         },
         "bed": {
             "type": "string",
-            "description": "Bed file used for adaptive mode",
-            "default": "/workspaces/nf-core-oncoseq/assets/NO_BED"
+            "description": "Bed file used for adaptive mode (default is an empty bed file)",
+            "default": "\"${projectDir}/assets/NO_BED\""
         },
         "demux": {
             "type": "boolean",
@@ -273,12 +273,13 @@
         },
         "low_fidelity": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NOLIST",
+            "default": "\"${projectDir}/assets/panel_low_fidelity.txt\"",
             "description": "Path to text file containing list of genes of low fidelity for adaptive sampling (default is empty list)"
         },
         "padding": {
             "type": "integer",
-            "description": "Padding around region of interest for adaptive sampling"
+            "description": "Padding around region of interest for adaptive sampling",
+            "default": 20000
         },
         "skip_basecalling": {
             "type": "boolean",
@@ -331,7 +332,7 @@
         },
         "sv_targets": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NOCSV",
+            "default": "\"${projectDir}/assets/NOCSV\"",
             "description": "List of genes to visualize with Figeno (columns GENE and pos)"
         },
         "skip_mapping": {
@@ -340,7 +341,7 @@
         "ref_t2t": {
             "type": "string",
             "description": "Path to the T2T human reference genome, only used with CNS tumor for running Sturgeon",
-            "default": "/workspaces/nf-core-oncoseq/assets/NOFILE"
+            "default": "\"${projectDir}/assets/NOFILE\""
         },
         "basecall_offline": {
             "type": "boolean",
@@ -367,12 +368,11 @@
         },
         "report_template": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/templates/report_template.qmd"
+            "default": "\"${projectDir}/assets/templates/report_template.qmd\""
         },
         "ref": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/{NOFILE, NOLIST}",
-            "description": "Glob of path to reference genome and it's index, use if same reference is to be used for all samples"
+            "description": "Path to reference genome (index must be in same directory), use if same reference is to be used for all samples"
         },
         "ref_id": {
             "type": "string",
@@ -381,8 +381,13 @@
         },
         "ubam": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NOFILE",
+            "default": "\"${projectDir}nf-core-oncoseq/assets/NOFILE\"",
             "description": "Placeholder for incomplete ubam, to use basecalling resume, specify path to incomplete ubam in samplesheet"
+        },
+        "delly_bin_size": {
+            "type": "integer",
+            "default": 50000,
+            "description": "Bin size to use with Delly CNV calling"
         }
     },
     "required": ["clin_database"]
