@@ -3,16 +3,17 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CLAIR3_CALL                  } from '../../../modules/local/clair3/main.nf'
-include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
-include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
-include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX               } from '../../../modules/local/bcftools/main.nf'
-include { paramsSummaryMap             } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
-include { modifyMetaId                 } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
+include { CLAIR3_CALL                     } from '../../../modules/local/clair3/main.nf'
+include { SNPEFF_ANNOTATE                 } from '../../../modules/local/snpeff/main.nf'
+include { SNPSIFT_ANNOTATE                } from '../../../modules/local/snpeff/main.nf'
+include { BGZIP_VCF as BGZIP_VCF_REALTIME } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_VCF_INTER    } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX                  } from '../../../modules/local/bcftools/main.nf'
+include { paramsSummaryMap                } from 'plugin/nf-schema'
+include { paramsSummaryMultiqc            } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML          } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText          } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { modifyMetaId                    } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -109,18 +110,26 @@ workflow CLAIR3_CALLING {
 
     // Compress and index vcf :
 
-    BGZIP_VCF(ch_vcf_final)
+    if (params.realtime == null) {
+        BGZIP_VCF_INTER(ch_vcf_final)
+        ch_vcf_zip = BGZIP_VCF_INTER.out.vcf_gz
+        ch_versions = BGZIP_VCF_INTER.out.versions
+    } else {
+        BGZIP_VCF_REALTIME(ch_vcf_final)
+        ch_vcf_zip = BGZIP_VCF_REALTIME.out.vcf_gz
+        ch_versions = BGZIP_VCF_REALTIME.out.versions
+    }
 
-    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
+    BCFTOOLS_INDEX(ch_vcf_zip)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         COLLECT VERSIONS
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
-    ch_versions = CLAIR3_CALL.out.versions
+    ch_versions = ch_versions
+            .mix(CLAIR3_CALL.out.versions)
             .mix(SNPEFF_ANNOTATE.out.versions)
-            .mix(BGZIP_VCF.out.versions)
             .mix(BCFTOOLS_INDEX.out.versions)
 
     emit:
