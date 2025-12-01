@@ -135,7 +135,7 @@ workflow PIPELINE_INITIALISATION {
                     throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
                 }
                 if(!filter){
-                    println "Warning: No filter value provided for sample ${meta.id ?: meta} — defaulting to true (samples will be filtered for fragment length <= 700bp)"
+                    log.warn("Warning: No filter value provided for sample ${meta.id ?: meta} — defaulting to true (samples will be filtered for fragment length <= 700bp)")
                     filter = true
                 }
 
@@ -203,7 +203,7 @@ workflow PIPELINE_INITIALISATION {
             .combine(ch_low_fidelity)
             .map { meta, project, input, ubam, ref, ref_path ,kit, barcode, tumor_type, bed, padding, low_fidelity, purity, filter, bed_c, padding_c, lf_c ->
                 if (params.adaptive && !padding && padding_c == 20000){
-                    println("Using default padding of 20kb padding around ROI")
+                    log.warn("Using default padding of 20kb padding around ROI")
                 }
                 if (!bed && bed_c.name == "NO_BED") {
                     throw new IllegalArgumentException("Missing bed file for adaptive: please provide a bed file containing ROIs")
@@ -251,7 +251,6 @@ workflow PIPELINE_INITIALISATION {
 
    ch_tumor_branched.leukemia
         .mix(ch_tumor_branched.other)
-        .view()
         .set { ch_tumor }
 
     /*
