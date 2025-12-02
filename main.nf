@@ -92,6 +92,10 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     ichor_bin
     mapq_wig
     ch_id
+    basecall_model          // channel: model for basecalling
+    ch_clin_database        // channel: clinical database for variant annotation
+    bed                     // channel: bed file used for adaptive sampling regions
+    targets
 
     main:
 
@@ -109,7 +113,11 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         minqs,
         ichor_bin,
         mapq_wig,
-        ch_id
+        ch_id,
+        basecall_model,
+        ch_clin_database,
+        bed,
+        targets
     )
 }
 
@@ -191,7 +199,13 @@ workflow {
 
    // channels for SNP calling
     ch_clairs_model = channel.of(params.clairsto_model)
-    ch_clin_database = channel.fromPath(params.clin_database)
+    ch_clin_database = channel.fromPath(params.clin_database, checkIfExists:true)
+            .map { db ->
+                def index = file("${db}.tbi")
+                if( !index.exists() )
+                    throw new IllegalArgumentException("Missing index: ${index}")
+                tuple(file(db), index)
+            }
 
     // channel for sv gene targets
     ch_sv_targets = channel.fromPath(params.sv_targets)
@@ -249,7 +263,11 @@ workflow {
             ch_minqs,
             ch_ichor_bin,
             ch_min_mapq,
-            PIPELINE_INITIALISATION.out.id_ch
+            PIPELINE_INITIALISATION.out.id_ch,
+            ch_model,
+            ch_clin_database,
+            PIPELINE_INITIALISATION.out.bed_sheet,
+            ch_sv_targets
         )
     } else if ( params.wgs ) {
         NFCORE_ONCOSEQ_WGS (
