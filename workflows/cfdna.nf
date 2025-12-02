@@ -5,14 +5,18 @@ include { MAPPING as MAPPING_HG  } from '../subworkflows/local/mapping/mapping'
 include { MAPPING as MAPPING_T2T } from '../subworkflows/local/mapping/mapping'
 include { TIDEHUNTER_CONCENSUS   } from '../subworkflows/local/read_processing/tidehunter'
 include { CNV_CALLING            } from '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { SV_CALLING             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { CLAIR3_CALLING         } from '../subworkflows/local/variant_calling/clair3_calling.nf'
+include { VARIANT_PROCESS        } from  '../subworkflows/local/variant_calling/variant_process.nf'
 include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/ichor_calling.nf'
 include { MARLIN                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 
 // Reporting
-include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
-include { CFNDA_REPORT    } from '../subworkflows/local/report/cfdna.nf'
+include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
+include { CFNDA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
 include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
+include { FIGENO_REPORT        } from '../subworkflows/local/report/variants.nf'
 
 workflow CFDNA {
 
@@ -28,6 +32,10 @@ workflow CFDNA {
     ichor_bin
     mapq_wig
     ch_id
+    basecall_model          // channel: model for basecalling
+    ch_clin_database        // channel: clinical database for variant annotation
+    bed                     // channel: bed file used for adaptive sampling regions
+    targets
 
     main:
 
@@ -101,6 +109,35 @@ workflow CFDNA {
             ref_t2t
         )
 
+        // Run snp calling only for higher coverage samples
+        ch_coverage = MAPPING_HG.out.coverage
+            .map { meta, table ->
+                def lines = table.readLines()
+                def cov = lines[5].tokenize('\t')[1].toDouble()
+                tuple(meta, cov)
+            }
+            .branch {
+                meta, cov ->
+                high: cov >= 10
+                 return meta
+            }
+
+        ch_high_cov_bam = ch_coverage.high
+            .join(MAPPING_HG.out.bam)
+
+        CLAIR3_CALLING (
+            ch_high_cov_bam,
+            ref,
+            basecall_model,
+            ch_clin_database,
+            bed
+        )
+
+        SV_CALLING(
+            MAPPING_HG.out.bam,
+            ref
+        )
+
         // Run Marlin on leukemia samples only:
         ch_marlin_bam = MAPPING_HG.out.bam
             .join(ch_tumor_type.leukemia)
@@ -126,6 +163,52 @@ workflow CFDNA {
             cfdna_samplesheet,
             ichor_bin,
             mapq_wig
+        )
+
+        // Sub reports
+
+        ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
+            .map { value ->
+            def meta = "qDNAseq"
+            tuple(meta, value) }
+        ch_binsize_subchrom = channel.of(params.subchrom_binsize)
+            .map { value ->
+            def meta = "Subchrom"
+            tuple(meta, value) }
+        ch_binsize_delly = channel.of(params.delly_bin_size)
+            .map { value ->
+            def meta = "Delly"
+            tuple(meta, value) }
+
+        ch_binsizes = ch_binsize_qdnaseq
+            .mix(ch_binsize_subchrom)
+            .mix(ch_binsize_delly)
+
+        VARIANT_PROCESS (
+            MAPPING_HG.out.bam,
+            SV_CALLING.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs,
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs
+        )
+
+        // Placeholders for report
+        ch_subchrom_focal = channel.empty()
+        ch_subchrom_plot = channel.empty()
+
+        FIGENO_REPORT(
+            VARIANT_PROCESS.out.circos_plot,
+            VARIANT_PROCESS.out.panchr_plot,
+            ch_binsizes,
+            VARIANT_PROCESS.out.sv_plot,
+            VARIANT_PROCESS.out.fusion_plot,
+            VARIANT_PROCESS.out.targets_plot,
+            VARIANT_PROCESS.out.sv_table,
+            VARIANT_PROCESS.out.fusion_table,
+            ch_subchrom_plot,
+            ch_subchrom_focal
         )
 
         /*
@@ -180,6 +263,7 @@ workflow CFDNA {
         // Collect sections from all analysis steps
         ch_sections = CFNDA_REPORT.out.sections
             .mix(ch_classifier_out)
+            .mix(FIGENO_REPORT.out.sections)
 
 
         ch_mode = channel.of("cfDNA")
