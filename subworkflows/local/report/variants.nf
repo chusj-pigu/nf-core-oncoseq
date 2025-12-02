@@ -124,15 +124,15 @@ workflow FIGENO_REPORT {
             [id, section[0], filePaths]
         }
 
-    ch_delly_section_caption = ch_bin_sizes
-        .filter { meta, _value ->
-        meta == "Delly" }
-        .map { meta, value ->
-        "Pan chromosome plots showing ${meta} calls with bin size of ${value} kb" }
+    // ch_delly_section_caption = ch_bin_sizes
+    //     .filter { meta, _value ->
+    //     meta == "Delly" }
+    //     .map { meta, value ->
+    //     "Pan chromosome plots showing ${meta} calls with bin size of ${value} kb" }
 
     QUARTO_DELLY_SECTION(
         ch_section_delly,
-        ch_delly_section_caption
+        "Pan chromosome plots showing Delly calls with bin size of ${params.delly_bin_size} kb"
     )
 
 
