@@ -40,7 +40,7 @@ workflow MIDNIGHT_REPORT {
             def section = "Versions"
             def process = "versions"
 
-            [versions_out[0], versions_out[2]] + [section, process]
+            [versions_out[0], versions_out[1]] + [section, process]
             }
 
     QUARTO_TEXT(
@@ -54,15 +54,10 @@ workflow MIDNIGHT_REPORT {
         "Software Versions"
     )
 
-    ch_section_vers = QUARTO_SECTION.out.quarto_section
-        .join(ch_id)
-        .map { meta, section, input, qmd, project ->
-            tuple(id:project, section, input, qmd) }
-
 
     // // Add the versions to the channel of sections for every report
 
-    ch_sections = ch_sections.mix(ch_section_vers)
+    ch_sections = ch_sections.mix(QUARTO_SECTION.out.quarto_section)
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -78,15 +73,15 @@ workflow MIDNIGHT_REPORT {
 
     ch_title = ch_id
         .combine(ch_mode)
-        .map { meta, project, mode ->
-            def title = "Oncoseq Pipeline ${mode} Report for ${project}"
-            tuple(id:project, title) }
+        .map { meta, mode ->
+            def title = "Oncoseq Pipeline ${mode} Report for ${meta.id}"
+            tuple(meta, title) }
 
     ch_subtitle = ch_id
         .combine(ch_mode)
-        .map { _meta, project, mode ->
+        .map { meta, mode ->
             def subtitles = "Outputs for the ${mode} branch of the Oncoseq pipeline"
-            tuple(id:project, subtitles)}
+            tuple(meta, subtitles)}
 
     ch_template = channel.fromPath(params.report_template)
 

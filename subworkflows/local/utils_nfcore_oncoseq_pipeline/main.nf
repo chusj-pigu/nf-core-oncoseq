@@ -143,20 +143,6 @@ workflow PIPELINE_INITIALISATION {
             }
             .set { ch_cfdna }
 
-        // Make it possible to merge reports together for cfdna
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .branch { meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
-                individual: (!project)
-                    return tuple(meta, meta.id)
-                common: (project)
-                    return tuple(meta, project) }
-            .set { ch_id_branched }
-
-        ch_id_branched.individual
-            .mix(ch_id_branched.common)
-            .set { ch_id }
-
         // Make channel with empty bed file for clair3 calling
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
@@ -195,13 +181,6 @@ workflow PIPELINE_INITIALISATION {
             .mix(ch_adaptive_branched.bed_diff)
             .set { ch_adaptive }
 
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .map { meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
-                tuple(meta, meta.id)
-            }
-            .set { ch_id }
-
         /*
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         ERROR MESSAGES
@@ -235,13 +214,6 @@ workflow PIPELINE_INITIALISATION {
                 tuple(meta, bed_c, padding_c, lf_c)
             }
             .set { ch_adaptive }
-
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .map { meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
-                tuple(meta, meta.id)
-            }
-            .set { ch_id }
     }
 
     /*
@@ -353,7 +325,6 @@ workflow PIPELINE_INITIALISATION {
     samplesheet = ch_in_samplesheet
     ref_ch      = ch_ref
     cfdna_ch    = ch_cfdna
-    id_ch       = ch_id
     versions    = ch_versions
 }
 

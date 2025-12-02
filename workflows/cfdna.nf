@@ -32,7 +32,6 @@ workflow CFDNA {
     minqs
     ichor_bin
     mapq_wig
-    ch_id
     basecall_model          // channel: model for basecalling
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
@@ -136,7 +135,12 @@ workflow CFDNA {
 
         // Run Subchrom only for 15X samples
 
-        ch_subchrom_meta = ch_coverage.high
+        ch_subchrom_meta = MAPPING_HG.out.coverage
+            .map { meta, table ->
+                def lines = table.readLines()
+                def cov = lines[5].tokenize('\t')[1].toDouble()
+                tuple(meta, cov)
+            }
             .branch { meta, cov ->
                 higher: cov >= 15
                     return meta
@@ -256,7 +260,6 @@ workflow CFDNA {
             .mix(MARLIN.out.pred)
 
         CFNDA_REPORT(
-            ch_id,
             READS_FILTER.out.stats,
             MAPPING_HG.out.coverage,
             ICHORCNA_CALLING.out.ichorcna_plot
@@ -273,18 +276,18 @@ workflow CFDNA {
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         */
 
-        ch_classifier_out = CLASSIFIER_REPORT.out.sections
-            .join(ch_id)
-            .map { _meta, section, inputs, quarto, project ->
-                tuple(id:project, section, inputs, quarto) }
-
         // Collect sections from all analysis steps
         ch_sections = CFNDA_REPORT.out.sections
-            .mix(ch_classifier_out)
+            .mix(CLASSIFIER_REPORT.out.sections)
             .mix(FIGENO_REPORT.out.sections)
 
 
         ch_mode = channel.of("cfDNA")
+
+         // channel id containing only meta
+        ch_id = MAPPING_HG.out.bam
+            .map { meta, _bam, _bai ->
+            meta }
 
         MIDNIGHT_REPORT(
             ch_id,

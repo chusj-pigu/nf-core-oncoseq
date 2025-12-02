@@ -42,7 +42,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     basecall_model  // channel : basecalling model used with dorado
     ch_clin_database            // channel : from path, vcf containing the ClinVar database for annotating vcf
     sv_targets              // channel : list of genes with their position to represent in Figeno
-    ch_id
 
     main:
 
@@ -59,8 +58,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             clairs_model,
             basecall_model,
             ch_clin_database,
-            sv_targets,
-            ch_id
+            sv_targets
         )
     } else {
         LOCAL_REALTIME (
@@ -72,8 +70,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             bed,
             basecall_model,
             ch_clin_database,
-            sv_targets,
-            ch_id
+            sv_targets
         )
     }
 }
@@ -91,7 +88,6 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     minqs
     ichor_bin
     mapq_wig
-    ch_id
     basecall_model          // channel: model for basecalling
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
@@ -113,7 +109,6 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         minqs,
         ichor_bin,
         mapq_wig,
-        ch_id,
         basecall_model,
         ch_clin_database,
         bed,
@@ -133,7 +128,6 @@ workflow NFCORE_ONCOSEQ_WGS {
     bed_empty       // channel with empty bed file to trigger subchrom
     sv_targets
     ch_minqs
-    ch_id
 
     main:
 
@@ -149,8 +143,7 @@ workflow NFCORE_ONCOSEQ_WGS {
         ch_clin_database,
         bed_empty,
         sv_targets,
-        ch_minqs,
-        ch_id
+        ch_minqs
     )
 }
 
@@ -248,8 +241,7 @@ workflow {
             ch_model,
             ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
-            ch_sv_targets,
-            PIPELINE_INITIALISATION.out.id_ch
+            ch_sv_targets
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
@@ -263,7 +255,6 @@ workflow {
             ch_minqs,
             ch_ichor_bin,
             ch_min_mapq,
-            PIPELINE_INITIALISATION.out.id_ch,
             ch_model,
             ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
@@ -279,8 +270,7 @@ workflow {
             ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
-            ch_minqs,
-            PIPELINE_INITIALISATION.out.id_ch
+            ch_minqs
         )
     }
     //

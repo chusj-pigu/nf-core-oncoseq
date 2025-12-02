@@ -35,7 +35,6 @@ workflow WGS {
     bed_empty
     targets                 // channel : list of genes with their position to represent in Figeno
     minqs                   // channel obtained dynamically from params.basecall_model
-    ch_id
 
     main:
 
@@ -215,6 +214,11 @@ workflow WGS {
         .mix(FIGENO_REPORT.out.sections)
 
     ch_mode = channel.of("WGS")
+
+     // channel id containing only meta
+    ch_id = MAPPING.out.bam
+        .map { meta, _bam, _bai ->
+        meta }
 
     MIDNIGHT_REPORT(
         ch_id,

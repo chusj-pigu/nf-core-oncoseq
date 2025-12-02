@@ -49,7 +49,6 @@ workflow LOCAL_REALTIME {
     ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
-    ch_id
 
     main:
 
@@ -381,6 +380,12 @@ workflow LOCAL_REALTIME {
         .mix(FIGENO_REPORT.out.sections)
 
     ch_mode = channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
+
+     // channel id containing only meta
+    ch_id = MAPPING_HG.out.bam
+        .map { meta, _bam, _bai ->
+        meta }
+
 
     MIDNIGHT_REPORT(
         ch_id,
