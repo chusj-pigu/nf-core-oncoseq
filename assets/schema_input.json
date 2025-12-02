@@ -118,8 +118,12 @@
                 "errorMessage": "Aprroximate tumor purity must be provided for each sample in the form of a fraction, from 0 to 1 (1 being 100% pure)."
             },
             "filter": {
-                "type": "boolean",
-                "errorMessage": " Must be set to true to pre-process reads by filtering out longer reads or to false to skip this step"
+                "type": "string",
+                "enum": [
+                    "yes",
+                    "no"
+                ],
+                "errorMessage": "Write yes to pre-process reads by filtering out longer reads or no to skip this step"
             }
         },
         "required": ["sample", "input"]

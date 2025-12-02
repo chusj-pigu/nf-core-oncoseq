@@ -135,8 +135,8 @@ workflow PIPELINE_INITIALISATION {
                     throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
                 }
                 if(!filter){
-                    log.warn("Warning: No filter value provided for sample ${meta.id ?: meta} — defaulting to true (samples will be filtered for fragment length <= 700bp)")
-                    filter = true
+                    log.warn("Warning: No filter value provided for sample ${meta.id ?: meta} — defaulting to yes (samples will be filtered for fragment length <= 700bp)")
+                    filter = "yes"
                 }
 
                 return tuple(meta, purity, filter)

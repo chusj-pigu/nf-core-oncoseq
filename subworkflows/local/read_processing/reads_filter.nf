@@ -73,9 +73,9 @@ workflow READS_FILTER {
         .map { meta, _purity, filter, reads ->
             tuple(meta, reads, filter) }
 
-    ch_samplesheet_to_process = ch_cfdna.branch {
-        to_filter: it[2]                                // Filter column true
-        no_filter: !it[2]                               // Filter column false
+    ch_samplesheet_to_process = ch_cfdna.branch { tup ->
+        to_filter: tup[2] == "yes"                                // Filter column true
+        other: true                                             // Filter column false
     }
 
     ch_reads_tofilt = ch_samplesheet_to_process.to_filter
@@ -85,14 +85,14 @@ workflow READS_FILTER {
         .combine(max_len)
         .combine(minqs)
 
-    ch_reads_nofilt = ch_samplesheet_to_process.no_filter
+    ch_reads_nofilt = ch_samplesheet_to_process.other
         .map { meta, reads, _filter ->
             tuple(meta, reads) }
 
     CHOPPER_LENGTH(ch_reads_tofilt)
 
     ch_reads_tofilt_count = ch_samplesheet_to_process.to_filter
-        .map { meta, reads, filter ->
+        .map { _meta, reads, _filter ->
             reads }
         .count()
 
