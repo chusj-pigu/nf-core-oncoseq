@@ -11,6 +11,7 @@ include { VARIANT_PROCESS        } from  '../subworkflows/local/variant_calling/
 include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/ichor_calling.nf'
 include { MARLIN                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
+include { SUBCHROM_CALL          } from '../subworkflows/local/variant_calling/subchrom_call.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
@@ -56,7 +57,7 @@ workflow CFDNA {
 
         ch_versions = BASECALL_MULTIPLEX.out.versions
 
-    } else if (params.skip_basecalling) {
+    } else if (params.skip_basecalling || params.skip_mapping) {
 
         ch_fastq = samplesheet
 
@@ -133,6 +134,24 @@ workflow CFDNA {
             bed
         )
 
+        // Run Subchrom only for 15X samples
+
+        ch_subchrom_meta = ch_coverage.high
+            .branch { meta, cov ->
+                higher: cov >= 15
+                    return meta
+            }
+
+        ch_subcrhom_bam = ch_subchrom_meta.higher
+            .join(MAPPING_HG.out.bam)
+
+        SUBCHROM_CALL (
+            ch_subcrhom_bam,
+            ref,
+            CLAIR3_CALLING.out.vcf,
+            bed
+        )
+
         SV_CALLING(
             MAPPING_HG.out.bam,
             ref
@@ -194,9 +213,8 @@ workflow CFDNA {
             CNV_CALLING.out.delly_segs
         )
 
-        // Placeholders for report
-        ch_subchrom_focal = channel.empty()
-        ch_subchrom_plot = channel.empty()
+        ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
+        ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
 
         FIGENO_REPORT(
             VARIANT_PROCESS.out.circos_plot,
