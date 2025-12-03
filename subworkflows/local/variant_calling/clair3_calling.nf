@@ -90,10 +90,10 @@ workflow CLAIR3_CALLING {
 
     SNPEFF_ANNOTATE(ch_snp_annotate)
 
-    ch_clin_db = clinic_database.toSortedList()
+    //ch_clin_db = clinic_database.toSortedList()
 
     ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
-        .combine(ch_clin_db)
+        .combine(clinic_database)
 
     SNPSIFT_ANNOTATE(ch_snpsift_annotate)
 
