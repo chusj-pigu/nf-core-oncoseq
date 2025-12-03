@@ -12,6 +12,7 @@ include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/i
 include { CLASSY                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 include { SUBCHROM_CALL          } from '../subworkflows/local/variant_calling/subchrom_call.nf'
+include { ONTIME_RANGE_FILTER    } from '../modules/local/ontime/main.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
@@ -125,14 +126,6 @@ workflow CFDNA {
         ch_high_cov_bam = ch_coverage.high
             .join(MAPPING_HG.out.bam)
 
-        CLAIR3_CALLING (
-            ch_high_cov_bam,
-            ref,
-            basecall_model,
-            ch_clin_database,
-            bed
-        )
-
         // Run Subchrom only for 15X samples
 
         ch_subchrom_meta = MAPPING_HG.out.coverage
@@ -146,11 +139,19 @@ workflow CFDNA {
                     return meta
             }
 
-        ch_subcrhom_bam = ch_subchrom_meta.higher
+        ch_subchrom_bam = ch_subchrom_meta.higher
             .join(MAPPING_HG.out.bam)
 
+        CLAIR3_CALLING (
+            ch_high_cov_bam,
+            ref,
+            basecall_model,
+            ch_clin_database,
+            bed
+        )
+
         SUBCHROM_CALL (
-            ch_subcrhom_bam,
+            ch_subchrom_bam,
             ref,
             CLAIR3_CALLING.out.vcf,
             bed
@@ -161,14 +162,41 @@ workflow CFDNA {
             ref
         )
 
-        // Run Marlin on leukemia samples only:
+        // Run Marlin on leukemia samples only, and subsample for higher coverage:
         ch_marlin_bam = MAPPING_HG.out.bam
             .join(ch_tumor_type.leukemia)
             .map { meta, bam, bai, _tumor ->
                 tuple(meta, bam, bai)}
 
+        ch_coverage = MAPPING_HG.out.coverage
+            .join(ch_tumor_type.leukemia)
+            .map { meta, table, _tumor ->
+                def lines = table.readLines()
+                def cov = lines[5].tokenize('\t')[1].toDouble()
+                tuple(meta, cov)
+            }
+            .branch {
+                meta, cov ->
+                high: cov >= 10
+                 return meta
+                low: cov < 10
+                 return meta
+            }
+
+        ch_in_subsample = ch_coverage.high
+            .join(ch_marlin_bam)
+            .map { meta, bam, index ->
+            tuple(meta, bam, index, 0, 8)}
+
+        ONTIME_RANGE_FILTER(
+            ch_in_subsample
+        )
+
+        ch_in_classy = ONTIME_RANGE_FILTER.out.bam
+            .mix(ch_coverage.low.join(ch_marlin_bam))
+
         CLASSY(
-            ch_marlin_bam,
+            ch_in_classy,
             ref
         )
 
