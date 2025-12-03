@@ -9,7 +9,7 @@ include { SV_CALLING             } from  '../subworkflows/local/variant_calling/
 include { CLAIR3_CALLING         } from '../subworkflows/local/variant_calling/clair3_calling.nf'
 include { VARIANT_PROCESS        } from  '../subworkflows/local/variant_calling/variant_process.nf'
 include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/ichor_calling.nf'
-include { MARLIN                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
+include { CLASSY                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 include { SUBCHROM_CALL          } from '../subworkflows/local/variant_calling/subchrom_call.nf'
 
@@ -167,7 +167,7 @@ workflow CFDNA {
             .map { meta, bam, bai, _tumor ->
                 tuple(meta, bam, bai)}
 
-        MARLIN(
+        CLASSY(
             ch_marlin_bam,
             ref
         )
@@ -243,7 +243,7 @@ workflow CFDNA {
         ch_versions = ch_versions
             .mix(MAPPING_HG.out.versions)
             .mix(MAPPING_T2T.out.versions)
-            .mix(MARLIN.out.versions)
+            .mix(CLASSY.out.versions)
             .mix(STURGEON.out.versions)
             .mix(CNV_CALLING.out.versions)
             .mix(ICHORCNA_CALLING.out.versions)
@@ -254,10 +254,10 @@ workflow CFDNA {
         */
 
         ch_classifiers_plots = STURGEON.out.plot
-            .mix(MARLIN.out.plot)
+            .mix(CLASSY.out.plot)
 
         ch_classifiers_pred = STURGEON.out.pred
-            .mix(MARLIN.out.pred)
+            .mix(CLASSY.out.pred)
 
         CFNDA_REPORT(
             READS_FILTER.out.stats,
