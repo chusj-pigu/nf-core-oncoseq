@@ -14,8 +14,7 @@ include { CLAIRS_TO_CALLING                     } from '../subworkflows/local/va
 include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
 include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
-include { SV_CALLING as SV_PHASED               } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { SV_CALLING                            } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { SUBCHROM_CALL                         } from  '../subworkflows/local/variant_calling/subchrom_call.nf'
 
@@ -39,7 +38,7 @@ include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncos
 //
 include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
 include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
-include { MARLIN                } from '../subworkflows/local/methylation_analysis/marlin.nf'
+include { CLASSY                } from '../subworkflows/local/methylation_analysis/marlin.nf'
 
 //
 // WORKFLOW: Adaptive sequencing analysis pipeline
@@ -120,7 +119,7 @@ workflow ADAPTIVE {
         )
 
         // Structural variant calling using phased BAM
-        SV_PHASED (
+        SV_CALLING (
                 PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                     // Restore original sample ID for output naming
@@ -139,7 +138,7 @@ workflow ADAPTIVE {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            SV_PHASED.out.vcf,
+            SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
             targets
@@ -269,7 +268,7 @@ workflow ADAPTIVE {
 
         // Structural variant calling using phased BAM
         // TODO: find
-        SV_PHASED (
+        SV_CALLING (
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                 // Restore original sample ID for output naming
@@ -289,7 +288,7 @@ workflow ADAPTIVE {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            SV_PHASED.out.vcf,
+            SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
             targets,
@@ -331,7 +330,7 @@ workflow ADAPTIVE {
         .mix(CLAIR3_CALLING.out.versions)
         .mix(PHASING_SOMATIC.out.versions)
         .mix(PHASING_GERMLINE.out.versions)
-        .mix(SV_PHASED.out.versions)
+        .mix(SV_CALLING.out.versions)
         .mix(CNV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
         .mix(SUBCHROM_CALL.out.versions)
