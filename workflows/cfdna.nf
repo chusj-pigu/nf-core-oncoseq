@@ -12,12 +12,12 @@ include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/i
 include { CLASSY                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 include { SUBCHROM_CALL          } from '../subworkflows/local/variant_calling/subchrom_call.nf'
-include { ONTIME_RANGE_FILTER    } from '../modules/local/ontime/main.nf'
+include { SUBSAMPLE_BAM          } from '../subworkflows/local/read_processing/subsample_bam.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
 include { CFNDA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
-include { SUBSAMPLE_BAM        } from '../subworkflows/local/read_processing/subsample_bam.nf'
+include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
 include { FIGENO_REPORT        } from '../subworkflows/local/report/variants.nf'
 
 workflow CFDNA {
