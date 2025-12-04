@@ -17,7 +17,7 @@ include { ONTIME_RANGE_FILTER    } from '../modules/local/ontime/main.nf'
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
 include { CFNDA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
-include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
+include { SUBSAMPLE_BAM        } from '../subworkflows/local/read_processing/subsample_bam.nf'
 include { FIGENO_REPORT        } from '../subworkflows/local/report/variants.nf'
 
 workflow CFDNA {
@@ -186,13 +186,13 @@ workflow CFDNA {
         ch_in_subsample = ch_coverage.high
             .join(ch_marlin_bam)
             .map { meta, bam, index ->
-            tuple(meta, bam, index, 0, 8)}
+            tuple(meta, bam, index, 0, 8)}          // Subsample to first 8h of sequencing to avoid slowing down classification
 
-        ONTIME_RANGE_FILTER(
+        SUBSAMPLE_BAM(
             ch_in_subsample
         )
 
-        ch_in_classy = ONTIME_RANGE_FILTER.out.bam
+        ch_in_classy = SUBSAMPLE_BAM.out.bam
             .mix(ch_coverage.low.join(ch_marlin_bam))
 
         CLASSY(
