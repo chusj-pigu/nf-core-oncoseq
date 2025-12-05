@@ -210,8 +210,6 @@ workflow CLAIRS_TO_CALLING {
     // Combines each annotated VCF with the clinical database (e.g., ClinVar)
     ch_snpsift_annotate = SNPEFF_ANNOTATE.out.vcf
         .combine(clinic_database)
-        // .map { meta, vcf, clin_db, clin_db_idx ->
-        //     prepareForSnpsift(meta, vcf, clin_db, clin_db_idx) }
 
     // Run SNPSift annotation to add clinical significance information to variants
     // Adds ClinVar, OMIM, or other clinical database annotations
