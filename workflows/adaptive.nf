@@ -336,7 +336,8 @@ workflow ADAPTIVE {
                 }
 
             SUBSAMPLE_TIME_BAM(
-                ch_in_subsample_classy
+                ch_in_subsample_classy,
+                'bam'
             )
 
             CLASSY(
