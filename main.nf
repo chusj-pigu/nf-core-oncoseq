@@ -58,7 +58,9 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             clairs_model,
             basecall_model,
             ch_clin_database,
-            sv_targets
+            sv_targets,
+            tumor_type,
+            ch_ref_t2t
         )
     } else {
         LOCAL_REALTIME (
@@ -90,6 +92,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     mapq_wig
     basecall_model          // channel: model for basecalling
     ch_clin_database        // channel: clinical database for variant annotation
+    clairs_model
     bed                     // channel: bed file used for adaptive sampling regions
     targets
 
@@ -111,6 +114,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         mapq_wig,
         basecall_model,
         ch_clin_database,
+        clairs_model,
         bed,
         targets
     )
@@ -128,6 +132,8 @@ workflow NFCORE_ONCOSEQ_WGS {
     bed_empty       // channel with empty bed file to trigger subchrom
     sv_targets
     ch_minqs
+    tumor_type
+    ref_t2t
 
     main:
 
@@ -143,7 +149,9 @@ workflow NFCORE_ONCOSEQ_WGS {
         ch_clin_database,
         bed_empty,
         sv_targets,
-        ch_minqs
+        ch_minqs,
+        tumor_type,
+        ref_t2t
     )
 }
 
@@ -257,6 +265,7 @@ workflow {
             ch_min_mapq,
             ch_model,
             ch_clin_database,
+            ch_clairs_model,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets
         )
@@ -270,7 +279,9 @@ workflow {
             ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
-            ch_minqs
+            ch_minqs,
+            PIPELINE_INITIALISATION.out.tumor_type,
+            ch_ref_t2t
         )
     }
     //
