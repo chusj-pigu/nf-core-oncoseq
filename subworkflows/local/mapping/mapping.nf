@@ -157,7 +157,7 @@ workflow MAPPING {
                 .filter{ meta, bam, bai, ref, ref_fasta ->
                 ref == "t2t" }
                 .map { meta, bam, bai, ref, ref_fasta ->
-                    def end_time = params.adaptive ? 1 : (params.wgs ? 2 : 8)
+                    def end_time = params.adaptive || params.wgs ? 1 : 8
                     tuple(meta, bam, bai, 0, end_time)
                 }
 

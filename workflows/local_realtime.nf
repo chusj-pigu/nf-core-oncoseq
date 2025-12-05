@@ -147,7 +147,6 @@ workflow LOCAL_REALTIME {
             .join(ch_tumor_type.leukemia)
             .map { meta, bam, bai, _tumor ->
                 tuple(meta, bam, bai)}
-            .view()
 
         CLASSY(
             ch_marlin_bam,
