@@ -27,7 +27,6 @@ workflow CLASSY {
 
     ch_classy_in = bam
         .join(ch_ref)
-        .view()
 
     CLASSY_CLASSIFY(ch_classy_in)
 

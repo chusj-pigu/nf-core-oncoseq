@@ -36,7 +36,6 @@ workflow CLASSIFIER_REPORT {
         .map { meta, png, _pdf, type ->
         tuple(meta,png,type)}
         .mix(ch_methylation_plot.filter { _meta, _pdf, type -> type == "Marlin" })
-        .view()
 
     ch_meth_files = ch_plots
         .map { tuple ->
@@ -95,7 +94,6 @@ workflow CLASSIFIER_REPORT {
             def class_type = calls.flatten().first().class_name.toString().replace('::','-')
             tuple(meta.id, calls.flatten().first().lineage, group, class_type, calls.flatten().first().probability, type.flatten().first())
         }
-        .view()
         .collectFile { table ->
             def content = [ table[1] + '\t' + table[2] + '\t' + table[3] + '\t' + table[4] ].join('\n')
             return [ "${table[0]}_score_Marlin.tsv", content + '\n' ]
