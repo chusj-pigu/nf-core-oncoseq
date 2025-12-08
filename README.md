@@ -105,9 +105,12 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
+`samplesheet.csv`:
+
 | sample <br> *(required)* | project <br> *(only with `--demux`)* | input <br> *(required)* | ref <br> *(required if not provided as parameter)* | ref_path <br> *(required if not provided as parameter)* | kit <br> *(only with `--demux`)* | bed <br> *(only with `--adaptive` and if not provided as parameter)* | low_fidelity <br> *(only with `--adaptive` and if not provided as parameter)* | padding <br> *(only with `--adaptive` and if not provided as parameter)* | purity <br> *(only with `--cfdna`)* | filter <br> *(only with `--cfdna`)* | tumor_type <br> *(with `--realtime` only)* |
-|---------------------------|-------------------------|-----------------------|-----------------------------|----------------------------------|------------------------------------|-----------------------------------|------------------------------------------|
-| sample1 | project ID for multiplexed input | path to <br> pod5, fastq or bams | hg38 | Path to reference genome <br>, index must exists in this path | Multiplexing kit <br> used | Path to bed file containing regions targeted by adaptive sampling | List of low fidelity genes in panel | padding used around ROI in bp | Estimated tumor purity <br> (between 0 and 1) | `yes` or `no`, <br> whether to filter out genomic DNA | leukemia, cns or other, <br> will run tumor classifier |
+|---------------------------|-------------------------|-----------------------|-----------------------------|----------------------------------|------------------------------------|--------------------------------------------------------------------------|--------------------------------------------|--------------------------------------------|---------------------------|-----------------------------|-------------------------------------------|
+| sample1 | project ID for multiplexed input | path to <br> pod5, fastq or bams | hg38 | Path to reference genome, <br> index must exist in this path | Multiplexing kit used | Path to BED file containing <br> regions targeted by adaptive sampling | List of low-fidelity genes <br> in panel | Padding used around ROI <br> in bp | Estimated tumor purity <br> (between 0 and 1) | `yes` or `no` — whether to <br> filter out genomic DNA | leukemia, cns or other — <br> will run tumor classifier |
+
 
 
 Each row represents the pod5/fastq/bam directory for one sample, and the reference to map it to.
