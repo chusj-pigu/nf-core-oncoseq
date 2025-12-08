@@ -6,12 +6,15 @@ include { MAPPING as MAPPING_T2T } from '../subworkflows/local/mapping/mapping'
 include { TIDEHUNTER_CONCENSUS   } from '../subworkflows/local/read_processing/tidehunter'
 include { CNV_CALLING            } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { SV_CALLING             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { CLAIRS_TO_CALLING      } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { CLAIR3_CALLING         } from '../subworkflows/local/variant_calling/clair3_calling.nf'
 include { VARIANT_PROCESS        } from  '../subworkflows/local/variant_calling/variant_process.nf'
 include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/ichor_calling.nf'
-include { MARLIN                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
+include { CLASSY                 } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON               } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 include { SUBCHROM_CALL          } from '../subworkflows/local/variant_calling/subchrom_call.nf'
+include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_BAM } from '../subworkflows/local/read_processing/subsample_time.nf'
+include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_FQ  } from '../subworkflows/local/read_processing/subsample_time.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
@@ -34,6 +37,7 @@ workflow CFDNA {
     mapq_wig
     basecall_model          // channel: model for basecalling
     ch_clin_database        // channel: clinical database for variant annotation
+    clairs_model
     bed                     // channel: bed file used for adaptive sampling regions
     targets
 
@@ -94,19 +98,9 @@ workflow CFDNA {
                 other: tumor == "other"
             }
 
-        ch_mapping_t2t = ch_tumor_type.cns
-            .join(ch_fastq_processed)
-            .map { meta, _tumor, input ->
-                tuple(meta, input)}
-
         MAPPING_HG(
             ch_fastq_processed,
             ref
-        )
-
-        MAPPING_T2T(
-            ch_mapping_t2t,
-            ref_t2t
         )
 
         // Run snp calling only for higher coverage samples
@@ -120,18 +114,12 @@ workflow CFDNA {
                 meta, cov ->
                 high: cov >= 10
                  return meta
+                low: cov < 10
+                 return meta
             }
 
         ch_high_cov_bam = ch_coverage.high
             .join(MAPPING_HG.out.bam)
-
-        CLAIR3_CALLING (
-            ch_high_cov_bam,
-            ref,
-            basecall_model,
-            ch_clin_database,
-            bed
-        )
 
         // Run Subchrom only for 15X samples
 
@@ -146,11 +134,26 @@ workflow CFDNA {
                     return meta
             }
 
-        ch_subcrhom_bam = ch_subchrom_meta.higher
+        ch_subchrom_bam = ch_subchrom_meta.higher
             .join(MAPPING_HG.out.bam)
 
+        CLAIR3_CALLING (
+            ch_high_cov_bam,
+            ref,
+            basecall_model,
+            ch_clin_database,
+            bed
+        )
+
+        CLAIRS_TO_CALLING (
+            ch_high_cov_bam,
+            ref,
+            clairs_model,
+            ch_clin_database
+        )
+
         SUBCHROM_CALL (
-            ch_subcrhom_bam,
+            ch_subchrom_bam,
             ref,
             CLAIR3_CALLING.out.vcf,
             bed
@@ -161,15 +164,55 @@ workflow CFDNA {
             ref
         )
 
-        // Run Marlin on leukemia samples only:
+        // Run Marlin on leukemia samples only, and subsample for higher coverage:
         ch_marlin_bam = MAPPING_HG.out.bam
             .join(ch_tumor_type.leukemia)
             .map { meta, bam, bai, _tumor ->
                 tuple(meta, bam, bai)}
 
-        MARLIN(
-            ch_marlin_bam,
+        ch_in_subsample = ch_coverage.high
+            .join(ch_marlin_bam)
+            .map { meta, bam, index ->
+            tuple(meta, bam, index, 0, 8)}          // Subsample to first 8h of sequencing to avoid slowing down classification
+
+        SUBSAMPLE_TIME_BAM(
+            ch_in_subsample,
+            'bam'
+        )
+
+        ch_in_classy = SUBSAMPLE_TIME_BAM.out.bam
+            .mix(ch_coverage.low.join(ch_marlin_bam))
+
+        CLASSY(
+            ch_in_classy,
             ref
+        )
+
+        // Subsample fastq files for sturgeon before mapping to t2t
+
+        ch_in_subsample_fq = ch_tumor_type.cns
+            .join(ch_fastq_processed)
+            .join(ch_coverage.high)
+            .map { meta, _tumor, fastq ->
+                tuple(meta, fastq, 0, 8)}
+
+        SUBSAMPLE_TIME_FQ(
+            ch_in_subsample_fq,
+            'fq'
+        )
+
+        ch_cov_low_cns = ch_tumor_type.cns
+            .join(ch_fastq_processed)
+            .join(ch_coverage.low)
+            .map { meta, _tumor, fastq ->
+                tuple(meta, fastq)}
+
+        ch_in_mapt2t = SUBSAMPLE_TIME_FQ.out.fq
+            .mix(ch_cov_low_cns)
+
+        MAPPING_T2T(
+            ch_in_mapt2t,
+            ref_t2t
         )
 
         STURGEON(
@@ -243,7 +286,7 @@ workflow CFDNA {
         ch_versions = ch_versions
             .mix(MAPPING_HG.out.versions)
             .mix(MAPPING_T2T.out.versions)
-            .mix(MARLIN.out.versions)
+            .mix(CLASSY.out.versions)
             .mix(STURGEON.out.versions)
             .mix(CNV_CALLING.out.versions)
             .mix(ICHORCNA_CALLING.out.versions)
@@ -254,10 +297,10 @@ workflow CFDNA {
         */
 
         ch_classifiers_plots = STURGEON.out.plot
-            .mix(MARLIN.out.plot)
+            .mix(CLASSY.out.plot)
 
         ch_classifiers_pred = STURGEON.out.pred
-            .mix(MARLIN.out.pred)
+            .mix(CLASSY.out.pred)
 
         CFNDA_REPORT(
             READS_FILTER.out.stats,

@@ -106,3 +106,7 @@
 	path = modules/local/delly
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = delly
+[submodule "modules/local/classy"]
+	path = modules/local/classy
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = classy

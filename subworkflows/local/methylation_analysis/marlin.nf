@@ -3,18 +3,15 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { MARLIN_PILEUP  } from '../../../modules/local/marlin/main.nf'             // modkit mpileup
-include { MARLIN_MERGE   } from '../../../modules/local/marlin/main.nf'
-include { MARLIN_PREDICT } from '../../../modules/local/marlin/main.nf'
-include { MARLIN_PLOT    } from '../../../modules/local/marlin/main.nf'
-include { modifyMetaId   } from '../utils_nfcore_oncoseq_pipeline'
+include { CLASSY_CLASSIFY } from '../../../modules/local/classy/main.nf'
+include { modifyMetaId    } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MAIN MAPPING WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow MARLIN {
+workflow CLASSY {
     // Input channels:
     //   fastq_ch: Channel of tuples [meta, reads] (reads can be file or directory)
     //   ref:      Channel of tuples [meta, ref, ref_fasta, ref_fai]
@@ -24,40 +21,26 @@ workflow MARLIN {
 
     main:
 
-    ch_ref_pileup = ref
-        .map { meta, ref_id, ref_fasta, _ref_fai ->
-            tuple(meta, ref_id, ref_fasta) }
+    ch_ref = ref
+        .map { meta, _ref_id, ref_fasta, _ref_fai ->
+            tuple(meta, ref_fasta) }
 
-    ch_pileup_in = bam
-        .join(ch_ref_pileup)
+    ch_classy_in = bam
+        .join(ch_ref)
 
-    MARLIN_PILEUP(ch_pileup_in)
-
-    ch_ref_merge = ref
-        .map { meta, ref_id, _ref_fasta, _ref_fai ->
-            tuple(meta, ref_id )}
-
-    ch_merge_in = MARLIN_PILEUP.out.bedmethyl
-        .join(ch_ref_merge)
-
-    MARLIN_MERGE(ch_merge_in)
-
-    MARLIN_PREDICT(MARLIN_MERGE.out.merged_bedmethyl)
-
-    MARLIN_PLOT(MARLIN_PREDICT.out.pred)
+    CLASSY_CLASSIFY(ch_classy_in)
 
     // Add marlin to type for report
-    ch_type = Channel.of("Marlin")
+    ch_type = channel.of("Marlin")
 
-    ch_marlin_plot = MARLIN_PLOT.out.pred_pdf
+    ch_marlin_plot = CLASSY_CLASSIFY.out.svg
         .combine(ch_type)
 
-    ch_marlin_pred = MARLIN_PREDICT.out.pred
+    ch_marlin_pred = CLASSY_CLASSIFY.out.json
         .combine(ch_type)
 
     // Collect versions from all modules
-    ch_versions = MARLIN_PILEUP.out.versions
-        .mix(MARLIN_PREDICT.out.versions)
+    ch_versions = CLASSY_CLASSIFY.out.versions
 
     emit:
     plot     = ch_marlin_plot                 // TODO: Quarto report

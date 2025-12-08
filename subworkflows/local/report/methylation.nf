@@ -25,6 +25,8 @@ workflow CLASSIFIER_REPORT {
 */
 
     ch_to_convert = ch_methylation_plot
+        .filter { _meta, _pdf, type ->
+            type == "Sturgeon" }
         .map { meta, file, _type ->
             tuple(meta,file)}
     CONVERT_PDF_PNG(ch_to_convert)
@@ -33,6 +35,7 @@ workflow CLASSIFIER_REPORT {
         .join(ch_methylation_plot)
         .map { meta, png, _pdf, type ->
         tuple(meta,png,type)}
+        .mix(ch_methylation_plot.filter { _meta, _pdf, type -> type == "Marlin" })
 
     ch_meth_files = ch_plots
         .map { tuple ->
@@ -83,32 +86,16 @@ workflow CLASSIFIER_REPORT {
     ch_marlin_call = ch_methylation_call
         .filter { _meta, _pdf, type ->
             type == "Marlin" }
-        .map { meta, table, type ->
-        // Split text lines and tokenize by tab or spaces
-            def lines = table.readLines().findAll { it.trim() }      // remove empty lines
-            def headers = lines[0].tokenize('\t')
-            def values  = lines[1].tokenize('\t')
-
-            // Remove two last column (date and cov_cpgs)
-            headers = headers[0..-3]
-            values  = values[0..-3]
-
-            // Build a map of column -> value
-            def data = [headers, values].transpose().collectEntries { h, v ->
-                [(h): v.toDouble()]
-            }
-
-            // Find the max entry
-            def maxEntry = data.max { it.value }
-
-            // Clean up the key name
-            def col = maxEntry.key.replaceAll(/\s*-\s*/, '-')  // "Control - CONTR - INFLAM" → "Control-CONTR-INFLAM"
-            def val = maxEntry.value
-
-            tuple(meta.id, col, val, type)
+        .splitJson(path: 'inference.top_probabilities')
+        .groupTuple()
+        .map {
+            meta, calls, type ->
+            def group = calls.flatten().first().group.toString().replace('::','-')
+            def class_type = calls.flatten().first().class_name.toString().replace('::','-')
+            tuple(meta.id, calls.flatten().first().lineage, group, class_type, calls.flatten().first().probability, type.flatten().first())
         }
         .collectFile { table ->
-            def content = [table[1] + '\t' + table[2] ].join('\n')
+            def content = [ table[1] + '\t' + table[2] + '\t' + table[3] + '\t' + table[4] ].join('\n')
             return [ "${table[0]}_score_Marlin.tsv", content + '\n' ]
         }
         .map { table ->
@@ -123,7 +110,7 @@ workflow CLASSIFIER_REPORT {
     ch_quarto_table = ch_tables
         .map { meta, table, type ->
             def caption = "Most confident ${type} call"
-            def col_names = "Class, Score"
+            def col_names = "Lineage, Group, Class, Score"
             def section = "Methylation"
             def process = "${type}-score-${meta.id}"
             tuple(meta, table, caption, col_names, section, process)

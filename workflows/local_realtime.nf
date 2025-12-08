@@ -11,7 +11,7 @@ include { MAPPING as MAPPING_HG  } from '../subworkflows/local/mapping/mapping'
 include { MAPPING as MAPPING_T2T } from '../subworkflows/local/mapping/mapping'
 
 // Tumor Classifiers
-include { MARLIN                } from '../subworkflows/local/methylation_analysis/marlin.nf'
+include { CLASSY                } from '../subworkflows/local/methylation_analysis/marlin.nf'
 include { STURGEON              } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
 
 // Variant calling subworkflows
@@ -148,7 +148,7 @@ workflow LOCAL_REALTIME {
             .map { meta, bam, bai, _tumor ->
                 tuple(meta, bam, bai)}
 
-        MARLIN(
+        CLASSY(
             ch_marlin_bam,
             ref
         )
@@ -190,14 +190,14 @@ workflow LOCAL_REALTIME {
 
         ch_versions = ch_versions
             .mix(MAPPING_T2T.out.versions)
-            .mix(MARLIN.out.versions)
+            .mix(CLASSY.out.versions)
             .mix(STURGEON.out.versions)
 
         ch_classifiers_plots = STURGEON.out.plot
-            .mix(MARLIN.out.plot)
+            .mix(CLASSY.out.plot)
 
         ch_classifiers_pred = STURGEON.out.pred
-            .mix(MARLIN.out.pred)
+            .mix(CLASSY.out.pred)
 
         CLASSIFIER_REPORT(
             ch_classifiers_plots,
