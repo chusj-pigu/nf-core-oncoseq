@@ -13,7 +13,7 @@ include { WHATSHAP_HAPLOTAG } from '../../../modules/local/whatshap/main.nf'
 include { WHATSHAP_STATS    } from '../../../modules/local/whatshap/main.nf'
 
 // SAMtools for BAM operations
-include { SAMTOOLS_INDEX    } from '../../../modules/local/samtools/main.nf'
+include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_PHASED   } from '../../../modules/local/samtools/main.nf'
 include { SAMTOOLS_FAIDX } from '../../../modules/local/samtools/main.nf'
 
 // Utility function for metadata manipulation
@@ -128,9 +128,9 @@ workflow PHASING_VARIANTS {
     // STEP 4: Create haplotype-tagged BAM files
     // Tag reads in BAM with haplotype information based on phased variants
     WHATSHAP_HAPLOTAG(ch_phased_indexed_vcf)
-    
+
     // Index the haplotype-tagged BAM files
-    SAMTOOLS_INDEX(WHATSHAP_HAPLOTAG.out.bam_hap)
+    SAMTOOLS_INDEX_PHASED(WHATSHAP_HAPLOTAG.out.bam_hap)
 
     // STEP 5: Generate phasing statistics
     // Extract VCF files for statistics calculation
@@ -142,14 +142,14 @@ workflow PHASING_VARIANTS {
     // Calculate phasing statistics (block lengths, switch errors, etc.)
     WHATSHAP_STATS(ch_whatshap_stats_in)
 
-    
+
     ch_versions = WHATSHAP_PHASE.out.versions
         .mix(WHATSHAP_HAPLOTAG.out.versions)
         .mix(WHATSHAP_STATS.out.versions)
         .mix(BCFTOOLS_INDEX.out.versions)
 
     emit:
-    haptag_bam       = SAMTOOLS_INDEX.out.bamfile_index    // Haplotype-tagged BAM files with index
+    haptag_bam       = SAMTOOLS_INDEX_PHASED.out.bamfile_index    // Haplotype-tagged BAM files with index
     phased_vcf       = WHATSHAP_PHASE.out.vcf_phased       // Phased VCF files
     versions         = ch_versions                          // Software versions for reporting
 
