@@ -91,6 +91,8 @@ Tools:
 - SNP calling if ≥10×: *ClairS-TO*, *Clair3*
 - SubChrom if ≥15×
 
+If you want to run IchorCNA as part of the cfDNA mode, please include `-profile ichor_hg38` or `-profile ichor_hg19` depending on your reference genome.
+
 ---
 
 ## Usage
