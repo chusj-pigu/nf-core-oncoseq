@@ -218,22 +218,6 @@ workflow {
     ch_ichor_bin  = channel.of(params.ichor_bin_size)
     ch_min_mapq   = channel.of(params.min_mapq_ichor)
 
-    // channel for T2T reference:
-
-    ch_cns = PIPELINE_INITIALISATION.out.tumor_type
-        .branch { meta, tumor ->
-        tumor: tumor == "cns"
-        }
-
-    ch_ref_t2t_id = channel.of("t2t", "no_index")
-        .toList()
-    ch_ref_t2t = channel.fromPath(params.ref_t2t)
-        .combine(ch_ref_t2t_id)
-        .combine(ch_cns.tumor)
-        .map { ref_path, ref_id, ref_index, meta, _tumor ->
-            tuple(meta, ref_id, ref_path, ref_index)}
-        .transpose()
-
 
    // WORKFLOW: Run main workflow
 
@@ -244,7 +228,7 @@ workflow {
             PIPELINE_INITIALISATION.out.demux_sheet,
             PIPELINE_INITIALISATION.out.ref_ch,
             PIPELINE_INITIALISATION.out.tumor_type,
-            ch_ref_t2t,
+            PIPELINE_INITIALISATION.out.ref_t2t,
             ch_clairs_model,
             ch_model,
             ch_clin_database,
@@ -258,7 +242,7 @@ workflow {
             PIPELINE_INITIALISATION.out.cfdna_ch,
             PIPELINE_INITIALISATION.out.tumor_type,
             PIPELINE_INITIALISATION.out.ref_ch,
-            ch_ref_t2t,
+            PIPELINE_INITIALISATION.out.ref_t2t,
             ch_max_len,
             ch_minqs,
             ch_ichor_bin,
@@ -281,7 +265,7 @@ workflow {
             ch_sv_targets,
             ch_minqs,
             PIPELINE_INITIALISATION.out.tumor_type,
-            ch_ref_t2t
+            PIPELINE_INITIALISATION.out.ref_t2t
         )
     }
     //

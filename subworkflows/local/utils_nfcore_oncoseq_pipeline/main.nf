@@ -228,7 +228,7 @@ workflow PIPELINE_INITIALISATION {
             meta, project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, tumor_type, _bed, _padding, _low_fidelity, _purity, _filter ->
             leukemia: (!tumor_type)
                 return tuple(meta, "leukemia")
-            other: (tumor_type)
+            other: true
                 return tuple(meta, tumor_type)
         }
         .set { ch_tumor_branched }
@@ -291,7 +291,33 @@ workflow PIPELINE_INITIALISATION {
         .mix(ch_ref_branched.common)
         .set { ch_ref }
 
-    // Error message for demultiplexing
+    // T2T reference for cns tumor type
+
+     if (params.ref_t2t == null) {
+        ch_ref_t2t = channel.of(params.ref_t2t)
+    } else {
+        ch_ref_t2t = channel.fromPath(params.ref_t2t, checkIfExists:true)
+    }
+
+    ch_tumor
+        .filter {  meta, tumor_type -> tumor_type == "cns" }
+        .combine(ch_ref_t2t)
+        .map {
+            meta, tumor_type, ref_t2t ->
+            if(ref_t2t == null) {
+                throw new IllegalArgumentException("No T2T reference file provided for CNS tumor type, please provide a T2T reference through --ref_t2t")
+            } else {
+               tuple(meta, "t2t", ref_t2t, "no_index_needed")
+            }
+        }
+        .set { ch_ref_t2t_cns }
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Error messages
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
     if (params.demux) {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
@@ -324,6 +350,7 @@ workflow PIPELINE_INITIALISATION {
     demux_sheet = ch_demux
     samplesheet = ch_in_samplesheet
     ref_ch      = ch_ref
+    ref_t2t     = ch_ref_t2t_cns
     cfdna_ch    = ch_cfdna
     versions    = ch_versions
 }
