@@ -196,17 +196,19 @@ workflow PIPELINE_INITIALISATION {
                 if (params.adaptive && !padding && padding_c == 20000){
                     log.warn("Using default padding of 20kb padding around ROI")
                 }
-                if (!bed && bed_c.name == "NO_BED") {
-                    throw new IllegalArgumentException("Missing bed file for adaptive: please provide a bed file containing ROIs")
+                if (!bed && bed_c.name.contains("CRA-CHUSJ")) {
+                    log.warn("Using default bed file ${bed_c.name}")
                 }
             }
 
     } else {
 
+        ch_bed_empty = channel.fromPath("${projectDir}/assets/NO_BED", checkIfExists: true)
+
         // Make channel with empty bed file for clair3 calling
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .combine(ch_bed)
+            .combine(ch_bed_empty)
             .combine(ch_padding)
             .combine(ch_low_fidelity)
             .map {
@@ -295,6 +297,7 @@ workflow PIPELINE_INITIALISATION {
 
      if (params.ref_t2t == null) {
         ch_ref_t2t = channel.of(params.ref_t2t)
+            .view()
     } else {
         ch_ref_t2t = channel.fromPath(params.ref_t2t, checkIfExists:true)
     }
