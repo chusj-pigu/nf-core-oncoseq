@@ -20,9 +20,9 @@
             },
             "input": {
                 "type": "string",
-                "format": "path",
+                "format": "file-path",
                 "exists": true,
-                "errorMessage": "pod5 or fastq file path must be provided"
+                "errorMessage": "pod5, fastq and bam file path must be provided"
             },
             "ubam": {
                 "type": "string",
