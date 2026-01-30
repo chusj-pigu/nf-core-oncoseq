@@ -212,8 +212,8 @@
         },
         "bed": {
             "type": "string",
-            "description": "Bed file used for adaptive mode (default is an empty bed file)",
-            "default": "\"${projectDir}/assets/NO_BED\""
+            "description": "Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)",
+            "default": "\"${projectDir}/assets/CRA-CHUSJ-targets-panel-v2.bed\""
         },
         "demux": {
             "type": "boolean",
