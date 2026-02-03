@@ -45,6 +45,10 @@ clean_genes <- function(x) {
   })
 }
 
+clamp0 <- function(x) {
+  pmax(as.numeric(x), 0)
+}
+
 extract_gene <- function(x) {
   str_extract(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")
 }
@@ -62,7 +66,13 @@ get_fusion_direction <- function(alt) {
 
 # Extract the chromosome from ALT (e.g. ]CHR7:152401117]T → chr7)
 get_chr_from_alt <- function(alt) {
-  str_to_lower(str_extract(alt, "CHR\\d+|CHRX|CHRY"))
+  chr <- str_extract(alt, "CHR\\d+|CHRX|CHRY")
+
+  case_when(
+    chr == "CHRX" ~ "chrX",
+    chr == "CHRY" ~ "chrY",
+    TRUE ~ str_to_lower(chr)   # CHR1 -> chr1, CHR12 -> chr12, etc.
+  )
 }
 
 process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, window_delins = 20000) {
@@ -89,8 +99,16 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
         BREAKPOINT2 = END
       ) %>%
       mutate(
-        pos = paste0(CHR1, ":", BREAKPOINT1 - window_bnd, "-", BREAKPOINT1 + window_bnd),
-        pos2 = paste0(CHR2, ":", BREAKPOINT2 - window_bnd, "-", BREAKPOINT2 + window_bnd),
+        pos = paste0(
+            CHR1, ":",
+            clamp0(BREAKPOINT1 - window_bnd), "-",
+            clamp0(BREAKPOINT1 + window_bnd)
+        ),
+        pos2 = paste0(
+            CHR2, ":",
+            clamp0(BREAKPOINT2 - window_bnd), "-",
+            clamp0(BREAKPOINT2 + window_bnd)
+        ),
         TYPE = str_extract(X8, "(?<=\\|)[^|]+(?=\\|(HIGH|MODERATE)\\|)"),
         GENE = clean_genes(GENE)
       )
@@ -103,7 +121,11 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
         TYPE = str_extract(X8, "(?<=SVTYPE=)[^;]+"),
         GENE = clean_genes(GENE),
         GENE = ifelse(GENE == "", X1, GENE),
-        pos = paste0(X1, ":", START - window_delins, "-", END + window_delins)
+        pos = paste0(
+            X1, ":",
+            clamp0(START - window_bnd), "-",
+            clamp0(END + window_bnd)
+        ),
       )
   }
 

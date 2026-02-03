@@ -87,19 +87,28 @@ workflow MAPPING {
                 def dir_list = bams instanceof List ? bams.flatten().sort() : [bams]
                 def dir = file(dir_list[0])
 
-                bams = dir.listFiles().findAll { f -> f.name ==~ /.*\.bam$/ }
-                if (bams.size() == 1) {
-                    def bam_single = bams
-                    def bai = dir.listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }
-                    return [tuple(meta, 'single', bams.flatten(), bai.flatten())]
-                } else {
-                    // Case 2: Multiple BAMs → split into chunks of 20 for merging
-                    def counter = 0
-                    return bams.collate(5).collect { chunk ->
-                        counter++
-                        def meta_chunk = modifyMetaId(meta, 'add_suffix', '', '', "_chunk${counter}")
-                        tuple(meta_chunk, 'multi', chunk)
+                if (dir.isDirectory()) {
+                    bams = dir.listFiles().findAll { f -> f.name ==~ /.*\.bam$/ }
+
+                    if (bams.size() == 1) {
+                        def bam_single = bams
+                        def bai = dir.listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }
+                        return [tuple(meta, 'single', bams.flatten(), bai.flatten())]
+                    } else {
+                        // Case 2: Multiple BAMs → split into chunks of 20 for merging
+                        def counter = 0
+                        return bams.collate(5).collect { chunk ->
+                            counter++
+                            def meta_chunk = modifyMetaId(meta, 'add_suffix', '', '', "_chunk${counter}")
+                            tuple(meta_chunk, 'multi', chunk)
+                        }
                     }
+                } else {
+                    def bai = dir.parent.listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }.flatten()
+                    def type = bai.size() > 0 ? 'single' : 'to_index'
+                    def index = bai.size() > 0 ? bai : 'index'
+                    def bam_file = dir.parent.listFiles().findAll { f -> f.name ==~ /.*\.bam$/ }.flatten()
+                    return [tuple(meta, type, bam_file, index)]                   // Only bam file is provided
                 }
             }
             .set { bam_chunks_ch }
@@ -109,6 +118,7 @@ workflow MAPPING {
                 .branch { list ->
                     single: list[1] == 'single'
                     multi: list[1] == 'multi'
+                    to_index: list[1] == 'to_index'
                 }
                 .set { bams_chunk_sep }
 
@@ -139,6 +149,7 @@ workflow MAPPING {
 
             ch_to_index = SAMTOOLS_MERGE_FINAL.out.bamfile
                 .mix(ch_bam_merged.single_bam.map{ meta, size, bam_list -> tuple(meta, bam_list) })
+                .mix(bams_chunk_sep.to_index.map{ meta, _type, bam, bai -> tuple(meta, bam) })
 
             ch_single_bam = bams_chunk_sep.single
                 .map { meta, _type, bam, bai ->
