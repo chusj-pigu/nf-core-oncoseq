@@ -55,9 +55,8 @@ The general steps are as followed:
 
 When `--adaptive` is used, additional steps are included to show region specific coverage
 
-1. **Bam splitting** – [samtools](https://www.htslib.org/)
-2. **Coverage calculation** – [mosdepth](https://github.com/brentp/mosdepth)
-3. **Visualization and reporting** – [R](https://www.r-project.org/)
+1. **Coverage calculation** – [mosdepth](https://github.com/brentp/mosdepth)
+2. **Visualization and reporting** – [R](https://www.r-project.org/)
 
 ---
 
