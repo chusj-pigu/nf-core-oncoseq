@@ -109,9 +109,9 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
-| sample <br> *(required)* | project <br> *(only with `--demux`)* | input <br> *(required)* | ref <br> *(required if not provided as parameter)* | ref_path <br> *(required if not provided as parameter)* | kit <br> *(only with `--demux`)* | bed <br> *(only with `--adaptive` and if not provided as parameter)* | low_fidelity <br> *(only with `--adaptive` and if not provided as parameter)* | padding <br> *(only with `--adaptive` and if not provided as parameter)* | purity <br> *(only with `--cfdna`)* | filter <br> *(only with `--cfdna`)* | tumor_type <br> *(with `--realtime` only)* |
+| sample <br> *(required)* | project <br> *(only with `--demux`)* | input <br> *(required)* | ref <br> *(required if not provided as parameter)* | ref_path <br> *(required if not provided as parameter)* | kit <br> *(only with `--demux`)* | bed <br> *(only with `--adaptive` and if not provided as parameter)* | low_fidelity <br> *(only with `--adaptive` and if not provided as parameter)* | padding <br> *(only with `--adaptive` and if not provided as parameter)* | purity <br> *(only with `--cfdna`)* | filter <br> *(only with `--cfdna`)* | tumor_type <br> |
 |---------------------------|-------------------------|-----------------------|-----------------------------|----------------------------------|------------------------------------|--------------------------------------------------------------------------|--------------------------------------------|--------------------------------------------|---------------------------|-----------------------------|-------------------------------------------|
-| sample1 | project ID for multiplexed input | path to <br> pod5, fastq or bams | hg38 | Path to reference genome, <br> index must exist in this path | Multiplexing kit used | Path to BED file containing <br> regions targeted by adaptive sampling | List of low-fidelity genes <br> in panel | Padding used around ROI <br> in bp | Estimated tumor purity <br> (between 0 and 1) | `yes` or `no` — whether to <br> filter out genomic DNA | leukemia, cns or other — <br> will run tumor classifier |
+| sample1 | project ID for multiplexed input | path to <br> pod5, fastq or bam | hg38 | Path to reference genome, <br> index must exist in this path | Multiplexing kit used | Path to BED file containing <br> regions targeted by adaptive sampling | List of low-fidelity genes <br> in panel | Padding used around ROI <br> in bp | Estimated tumor purity <br> (between 0 and 1) | `yes` or `no` — whether to <br> filter out genomic DNA | leukemia, cns or other — <br> will run tumor classifier |
 
 
 
@@ -136,7 +136,7 @@ nextflow run chusj-pigu/nf-core-oncoseq \
 
 By default, the pipeline will run in adaptive mode starting from basecalling, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
 
-If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files in input. If your input is already mapped with minimap2, use the parameter `--skip_mapping` and provide the path to indexed bam files as input.
+If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files or folder containing fastq files in input. If your input is already mapped with minimap2, use the parameter `--skip_mapping` and provide the path to bam files or folder containing bam files as input.
 
 The parameter `--clin_database` indicates the path to the ClinVar database that [SnpEff](https://pcingola.github.io/SnpEff/) will use to annotate the SNP vcf files. They can be downloaded here with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/ for hg38 or with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/ for hg19.
 
