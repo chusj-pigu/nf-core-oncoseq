@@ -6,7 +6,7 @@
 include { CLAIR3_CALL                     } from '../../../modules/local/clair3/main.nf'
 include { SNPEFF_ANNOTATE                 } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE                } from '../../../modules/local/snpeff/main.nf'
-include { BGZIP_VCF as BGZIP_VCF_REALTIME } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_VCF_FINAL    } from '../../../modules/local/bcftools/main.nf'
 include { BGZIP_VCF as BGZIP_VCF_INTER    } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX                  } from '../../../modules/local/bcftools/main.nf'
 include { paramsSummaryMap                } from 'plugin/nf-schema'
@@ -108,16 +108,16 @@ workflow CLAIR3_CALLING {
     ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
         .mix(ch_snipsift_out)
 
-    // Compress and index vcf :
+    // Compress and index vcf, using different names to publish only when realtime or cfdna is used (no phasing)
 
-    if (params.realtime == null) {
+    if (params.realtime == null || !params.cfdna ) {
         BGZIP_VCF_INTER(ch_vcf_final)
         ch_vcf_zip = BGZIP_VCF_INTER.out.vcf_gz
         ch_versions = BGZIP_VCF_INTER.out.versions
     } else {
-        BGZIP_VCF_REALTIME(ch_vcf_final)
-        ch_vcf_zip = BGZIP_VCF_REALTIME.out.vcf_gz
-        ch_versions = BGZIP_VCF_REALTIME.out.versions
+        BGZIP_VCF_FINAL(ch_vcf_final)
+        ch_vcf_zip = BGZIP_VCF_FINAL.out.vcf_gz
+        ch_versions = BGZIP_VCF_FINAL.out.versions
     }
 
     BCFTOOLS_INDEX(ch_vcf_zip)
