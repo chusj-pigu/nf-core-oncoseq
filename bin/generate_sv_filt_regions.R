@@ -126,7 +126,8 @@ process_variant <- function(df, type = c("BND", "DEL_INS"), window_bnd = 30000, 
             clamp0(START - window_bnd), "-",
             clamp0(END + window_bnd)
         ),
-      )
+      ) %>%
+      filter(LEN <= 1000000)
   }
 
   return(df)
@@ -216,23 +217,29 @@ if (nrow(missing_rows) > 0) {
 }
 
 # Define unwanted suffixes
-#unwanted_suffixes <- c("BAGE2-KMT2C", "chr2", "chr16", "GPR42", "FAM230D", "FAM230F", "RNF213", "FRG1FP", "MPPED1")
+unwanted_suffixes <- c("BAGE2-KMT2C", "BAGE2", "GPR42", "FAM230D", "FAM230F", "RNF213", "FRG1FP", "MPPED1")
 
 # Create the full unwanted names with sample_id prefix
-#unwanted_genes <- paste(sample_id, unwanted_suffixes, sep = "_")
+unwanted_genes <- paste(sample_id, unwanted_suffixes, sep = "_")
 
 # -----------------------------
 # Save to output
 # -----------------------------
 safe_write <- function(df, file) {
   if (nrow(df) > 0) {
-    # df <- df %>%
-    #   filter(!GENE %in% unwanted_genes)
+    if ("GENE" %in% colnames(df)) {
+      df <- df %>%
+        filter(!GENE %in% unwanted_genes)  # Filter based on 'GENE'
+    } else if ("FUSION" %in% colnames(df)) {
+      df <- df %>%
+        filter(!FUSION %in% unwanted_genes)  # Filter based on 'FUSION'
+    }
     write_tsv(df, file, col_names = FALSE, quote = "none")
   } else {
     message(paste("Skipping", file, "- dataframe is empty"))
   }
 }
+
 
 safe_write(vcf_bnd, paste(sample_id, "region_fusions.txt", sep = "_"))
 safe_write(vcf_del_ins, paste(sample_id, "region_indel.txt", sep = "_"))
