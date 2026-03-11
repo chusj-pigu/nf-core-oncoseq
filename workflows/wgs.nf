@@ -84,7 +84,8 @@ workflow WGS {
         )
 
         STURGEON(
-            MAPPING_T2T.out.bam_t2t
+            MAPPING_T2T.out.bam_t2t,
+            ref_t2t
         )
 
     } else if (params.skip_basecalling) {
@@ -117,7 +118,8 @@ workflow WGS {
         )
 
         STURGEON(
-            MAPPING_T2T.out.bam
+            MAPPING_T2T.out.bam,
+            ref_t2t
         )
 
     } else {
@@ -175,7 +177,8 @@ workflow WGS {
         )
 
         STURGEON(
-            MAPPING_T2T.out.bam
+            MAPPING_T2T.out.bam,
+            ref_t2t
         )
     }
 

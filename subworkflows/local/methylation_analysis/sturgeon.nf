@@ -28,6 +28,7 @@ workflow STURGEON {
     //   ref:      Channel of tuples [meta, ref, ref_fasta, ref_fai]
     take:
     bam         // Channel: from mapping workflow, bam + bai
+    ref
 
     main:
 
@@ -41,7 +42,16 @@ workflow STURGEON {
 
     SAMTOOLS_INDEX(ch_bam_adj)
 
-    MODKIT_PILEUP(SAMTOOLS_INDEX.out.bamfile_index)
+    ch_in_modkit_pileup = ref 
+        .map { meta, ref_type, fa, index ->
+        def meta_mod = modifyMetaId(meta, 'add_suffix', '', '', "_mod-adj")
+        tuple(meta_mod, fa)
+        }
+        .join(SAMTOOLS_INDEX.out.bamfile_index)
+        .map { meta, fa, bam, bai ->
+        tuple(meta, bam, bai, fa)}
+
+    MODKIT_PILEUP(ch_in_modkit_pileup)
 
     STURGEON_INPUT_TOBED(MODKIT_PILEUP.out.bedmethyl)
 

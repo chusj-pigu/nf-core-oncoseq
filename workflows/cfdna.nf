@@ -216,7 +216,8 @@ workflow CFDNA {
         )
 
         STURGEON(
-            MAPPING_T2T.out.bam
+            MAPPING_T2T.out.bam,
+            ref_t2t
         )
 
         CNV_CALLING (
