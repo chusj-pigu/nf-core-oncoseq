@@ -20,3 +20,7 @@ test_data/methylation_analysis/*
 .nf-test/
 .Rproj.user
 refs
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
