@@ -22,6 +22,53 @@ include { LOCAL_REALTIME          } from './workflows/local_realtime'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { getMinQC                } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { DORADO_DOWNLOAD_MODEL   } from './modules/local/dorado/main.nf'
+include { STAGE_REFERENCE_FILES as STAGE_CLINICAL_REFERENCE_FILES } from './modules/local/reference_cache/main.nf'
+
+def resolveIndexedVcfFiles(vcfSpec) {
+    def resolved = file(vcfSpec, checkIfExists: true)
+    def resolvedFiles = resolved instanceof List ? resolved : [resolved]
+    def vcf = resolvedFiles.find { resolvedFile ->
+        resolvedFile.name.endsWith('.vcf.gz') || resolvedFile.name.endsWith('.vcf')
+    } ?: resolvedFiles.find { resolvedFile ->
+        !resolvedFile.name.endsWith('.tbi')
+    }
+
+    if (!vcf) {
+        throw new IllegalArgumentException(
+            "Could not resolve a VCF file from clinical database path: ${vcfSpec}"
+        )
+    }
+
+    def index = resolvedFiles.find { resolvedFile ->
+        resolvedFile.name.endsWith('.tbi')
+    } ?: file("${vcfSpec}.tbi", checkIfExists: true)
+
+    tuple(vcf, index)
+}
+
+def normalizeStagedFiles(stagedFiles) {
+    stagedFiles instanceof List ? stagedFiles : [stagedFiles]
+}
+
+def getDoradoModelsDirectory() {
+    params.reference_cache_dir
+        ? file(params.reference_cache_dir)
+            .toAbsolutePath()
+            .resolve('dorado_models')
+            .toString()
+        : null
+}
+
+def getCachedDoradoModelPath(modelName) {
+    def modelsDirectory = getDoradoModelsDirectory()
+    (modelsDirectory && modelName) ? "${modelsDirectory}/${modelName}" : null
+}
+
+def cachedDoradoModelExists(modelName) {
+    def cachedModelPath = getCachedDoradoModelPath(modelName)
+    cachedModelPath ? file(cachedModelPath).exists() : false
+}
 
 
 //
@@ -164,6 +211,13 @@ workflow NFCORE_ONCOSEQ_WGS {
 workflow {
 
     main:
+    if (!params.reference_cache_dir) {
+        throw new IllegalArgumentException(
+            'Please provide --reference_cache_dir to stage reference assets ' +
+                'and Dorado models.'
+        )
+    }
+
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
@@ -184,7 +238,35 @@ workflow {
 
     // Load model channels from parameters:
 
-    ch_model = params.basecall_model ? channel.of(params.basecall_model) : channel.fromPath(params.basecall_model_path)
+    def doradoModelsDirectory = getDoradoModelsDirectory()
+    if (
+        params.basecall_model &&
+        !params.basecall_model_path &&
+        !params.skip_basecalling &&
+        doradoModelsDirectory
+    ) {
+        if (cachedDoradoModelExists(params.basecall_model)) {
+            ch_model = channel.of(
+                getCachedDoradoModelPath(params.basecall_model)
+            )
+        } else {
+            ch_model = channel.of(
+                tuple([id: 'dorado_model'], params.basecall_model,
+                    doradoModelsDirectory)
+            )
+
+            DORADO_DOWNLOAD_MODEL(ch_model)
+
+            ch_model = DORADO_DOWNLOAD_MODEL.out.model
+                .map { _meta, cachedModelPath ->
+                    cachedModelPath.toString()
+                }
+        }
+    } else {
+        ch_model = params.basecall_model
+            ? channel.of(params.basecall_model)
+            : channel.fromPath(params.basecall_model_path)
+    }
     ch_modif = channel.of(params.m_bases)
 
     // Combine the samplesheet with the model :
@@ -200,12 +282,29 @@ workflow {
 
    // channels for SNP calling
     ch_clairs_model = channel.of(params.clairsto_model)
-    ch_clin_database = channel.fromPath(params.clin_database, checkIfExists:true)
-            .map { db ->
-                def index = file("${db}.tbi")
-                if( !index.exists() )
-                    throw new IllegalArgumentException("Missing index: ${index}")
-                tuple(file(db), index)
+    def clinvarDefaultUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz'
+    def clinDatabasePath = (!params.clin_database || params.clin_database == 'ClinVar') ? clinvarDefaultUrl : params.clin_database
+    ch_clin_database = channel.of(clinDatabasePath)
+            .map { dbSpec ->
+                def (vcf, index) = resolveIndexedVcfFiles(dbSpec)
+                tuple([id: 'clinvar'], 'clinvar', [vcf, index])
+            }
+
+    STAGE_CLINICAL_REFERENCE_FILES(ch_clin_database)
+
+    ch_clin_database = STAGE_CLINICAL_REFERENCE_FILES.out.staged
+            .map { _meta, _label, stagedFiles ->
+                def files = normalizeStagedFiles(stagedFiles)
+                def vcf = files.find { stagedFile ->
+                    stagedFile.name.endsWith('.vcf.gz') ||
+                        stagedFile.name.endsWith('.vcf')
+                } ?: files.find { stagedFile ->
+                    !stagedFile.name.endsWith('.tbi')
+                }
+                def index = files.find { stagedFile ->
+                    stagedFile.name.endsWith('.tbi')
+                }
+                tuple(vcf, index)
             }
 
     // channel for sv gene targets

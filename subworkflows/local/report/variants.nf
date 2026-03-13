@@ -121,7 +121,8 @@ workflow FIGENO_REPORT {
             tuple(id:meta.sample, section, figure) }
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths,
+                "Pan chromosome plots showing Delly calls with bin size of ${params.delly_bin_size} kb"]
         }
 
     // ch_delly_section_caption = ch_bin_sizes
@@ -131,8 +132,7 @@ workflow FIGENO_REPORT {
     //     "Pan chromosome plots showing ${meta} calls with bin size of ${value} kb" }
 
     QUARTO_DELLY_SECTION(
-        ch_section_delly,
-        "Pan chromosome plots showing Delly calls with bin size of ${params.delly_bin_size} kb"
+        ch_section_delly
     )
 
 
@@ -188,15 +188,17 @@ workflow FIGENO_REPORT {
             .mix(QUARTO_FIGURE_FOCAL.out.quarto_figure)
             .groupTuple()
             .map { id, section, filePaths ->
-                [id, section[0], filePaths]
+                [id, section[0], filePaths, 'CNV Plots']
             }
     } else {
         ch_section_cnv = QUARTO_FIGURE_QDNASEQ.out.quarto_figure
+            .map { id, section, filePaths ->
+                [id, section, filePaths, 'CNV Plots']
+            }
     }
 
     QUARTO_CNV_SECTION(
-        ch_section_cnv,
-        "CNV Plots"
+        ch_section_cnv
     )
 
 /*
@@ -257,12 +259,12 @@ workflow FIGENO_REPORT {
     ch_section_sv = ch_section_sv
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths,
+                'Other structural variants called by Sniffles2 with > 4 reads support and at least one annotation of high or moderate impact by SnpEff']
         }
 
     QUARTO_SV_SECTION(
-        ch_section_sv,
-        "Other structural variants called by Sniffles2 with > 4 reads support and at least one annotation of high or moderate impact by SnpEff"
+        ch_section_sv
     )
 
 /*
@@ -321,12 +323,12 @@ workflow FIGENO_REPORT {
     ch_section_fusion = ch_section_fusion
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths,
+                'Gene fusions called by Sniffles2 with > 4 reads support and at least one annotation of high or moderate impact by SnpEff']
         }
 
     QUARTO_FUSION_SECTION(
-       ch_section_fusion,
-        "Gene fusions called by Sniffles2 with > 4 reads support and at least one annotation of high or moderate impact by SnpEff"
+       ch_section_fusion
     )
 
 /*
@@ -356,12 +358,12 @@ workflow FIGENO_REPORT {
     ch_section_targets = ch_section_targets
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths,
+                'Genes of interest shown in figeno WITHOUT any Sniffles2 calls with > 4 reads support and at least one annotation of high or moderate impact by SnpEff. SV with length > 1mb is not included in figeno plots.']
         }
 
     QUARTO_TARGETS_SECTION (
-       ch_section_targets,
-        "Genes of interest shown in figeno WITHOUT any Sniffles2 calls with > 4 reads support and at least one annotation of high or moderate impact by SnpEff. SV with length > 1mb is not included in figeno plots."
+       ch_section_targets
     )
 
 /*

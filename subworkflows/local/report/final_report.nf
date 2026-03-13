@@ -49,9 +49,13 @@ workflow MIDNIGHT_REPORT {
 
     ch_section_inputs = QUARTO_TEXT.out.quarto_text
 
+    ch_section_inputs = ch_section_inputs
+        .map { meta, section, section_inputs ->
+            [meta, section, section_inputs, 'Software Versions']
+        }
+
     QUARTO_SECTION(
-        ch_section_inputs,
-        "Software Versions"
+        ch_section_inputs
     )
 
 

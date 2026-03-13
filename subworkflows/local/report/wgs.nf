@@ -133,12 +133,11 @@ workflow WGS_REPORT {
     ch_section_inputs = ch_section_inputs
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths, 'Summary statistics']
         }
 
     QUARTO_SECTION(
-        ch_section_inputs,
-        "Summary statistics"
+        ch_section_inputs
     )
 
 /*

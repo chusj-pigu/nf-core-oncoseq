@@ -126,12 +126,11 @@ workflow CLASSIFIER_REPORT {
     ch_section_meh = ch_section_inputs
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths, 'Methylation based classification']
         }
 
     QUARTO_SECTION(
-        ch_section_meh,
-        "Methylation based classification"
+        ch_section_meh
     )
 
     ch_sections = QUARTO_SECTION.out.quarto_section

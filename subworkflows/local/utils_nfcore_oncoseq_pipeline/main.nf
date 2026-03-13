@@ -16,6 +16,40 @@ include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
+include { STAGE_REFERENCE_FILES as STAGE_GENOME_REFERENCE_FILES } from '../../../modules/local/reference_cache/main.nf'
+include { STAGE_REFERENCE_FILES as STAGE_T2T_REFERENCE_FILES } from '../../../modules/local/reference_cache/main.nf'
+
+def resolveReferenceFiles(refSpec) {
+    def resolved = file(refSpec, checkIfExists: true)
+    def refFiles = resolved instanceof List ? resolved : [resolved]
+    def fasta = refFiles.find { refFile ->
+        refFile.name ==~ /.+\.(fa|fasta|fna)(\.gz)?$/
+    } ?: refFiles.find { refFile ->
+        !refFile.name.endsWith('.fai')
+    }
+
+    if (!fasta) {
+        throw new IllegalArgumentException(
+            "Could not resolve a FASTA file from reference path: ${refSpec}"
+        )
+    }
+
+    def fai = refFiles.find { refFile ->
+        refFile.name.endsWith('.fai')
+    } ?: file("${fasta}.fai")
+
+    if (!fai.exists()) {
+        throw new IllegalArgumentException(
+            "Missing index for reference: ${fasta} (expected: ${fai})"
+        )
+    }
+
+    tuple(fasta, fai)
+}
+
+def normalizeStagedFiles(stagedFiles) {
+    stagedFiles instanceof List ? stagedFiles : [stagedFiles]
+}
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -250,12 +284,9 @@ workflow PIPELINE_INITIALISATION {
         ch_ref_index = channel.of(params.ref)
         ch_ref = ch_ref.combine(ch_ref_index)
     } else {
-        ch_ref = channel.fromPath(params.ref, checkIfExists:true)
-            .map { ref ->
-                def index = file("${ref}.fai")
-                if( !index.exists() )
-                    throw new IllegalArgumentException("Missing index: ${index}")
-                tuple(file(ref), index)
+        ch_ref = channel.of(params.ref)
+            .map { refSpec ->
+                resolveReferenceFiles(refSpec)
             }
     }
 
@@ -281,17 +312,35 @@ workflow PIPELINE_INITIALISATION {
             common: (!ref && !ref_path)
                 return [ meta, ref_id_c, ref_c, ref_index ]
             diff: (ref_path && ref)
-                def fai = file("${ref_path}.fai")
-                if(!fai.exists())
-                    throw new IllegalArgumentException("Missing index for reference: ${ref} (expected: ${fai})")
-
-                return [ meta, ref, file(ref_path), fai ]
+                def (refFasta, refFai) = resolveReferenceFiles(ref_path)
+                return [ meta, ref, refFasta, refFai ]
         }
         .set { ch_ref_branched }
 
     ch_ref_branched.diff
         .mix(ch_ref_branched.common)
         .set { ch_ref }
+
+    ch_ref_stage = ch_ref
+        .map { meta, ref_id, ref_fasta, ref_index ->
+            tuple(meta, ref_id, [ref_fasta, ref_index])
+        }
+
+    STAGE_GENOME_REFERENCE_FILES(ch_ref_stage)
+
+    ch_ref = STAGE_GENOME_REFERENCE_FILES.out.staged
+        .map { meta, ref_id, stagedFiles ->
+            def files = normalizeStagedFiles(stagedFiles)
+            def refFasta = files.find { stagedFile ->
+                stagedFile.name ==~ /.+\.(fa|fasta|fna)(\.gz)?$/
+            } ?: files.find { stagedFile ->
+                !stagedFile.name.endsWith('.fai')
+            }
+            def refFai = files.find { stagedFile ->
+                stagedFile.name.endsWith('.fai')
+            }
+            tuple(meta, ref_id, refFasta, refFai)
+        }
 
     // T2T reference for cns tumor type
 
@@ -314,6 +363,19 @@ workflow PIPELINE_INITIALISATION {
             }
         }
         .set { ch_ref_t2t_cns }
+
+    ch_ref_t2t_stage = ch_ref_t2t_cns
+        .map { meta, ref_id, ref_t2t, ref_index ->
+            tuple(meta, ref_id, [ref_t2t])
+        }
+
+    STAGE_T2T_REFERENCE_FILES(ch_ref_t2t_stage)
+
+    ch_ref_t2t_cns = STAGE_T2T_REFERENCE_FILES.out.staged
+        .map { meta, ref_id, stagedFiles ->
+            def files = normalizeStagedFiles(stagedFiles)
+            tuple(meta, ref_id, files[0], 'no_index_needed')
+        }
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

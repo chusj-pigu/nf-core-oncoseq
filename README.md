@@ -135,7 +135,7 @@ By default, the pipeline will run in adaptive mode starting from basecalling, bu
 
 If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files or folder containing fastq files in input. If your input is already mapped with minimap2, use the parameter `--skip_mapping` and provide the path to bam files or folder containing bam files as input.
 
-The parameter `--clin_database` indicates the path to the ClinVar database that [SnpEff](https://pcingola.github.io/SnpEff/) will use to annotate the SNP vcf files. They can be downloaded here with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/ for hg38 or with https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/ for hg19.
+The parameter `--clin_database` indicates the path or URL to the ClinVar database that [SnpEff](https://pcingola.github.io/SnpEff/) will use to annotate the SNP vcf files. If not provided, the pipeline defaults to `https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz` and expects the corresponding `.tbi` index at the same location. If you need a different ClinVar build, you can use the NCBI GRCh38 or GRCh37 directories and pass the `.vcf.gz` path explicitly.
 
 To run in real time while data is still sequencing, use the `--realtime [INT]` where you must provide the time of sequencing as an integer. **This is only available for the adaptive mode**
 
@@ -162,7 +162,7 @@ For more details and further functionality, please refer to the [usage documenta
 | `--demux`              | `bool`   | `false` | Enable demultiplexing after basecalling.                                    |
 | `--skip_basecalling`   | `bool`   | `false` | Skip basecalling (use FASTQ files as input).                                |
 | `--skip_mapping`       | `bool`   | `false` | Skip basecalling + mapping (use BAM files as input).                        |
-| `--clin_database`      | `path`   | _None_  | Path to clinical database for annotating VCF files (must include index) (**required**).          |
+| `--clin_database`      | `path`   | `https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz`  | Path or URL to clinical database for annotating VCF files. The matching `.tbi` index must be available alongside it.          |
 
 ---
 

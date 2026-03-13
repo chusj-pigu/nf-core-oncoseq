@@ -24,3 +24,6 @@ refs
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+test_data/basecalling/sample*
+modules/local/reference_cache
+references

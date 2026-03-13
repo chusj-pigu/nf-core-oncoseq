@@ -188,7 +188,7 @@ nextflow run nf-core/oncoseq \
 ### Variant Calling Parameters
 
 - `--clairsto_model`: ClairS-TO model for variant calling
-- `--clin_database`: Clinical variant database for annotation (ClinVar)
+- `--clin_database`: Clinical variant database for annotation (defaults to the NCBI GRCh38 ClinVar VCF URL)
 - `--qdnaseq_binsize`: Bin size for CNV calling (default: 500)
 
 ### Adaptive Sampling Parameters

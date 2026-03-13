@@ -236,6 +236,11 @@
             "type": "string",
             "description": "Batch size for basecalling"
         },
+        "minqs": {
+            "type": "integer",
+            "default": 10,
+            "description": "Minimum Phred quality score for filtering reads."
+        },
         "demux_samplesheet": {
             "type": "string",
             "description": "Samplesheet for demultiplexing, first column must be barcode and second column sample"
@@ -261,6 +266,11 @@
         "cfdna": {
             "type": "boolean",
             "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling or wgs mode."
+        },
+        "huge": {
+            "type": "boolean",
+            "default": false,
+            "description": "Scale resource allocations for very large datasets."
         },
         "clairsto_model": {
             "type": "string",
@@ -288,7 +298,7 @@
         "clin_database": {
             "type": "string",
             "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)",
-            "default": "ClinVar"
+            "default": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
         },
         "max_memory": {
             "type": "string",
@@ -304,6 +314,10 @@
             "type": "string",
             "default": "4h",
             "description": "Maximum amount of time any process can take"
+        },
+        "reference_cache_dir": {
+            "type": "string",
+            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation."
         },
         "time_series": {
             "type": "boolean"
