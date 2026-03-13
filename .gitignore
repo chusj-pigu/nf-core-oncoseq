@@ -25,5 +25,4 @@ refs
 .dolt/
 *.db
 test_data/basecalling/sample*
-modules/local/reference_cache
 references
