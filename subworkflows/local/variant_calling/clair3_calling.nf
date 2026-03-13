@@ -9,6 +9,7 @@ include { SNPSIFT_ANNOTATE                } from '../../../modules/local/snpeff/
 include { BGZIP_VCF as BGZIP_VCF_FINAL    } from '../../../modules/local/bcftools/main.nf'
 include { BGZIP_VCF as BGZIP_VCF_INTER    } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX                  } from '../../../modules/local/bcftools/main.nf'
+include { ENSEMBLVEP_VEP                  } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { paramsSummaryMap                } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc            } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML          } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -31,10 +32,10 @@ workflow CLAIR3_CALLING {
     basecall_model       // channel: basecalling model
     clinic_database
     bed
+    vep_cache
     main:
 
-    ch_versions = Channel.empty()
-
+    ch_versions = channel.empty()
 
     ch_bed = bed
         .map { meta,bedfile,_padding,_low_fidelity ->
@@ -47,6 +48,7 @@ workflow CLAIR3_CALLING {
     ch_input_clair3 = bam
         .join(ch_ref)
         .combine(basecall_model)
+        .view()
         .map { meta, bamfile, bai, ref_fasta, ref_fai, model ->
             def model_str = model instanceof Path ? model.getBaseName() : model.toString()
             def model_clair3 = model_str.contains('sup')
@@ -57,6 +59,7 @@ workflow CLAIR3_CALLING {
             tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clair3)
         }
         .join(ch_bed)
+        .view()
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
@@ -64,6 +67,30 @@ workflow CLAIR3_CALLING {
             }
 
     CLAIR3_CALL(ch_input_clair3)
+
+    ch_to_vep = CLAIR3_CALL.out.vcf
+        .map { meta, vcf ->
+            tuple(meta, vcf, [])}
+
+    ch_genome = ch_ref_type
+        .map { meta, refid ->
+            def genome = refid in ["hg38", "GRCh38"] ? "GRCh38" : "GRCh37"
+            return genome }
+        .view()
+
+    ch_fasta = ch_ref
+        .map { meta, ref_fasta, _ref_index ->
+        tuple(meta, ref_fasta)}
+
+    ENSEMBLVEP_VEP(
+        ch_to_vep,
+        ch_genome,
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache,
+        ch_fasta,
+        []
+    )
 
     // Branch ref channel to create database channel
     ch_databases = ch_ref_type.branch {

@@ -89,6 +89,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     basecall_model  // channel : basecalling model used with dorado
     ch_clin_database            // channel : from path, vcf containing the ClinVar database for annotating vcf
     sv_targets              // channel : list of genes with their position to represent in Figeno
+    vep_cache
 
     main:
 
@@ -107,7 +108,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             ch_clin_database,
             sv_targets,
             tumor_type,
-            ch_ref_t2t
+            ch_ref_t2t,
+            vep_cache
         )
     } else {
         LOCAL_REALTIME (
@@ -307,6 +309,10 @@ workflow {
                 tuple(vcf, index)
             }
 
+    // vep cache
+
+    ch_vep_cache = channel.fromPath(params.vep_cache)
+
     // channel for sv gene targets
     ch_sv_targets = channel.fromPath(params.sv_targets)
 
@@ -332,7 +338,8 @@ workflow {
             ch_model,
             ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
-            ch_sv_targets
+            ch_sv_targets,
+            ch_vep_cache
         )
     } else if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (

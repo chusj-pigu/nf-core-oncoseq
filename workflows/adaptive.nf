@@ -67,6 +67,7 @@ workflow ADAPTIVE {
     targets                 // channel : list of genes with their position to represent in Figeno
     tumor_type
     ref_t2t
+    vep_cache
 
     main:
 
@@ -175,7 +176,8 @@ workflow ADAPTIVE {
             ref,
             basecall_model,
             ch_clin_database,
-            bed
+            bed,
+            vep_cache
         )
 
         // Phase somatic variants
@@ -393,7 +395,8 @@ workflow ADAPTIVE {
             ch_ref_for_calling,
             basecall_model,
             ch_clin_database,
-            bed
+            bed,
+            vep_cache
         )
 
         // // Phase somatic variants (uses original mapping output)
