@@ -183,11 +183,11 @@ workflow ADAPTIVE {
         )
 
        // Phase somatic variants
-    //     PHASING_SOMATIC (
-    //         MAPPING_HG.out.bam,
-    //         ref,
-    //         CLAIRS_TO_CALLING.out.vcf_snpeff
-    //     )
+        PHASING_SOMATIC (
+            MAPPING_HG.out.bam,
+            ref,
+            CLAIRS_TO_CALLING.out.vcf_snpeff
+        )
 
     //    // Phase germline variants
         PHASING_GERMLINE (
@@ -411,14 +411,14 @@ workflow ADAPTIVE {
         PHASING_SOMATIC (
             ch_bam_for_calling,
             ch_ref_for_calling,
-            CLAIRS_TO_CALLING.out.vcf
+            CLAIRS_TO_CALLING.out.vcf_snpeff
         )
 
         // Phase germline variants (can use time series BAM if enabled)
         PHASING_GERMLINE (
             ch_bam_for_calling,
             ch_ref_for_calling,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf_snpeff
         )
 
         // Structural variant calling using phased BAM
@@ -486,8 +486,8 @@ workflow ADAPTIVE {
         .mix(MAPPING_HG.out.versions)
         .mix(CLAIRS_TO_CALLING.out.versions)
         .mix(CLAIR3_CALLING.out.versions)
-        //.mix(PHASING_SOMATIC.out.versions)
-        //.mix(PHASING_GERMLINE.out.versions)
+        .mix(PHASING_SOMATIC.out.versions)
+        .mix(PHASING_GERMLINE.out.versions)
         .mix(SV_CALLING.out.versions)
         .mix(CNV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
