@@ -120,3 +120,54 @@ process QDNASEQ_PROCESS {
     ' $segs_bed > ${prefix}_ratio.txt
     """
 }
+
+process ENSEMBL_VEP_TABLE {
+
+    label 'local'
+    label 'process_low'
+    label 'process_single_cpu'
+    label 'process_very_low_memory'
+
+    tag "$meta.id"
+
+    input:
+    tuple val(meta),
+        path(bed)
+
+    output:
+    tuple val(meta),
+        path("*.csv"),
+        emit: csv
+
+    when:
+    bed.size() > 0
+
+    script:
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    """
+    awk -F'\\t' '
+    BEGIN {OFS=","}
+    {
+    # Split CSQ into transcripts
+    split(\$6, transcripts, ",")
+
+    # Split AD into ref/alt
+    split(\$8, ad_vals, ",")
+
+    for(i=1;i<=length(transcripts);i++){
+        split(transcripts[i], f, "|")
+
+        # Handle missing gnomADe_AF
+        af = (f[48]=="" ? "." : f[48])
+
+        # AD_REF = first value, AD_ALT = second value
+        ad_alt = (length(ad_vals)>=2 ? ad_vals[2] : ".")
+
+        print \$1,\$2,\$3,\$4,\$5, \
+            f[2],f[3],f[4],f[7], \
+            f[11],f[12],f[18],af, \
+            \$7,ad_alt
+        }
+    }' ${bed} > ${prefix}_filt.csv
+    """
+}
