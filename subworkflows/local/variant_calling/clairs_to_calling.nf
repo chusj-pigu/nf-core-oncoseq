@@ -9,7 +9,11 @@
 include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/main.nf'
 include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
-include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_FINAL     } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_INTER     } from '../../../modules/local/bcftools/main.nf'
+include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_FILTERVEP            } from '../../../modules/nf-core/ensemblvep/filtervep/main.nf'
 include { paramsSummaryMap             } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -17,8 +21,10 @@ include { methodsDescriptionText       } from '../../../subworkflows/local/utils
 include { modifyMetaId                } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { BCFTOOLS_CONCAT               } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_SORT                 } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_FILTER_REGION                 } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_SNV   } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_INDEL } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_RAW   } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL } from '../../../modules/local/bcftools/main.nf'
 
 /*
@@ -110,10 +116,12 @@ workflow CLAIRS_TO_CALLING {
     ref           // channel: reference genome information from input samplesheet (tuple containing [meta, refid, ref_fasta, ref_fai])
     model         // channel: basecalling model name used for platform-specific optimizations in variant calling
     clinic_database // channel: path to clinical database (e.g., ClinVar) for variant annotation
+    bed
+    vep_cache
     main:
 
     // Initialize empty channel for collecting software versions
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // Extract just the reference FASTA and its index from the reference channel
     ch_ref = ref.map { meta, reference, ref_fasta, ref_fai ->
@@ -129,31 +137,6 @@ workflow CLAIRS_TO_CALLING {
     // Run ClairS-TO variant caller on prepared input
     // Outputs SNV and indel VCFs separately
     CLAIRS_TO_CALL(ch_input_clairs)
-
-    ch_ref_type = ref
-        .map { meta, refid, _ref_fasta, _ref_fai ->
-            tuple(meta, refid) }
-
-    // Branch ref channel to create database channel
-    ch_databases = ch_ref_type.branch {
-        hg38: { _meta, refid -> refid.matches('hg38|GRCh38') }
-        hg19: { _meta, refid -> refid.matches('hg19|GRCh37') }
-        other: true
-            return 'Error'
-    }
-
-    // Generate error if reference is not hg38 nor hg19
-    ch_error = ch_databases.other.map {
-        throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
-    }
-
-    ch_databases_hg38 = ch_databases.hg38
-        .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
-    ch_databases_hg19 = ch_databases.hg19
-        .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
-
-    ch_databases_ref = ch_databases_hg38
-        .mix(ch_databases_hg19)
 
     // Add indel and snv to meta to name index correctly while preserving ts
     ch_snv_to_index = CLAIRS_TO_CALL.out.snv
@@ -187,6 +170,103 @@ workflow CLAIRS_TO_CALLING {
 
     BCFTOOLS_CONCAT(ch_to_concat)
     BCFTOOLS_SORT(BCFTOOLS_CONCAT.out.vcf)
+
+// /*
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//     VCF ANNOTATION
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// */
+
+    if (params.bed != "${projectDir}/assets/NO_BED") {
+
+        BGZIP_INTER(BCFTOOLS_SORT.out.vcf)
+
+        BCFTOOLS_INDEX_RAW(BGZIP_INTER.out.vcf_gz)
+        ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
+            .join(bed)
+        BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
+
+        ch_clairsto_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
+    } else {
+        ch_clairsto_out = BCFTOOLS_SORT.out.vcf
+    }
+
+    ch_ref_type = ref
+        .map { meta, refid, _ref_fasta, _ref_fai ->
+            tuple(meta, refid) }
+
+    // Branch ref channel to create database channel
+    ch_databases = ch_ref_type.branch {
+        hg38: { _meta, refid -> refid.matches('hg38|GRCh38') }
+        hg19: { _meta, refid -> refid.matches('hg19|GRCh37') }
+        other: true
+            return 'Error'
+    }
+
+    ch_vep_hg38 = ch_clairsto_out
+        .join(ch_databases.hg38)
+        .map { meta, vcf, _refid ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_somatic_snp_vep')
+            tuple(new_meta,vcf, [])}
+
+    ch_vep_hg19 = ch_clairsto_out
+        .join(ch_databases.hg19)
+        .map { meta, vcf, _refid ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_somatic_snp_vep')
+            tuple(new_meta,vcf, [])}
+
+    ch_fasta_hg38 = ref
+        .filter { _meta, refid, _ref_fasta, _ref_index ->
+            refid.matches('hg38|GRCh38') }
+        .map { meta, _refid, ref_fasta, _ref_index ->
+            tuple(meta, ref_fasta)}
+
+    ch_fasta_hg19 = ref
+        .filter { _meta, refid, _ref_fasta, _ref_index ->
+            refid.matches('hg19|GRCh37') }
+        .map { meta, _refid, ref_fasta, _ref_index ->
+            tuple(meta, ref_fasta)}
+
+    ENSEMBLVEP_HG38(
+        ch_vep_hg38,
+        "GRCh38",
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache,
+        ch_fasta_hg38,
+        []
+    )
+
+    ENSEMBLVEP_HG19(
+        ch_vep_hg19,
+        "GRCh37",
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache,
+        ch_fasta_hg19,
+        []
+    )
+
+    ch_vep_to_filter = ENSEMBLVEP_HG38.out.vcf
+        .mix(ENSEMBLVEP_HG19.out.vcf)
+
+    ENSEMBLVEP_FILTERVEP(
+        ch_vep_to_filter,
+        []
+    )
+
+    // Generate error if reference is not hg38 nor hg19
+    ch_error = ch_databases.other.map {
+        throw new IllegalArgumentException("Unsupported reference genome: ${it.name}. Currently, only hg38/GRCh38 and hg19/GRCh37 are supported.")
+    }
+
+    ch_databases_hg38 = ch_databases.hg38
+        .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
+    ch_databases_hg19 = ch_databases.hg19
+        .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
+
+    ch_databases_ref = ch_databases_hg38
+        .mix(ch_databases_hg19)
 
 
     ch_snp_annotate = BCFTOOLS_SORT.out.vcf.join(ch_databases_ref)
@@ -232,11 +312,11 @@ workflow CLAIRS_TO_CALLING {
 
     // Compress VCF files using bgzip (produces .vcf.gz files)
     // Bgzip creates block-compressed files that enable random access
-    BGZIP_VCF(ch_vcf_final)
+    BGZIP_FINAL(ch_vcf_final)
 
     // Index compressed VCF files using BCFtools (produces .vcf.gz.tbi files)
     // Indexing allows fast retrieval of variants in specific genomic regions
-    BCFTOOLS_INDEX_FINAL(BGZIP_VCF.out.vcf_gz)
+    BCFTOOLS_INDEX_FINAL(BGZIP_FINAL.out.vcf_gz)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -247,7 +327,7 @@ workflow CLAIRS_TO_CALLING {
     */
     ch_versions = CLAIRS_TO_CALL.out.versions      // Version info from ClairS-TO
             .mix(SNPEFF_ANNOTATE.out.versions)     // Version info from SNPEff
-            .mix(BGZIP_VCF.out.versions)           // Version info from bgzip
+            .mix(BGZIP_FINAL.out.versions)           // Version info from bgzip
             .mix(BCFTOOLS_INDEX_FINAL.out.versions) // Version info from BCFtools index
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -259,7 +339,8 @@ workflow CLAIRS_TO_CALLING {
     */
 
     emit:
-    vcf              = BCFTOOLS_INDEX_FINAL.out.vcf_tbi  // Output compressed & indexed VCF files (tuple with [meta, vcf.gz, vcf.gz.tbi])
+    vcf_snpeff       = BCFTOOLS_INDEX_FINAL.out.vcf_tbi
+    vcf_vep          = ENSEMBLVEP_FILTERVEP.out.output
     versions         = ch_versions                          // Output collected version information for MultiQC and reports
     ch_error                                            // Output error channel for proper error handling
 

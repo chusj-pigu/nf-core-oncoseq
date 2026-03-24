@@ -3,13 +3,17 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CLAIR3_CALL                     } from '../../../modules/local/clair3/main.nf'
-include { SNPEFF_ANNOTATE                 } from '../../../modules/local/snpeff/main.nf'
-include { SNPSIFT_ANNOTATE                } from '../../../modules/local/snpeff/main.nf'
-include { BGZIP_VCF as BGZIP_VCF_FINAL    } from '../../../modules/local/bcftools/main.nf'
-include { BGZIP_VCF as BGZIP_VCF_INTER    } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX                  } from '../../../modules/local/bcftools/main.nf'
-include { ENSEMBLVEP_VEP                  } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { CLAIR3_CALL                             } from '../../../modules/local/clair3/main.nf'
+include { SNPEFF_ANNOTATE                         } from '../../../modules/local/snpeff/main.nf'
+include { SNPSIFT_ANNOTATE                        } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_FILTER_REGION                  } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_VCF_FINAL            } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_VCF_INTER            } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL  } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_RAW    } from '../../../modules/local/bcftools/main.nf'
+include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_FILTERVEP            } from '../../../modules/nf-core/ensemblvep/filtervep/main.nf'
 include { paramsSummaryMap                } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc            } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML          } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -37,10 +41,6 @@ workflow CLAIR3_CALLING {
 
     ch_versions = channel.empty()
 
-    ch_bed = bed
-        .map { meta,bedfile,_padding,_low_fidelity ->
-            tuple(meta,bedfile) }
-
     ch_ref = ref
         .map { meta, _ref, ref_fasta, ref_fai ->
             tuple(meta, ref_fasta, ref_fai) }
@@ -48,7 +48,6 @@ workflow CLAIR3_CALLING {
     ch_input_clair3 = bam
         .join(ch_ref)
         .combine(basecall_model)
-        .view()
         .map { meta, bamfile, bai, ref_fasta, ref_fai, model ->
             def model_str = model instanceof Path ? model.getBaseName() : model.toString()
             def model_clair3 = model_str.contains('sup')
@@ -58,8 +57,7 @@ workflow CLAIR3_CALLING {
                     : { throw new IllegalArgumentException("Unsupported model: ${model}") }()
             tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clair3)
         }
-        .join(ch_bed)
-        .view()
+        .join(bed)
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
@@ -68,29 +66,26 @@ workflow CLAIR3_CALLING {
 
     CLAIR3_CALL(ch_input_clair3)
 
-    ch_to_vep = CLAIR3_CALL.out.vcf
-        .map { meta, vcf ->
-            tuple(meta, vcf, [])}
 
-    ch_genome = ch_ref_type
-        .map { meta, refid ->
-            def genome = refid in ["hg38", "GRCh38"] ? "GRCh38" : "GRCh37"
-            return genome }
-        .view()
+// /*
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//     VCF ANNOTATION
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// */
 
-    ch_fasta = ch_ref
-        .map { meta, ref_fasta, _ref_index ->
-        tuple(meta, ref_fasta)}
+    // Filter for regions inside adaptive bed file
 
-    ENSEMBLVEP_VEP(
-        ch_to_vep,
-        ch_genome,
-        "homo_sapiens",
-        params.vep_version,
-        vep_cache,
-        ch_fasta,
-        []
-    )
+    if (params.bed != "${projectDir}/assets/NO_BED") {
+
+        BCFTOOLS_INDEX_RAW(CLAIR3_CALL.out.vcf)
+        ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
+            .join(bed)
+        BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
+
+        ch_clair3_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
+    } else {
+        ch_clair3_out = CLAIR3_CALL.out.vcf
+    }
 
     // Branch ref channel to create database channel
     ch_databases = ch_ref_type.branch {
@@ -99,6 +94,58 @@ workflow CLAIR3_CALLING {
         other: true
             return 'Error'
     }
+
+    ch_vep_hg38 = ch_clair3_out
+        .join(ch_databases.hg38)
+        .map { meta, vcf, _refid ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep')
+            tuple(new_meta,vcf, [])}
+
+    ch_vep_hg19 = ch_clair3_out
+        .join(ch_databases.hg19)
+        .map { meta, vcf, _refid ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep')
+            tuple(new_meta,vcf, [])}
+
+    ch_fasta_hg38 = ref
+        .filter { _meta, refid, _ref_fasta, _ref_index ->
+            refid.matches('hg38|GRCh38') }
+        .map { meta, _refid, ref_fasta, _ref_index ->
+            tuple(meta, ref_fasta)}
+
+    ch_fasta_hg19 = ref
+        .filter { _meta, refid, _ref_fasta, _ref_index ->
+            refid.matches('hg19|GRCh37') }
+        .map { meta, _refid, ref_fasta, _ref_index ->
+            tuple(meta, ref_fasta)}
+
+    ENSEMBLVEP_HG38(
+        ch_vep_hg38,
+        "GRCh38",
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache,
+        ch_fasta_hg38,
+        []
+    )
+
+    ENSEMBLVEP_HG19(
+        ch_vep_hg19,
+        "GRCh37",
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache,
+        ch_fasta_hg19,
+        []
+    )
+
+    ch_vep_to_filter = ENSEMBLVEP_HG38.out.vcf
+        .mix(ENSEMBLVEP_HG19.out.vcf)
+
+    ENSEMBLVEP_FILTERVEP(
+        ch_vep_to_filter,
+        []
+    )
 
     ch_databases_hg38 = ch_databases.hg38
         .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
@@ -111,7 +158,7 @@ workflow CLAIR3_CALLING {
     ch_snp_annotate = CLAIR3_CALL.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp')
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_snpeff')
             tuple(new_meta, output, database)
         }
 
@@ -147,7 +194,7 @@ workflow CLAIR3_CALLING {
         ch_versions = BGZIP_VCF_FINAL.out.versions
     }
 
-    BCFTOOLS_INDEX(ch_vcf_zip)
+    BCFTOOLS_INDEX_FINAL(ch_vcf_zip)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -157,10 +204,13 @@ workflow CLAIR3_CALLING {
     ch_versions = ch_versions
             .mix(CLAIR3_CALL.out.versions)
             .mix(SNPEFF_ANNOTATE.out.versions)
-            .mix(BCFTOOLS_INDEX.out.versions)
+            .mix(BCFTOOLS_INDEX_FINAL.out.versions)
+            //.mix(ENSEMBLVEP_VEP.out.versions_ensemblvep)
+            //.mix(ENSEMBLVEP_FILTERVEP.out.versions_ensemblvep)
 
     emit:
-    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
+    vcf_snpeff       = BCFTOOLS_INDEX_FINAL.out.vcf_tbi
+    vcf_vep          = ENSEMBLVEP_FILTERVEP.out.output
     versions         = ch_versions
 
 }
