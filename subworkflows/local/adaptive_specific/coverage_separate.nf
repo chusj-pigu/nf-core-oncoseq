@@ -154,8 +154,8 @@ workflow COVERAGE_SEPARATE {
 
 
     emit:
-    coverage_plot       = COVERAGE_PLOT.out.cov_plot_svg           // TODO: QUARTO REPORT
-    coverage_tbl        = COVERAGE_PLOT.out.cov_df                  // TODO: QUARTO REPORT
+    coverage_plot       = COVERAGE_PLOT.out.cov_plot_svg
+    coverage_tbl        = COVERAGE_PLOT.out.cov_df
     split_bed           = REMOVE_PADDING.out.bed
     versions            = ch_versions
 
