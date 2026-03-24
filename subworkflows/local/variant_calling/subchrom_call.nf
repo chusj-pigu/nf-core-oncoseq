@@ -37,7 +37,7 @@ workflow SUBCHROM_CALL {
         ch_panel_bin_processed = ch_panel_bin
     } else {
         ch_panel_bin_processed = ch_panel_bin                   // make a bed channel with a different ID so that subchrom_call_panel is skipped with joined channels
-            .map { _meta,bedfile,_padding,_low_fidelity ->
+            .map { _meta,bedfile ->
                 tuple(id:'skip', bedfile) }
     }
 
