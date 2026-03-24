@@ -162,12 +162,14 @@ workflow ADAPTIVE {
             ref
         )
 
-        // Somatic variant calling using ClairS
+       // Somatic variant calling using ClairS
         CLAIRS_TO_CALLING (
             MAPPING_HG.out.bam,
             ref,
             clairs_model,
-            ch_clin_database
+            ch_clin_database,
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
         )
 
         // Germline variant calling using Clair3
@@ -176,22 +178,22 @@ workflow ADAPTIVE {
             ref,
             basecall_model,
             ch_clin_database,
-            bed,
+            COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )
 
-        // Phase somatic variants
-        PHASING_SOMATIC (
-            MAPPING_HG.out.bam,
-            ref,
-            CLAIRS_TO_CALLING.out.vcf
-        )
+       // Phase somatic variants
+    //     PHASING_SOMATIC (
+    //         MAPPING_HG.out.bam,
+    //         ref,
+    //         CLAIRS_TO_CALLING.out.vcf_snpeff
+    //     )
 
-        // Phase germline variants
+    //    // Phase germline variants
         PHASING_GERMLINE (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf_snpeff
         )
 
         // Structural variant calling using phased BAM
@@ -211,6 +213,9 @@ workflow ADAPTIVE {
             MAPPING_HG.out.bam,
             ref
         )
+
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -219,7 +224,8 @@ workflow ADAPTIVE {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_snp_to_process
         )
 
         ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
@@ -238,7 +244,7 @@ workflow ADAPTIVE {
         SUBCHROM_CALL (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
+            CLAIR3_CALLING.out.vcf_snpeff,
             ch_panel_bin
         )
 
@@ -386,7 +392,9 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             clairs_model,
-            ch_clin_database
+            ch_clin_database,
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
         )
 
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -395,7 +403,7 @@ workflow ADAPTIVE {
             ch_ref_for_calling,
             basecall_model,
             ch_clin_database,
-            bed,
+            COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )
 
@@ -414,7 +422,6 @@ workflow ADAPTIVE {
         )
 
         // Structural variant calling using phased BAM
-        // TODO: find
         SV_CALLING (
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
@@ -432,6 +439,9 @@ workflow ADAPTIVE {
             ch_ref_for_calling
         )
 
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -440,7 +450,8 @@ workflow ADAPTIVE {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_snp_to_process
         )
 
         ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
@@ -475,8 +486,8 @@ workflow ADAPTIVE {
         .mix(MAPPING_HG.out.versions)
         .mix(CLAIRS_TO_CALLING.out.versions)
         .mix(CLAIR3_CALLING.out.versions)
-        .mix(PHASING_SOMATIC.out.versions)
-        .mix(PHASING_GERMLINE.out.versions)
+        //.mix(PHASING_SOMATIC.out.versions)
+        //.mix(PHASING_GERMLINE.out.versions)
         .mix(SV_CALLING.out.versions)
         .mix(CNV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
@@ -525,7 +536,8 @@ workflow ADAPTIVE {
             VARIANT_PROCESS.out.sv_table,
             VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
-            ch_subchrom_focal
+            ch_subchrom_focal,
+            VARIANT_PROCESS.out.snp_table
         )
 
         ch_classifiers_plots = STURGEON.out.plot

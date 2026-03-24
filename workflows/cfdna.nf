@@ -142,15 +142,19 @@ workflow CFDNA {
             ref,
             basecall_model,
             ch_clin_database,
-            bed
+            bed,
+            vep_cache
         )
 
         CLAIRS_TO_CALLING (
             ch_high_cov_bam,
             ref,
             clairs_model,
-            ch_clin_database
+            ch_clin_database,
+            bed,
+            vep_cache
         )
+
 
         SUBCHROM_CALL (
             ch_subchrom_bam,
@@ -251,6 +255,9 @@ workflow CFDNA {
             .mix(ch_binsize_subchrom)
             .mix(ch_binsize_delly)
 
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
+
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
             SV_CALLING.out.vcf,
@@ -258,7 +265,8 @@ workflow CFDNA {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_snp_to_process
         )
 
         ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
@@ -274,7 +282,8 @@ workflow CFDNA {
             VARIANT_PROCESS.out.sv_table,
             VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
-            ch_subchrom_focal
+            ch_subchrom_focal,
+            VARIANT_PROCESS.out.snp_table
         )
 
         /*

@@ -42,7 +42,7 @@ workflow WGS {
     clairs_model
     basecall_model
     ch_clin_database
-    bed_empty
+    bed
     targets                 // channel : list of genes with their position to represent in Figeno
     minqs                   // channel obtained dynamically from params.basecall_model
     tumor_type
@@ -204,7 +204,9 @@ workflow WGS {
             MAPPING_HG.out.bam,
             ref,
             clairs_model,
-            ch_clin_database
+            ch_clin_database,
+            bed,
+            vep_cache
         )
 
         CLAIR3_CALLING (
@@ -212,7 +214,8 @@ workflow WGS {
             ref,
             basecall_model,
             ch_clin_database,
-            bed_empty
+            bed,
+            vep_cache
         )
 
         PHASING_SOMATIC (
@@ -247,8 +250,12 @@ workflow WGS {
             MAPPING_HG.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf,
-            bed_empty
+            bed
         )
+
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -257,7 +264,8 @@ workflow WGS {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_snp_to_process
         )
 
     ch_versions = ch_versions
@@ -315,7 +323,8 @@ workflow WGS {
             VARIANT_PROCESS.out.sv_table,
             VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
-            ch_subchrom_focal
+            ch_subchrom_focal,
+            VARIANT_PROCESS.out.snp_table
         )
 
         ch_classifiers_plots = STURGEON.out.plot

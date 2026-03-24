@@ -121,7 +121,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             bed,
             basecall_model,
             ch_clin_database,
-            sv_targets
+            sv_targets,
+            vep_cache
         )
     }
 }
@@ -144,6 +145,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     clairs_model
     bed                     // channel: bed file used for adaptive sampling regions
     targets
+    vep_cache
 
     main:
 
@@ -165,7 +167,8 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         ch_clin_database,
         clairs_model,
         bed,
-        targets
+        targets,
+        vep_cache
     )
 }
 
@@ -183,6 +186,7 @@ workflow NFCORE_ONCOSEQ_WGS {
     ch_minqs
     tumor_type
     ref_t2t
+    vep_cache
 
     main:
 
@@ -200,7 +204,8 @@ workflow NFCORE_ONCOSEQ_WGS {
         sv_targets,
         ch_minqs,
         tumor_type,
-        ref_t2t
+        ref_t2t,
+        vep_cache
     )
 }
 
@@ -311,7 +316,7 @@ workflow {
 
     // vep cache
 
-    ch_vep_cache = channel.fromPath(params.vep_cache)
+    ch_vep_cache = Channel.fromPath(params.vep_cache, checkIfExists: true).collect()
 
     // channel for sv gene targets
     ch_sv_targets = channel.fromPath(params.sv_targets)
@@ -357,7 +362,8 @@ workflow {
             ch_clin_database,
             ch_clairs_model,
             PIPELINE_INITIALISATION.out.bed_sheet,
-            ch_sv_targets
+            ch_sv_targets,
+            ch_vep_cache
         )
     } else if ( params.wgs ) {
         NFCORE_ONCOSEQ_WGS (
@@ -371,7 +377,8 @@ workflow {
             ch_sv_targets,
             ch_minqs,
             PIPELINE_INITIALISATION.out.tumor_type,
-            PIPELINE_INITIALISATION.out.ref_t2t
+            PIPELINE_INITIALISATION.out.ref_t2t,
+            ch_vep_cache
         )
     }
     //
