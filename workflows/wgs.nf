@@ -221,13 +221,13 @@ workflow WGS {
         PHASING_SOMATIC (
             MAPPING_HG.out.bam,
             ref,
-            CLAIRS_TO_CALLING.out.vcf
+            CLAIRS_TO_CALLING.out.vcf_snpeff
         )
 
         PHASING_GERMLINE (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf_snpeff
         )
 
         SV_CALLING (
@@ -249,7 +249,7 @@ workflow WGS {
         SUBCHROM_CALL (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
+            CLAIR3_CALLING.out.vcf_snpeff,
             bed
         )
 

@@ -470,7 +470,7 @@ workflow ADAPTIVE {
         SUBCHROM_CALL (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
+            CLAIR3_CALLING.out.vcf_snpeff,
             ch_panel_bin
         )
     }

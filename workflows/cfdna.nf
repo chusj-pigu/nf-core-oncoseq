@@ -159,7 +159,7 @@ workflow CFDNA {
         SUBCHROM_CALL (
             ch_subchrom_bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
+            CLAIR3_CALLING.out.vcf_snpeff,
             bed
         )
 
