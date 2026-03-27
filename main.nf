@@ -135,7 +135,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     clairs_model  // channel: model for calling snp with ClairS-TO
     basecall_model  // channel : basecalling model used with dorado
-    ch_clin_database            // channel : from path, vcf containing the ClinVar database for annotating vcf
     sv_targets              // channel : list of genes with their position to represent in Figeno
     vep_cache
 
@@ -153,7 +152,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             bed,
             clairs_model,
             basecall_model,
-            ch_clin_database,
             sv_targets,
             tumor_type,
             ch_ref_t2t,
@@ -168,7 +166,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             ch_ref_t2t,
             bed,
             basecall_model,
-            ch_clin_database,
             sv_targets,
             vep_cache
         )
@@ -189,7 +186,6 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     ichor_bin
     mapq_wig
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     clairs_model
     bed                     // channel: bed file used for adaptive sampling regions
     targets
@@ -212,7 +208,6 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         ichor_bin,
         mapq_wig,
         basecall_model,
-        ch_clin_database,
         clairs_model,
         bed,
         targets,
@@ -228,7 +223,6 @@ workflow NFCORE_ONCOSEQ_WGS {
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     clairs_model
     basecall_model
-    ch_clin_database
     bed_empty       // channel with empty bed file to trigger subchrom
     sv_targets
     ch_minqs
@@ -247,7 +241,6 @@ workflow NFCORE_ONCOSEQ_WGS {
         ref,
         clairs_model,
         basecall_model,
-        ch_clin_database,
         bed_empty,
         sv_targets,
         ch_minqs,
@@ -442,7 +435,6 @@ workflow {
             PIPELINE_INITIALISATION.out.ref_t2t,
             ch_clairs_model,
             ch_model,
-            ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
             ch_vep_cache
@@ -460,7 +452,6 @@ workflow {
             ch_ichor_bin,
             ch_min_mapq,
             ch_model,
-            ch_clin_database,
             ch_clairs_model,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
@@ -473,7 +464,6 @@ workflow {
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_clairs_model,
             ch_model,
-            ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
             ch_minqs,

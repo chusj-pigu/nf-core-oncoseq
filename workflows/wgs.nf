@@ -41,12 +41,12 @@ workflow WGS {
     ref                     // channel : reference for mapping, either empty if skipping mapping, or a path
     clairs_model
     basecall_model
-    ch_clin_database
     bed
     targets                 // channel : list of genes with their position to represent in Figeno
     minqs                   // channel obtained dynamically from params.basecall_model
     tumor_type
     ref_t2t
+    vep_cache
 
     main:
 
@@ -204,7 +204,6 @@ workflow WGS {
             MAPPING_HG.out.bam,
             ref,
             clairs_model,
-            ch_clin_database,
             bed,
             vep_cache
         )
@@ -213,7 +212,6 @@ workflow WGS {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
             bed,
             vep_cache
         )
