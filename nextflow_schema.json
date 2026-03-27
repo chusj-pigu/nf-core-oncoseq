@@ -221,12 +221,7 @@
         },
         "m_bases": {
             "type": "string",
-            "description": "Modifications model to usefor basecalling",
-            "default": "none"
-        },
-        "m_bases_path": {
-            "type": "string",
-            "description": "If using on a HPC, path to the local basecalling model for modifications"
+            "description": "Modifications model to usefor basecalling"
         },
         "device": {
             "type": "string",
@@ -311,7 +306,8 @@
         },
         "reference_cache_dir": {
             "type": "string",
-            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation."
+            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation.",
+            "default": "/workspaces/nf-core-oncoseq"
         },
         "time_series": {
             "type": "boolean"
@@ -325,9 +321,6 @@
             "default": true
         },
         "basecall_model": {
-            "type": "string"
-        },
-        "basecall_model_path": {
             "type": "string"
         },
         "realtime": {
