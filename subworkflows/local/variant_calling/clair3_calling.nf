@@ -166,7 +166,7 @@ workflow CLAIR3_CALLING {
 
     // Compress and index vcf, using different names to publish only when realtime or cfdna is used (no phasing)
 
-    if (params.realtime == null || !params.cfdna ) {
+    if (!params.realtime && !params.cfdna) {
         BGZIP_VCF_INTER(ch_vcf_final)
         ch_vcf_zip = BGZIP_VCF_INTER.out.vcf_gz
         ch_versions = BGZIP_VCF_INTER.out.versions
