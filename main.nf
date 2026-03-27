@@ -22,6 +22,9 @@ include { LOCAL_REALTIME          } from './workflows/local_realtime'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { getMinQC                } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { select_latest_model     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { select_latest_modif     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { DORADO_DOWNLOAD_LIST    } from './modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from './modules/local/dorado/main.nf'
 include { STAGE_REFERENCE_FILES as STAGE_CLINICAL_REFERENCE_FILES } from './modules/local/reference_cache/main.nf'
 
@@ -51,25 +54,70 @@ def normalizeStagedFiles(stagedFiles) {
     stagedFiles instanceof List ? stagedFiles : [stagedFiles]
 }
 
-def getDoradoModelsDirectory() {
-    params.reference_cache_dir
-        ? file(params.reference_cache_dir)
-            .toAbsolutePath()
-            .resolve('dorado_models')
-            .toString()
-        : null
+def normalizeVersion(versionString) {
+    versionString
+        .tokenize('.')
+        .collect { String.format('%03d', it as int) }
+        .join()
 }
 
-def getCachedDoradoModelPath(modelName) {
-    def modelsDirectory = getDoradoModelsDirectory()
-    (modelsDirectory && modelName) ? "${modelsDirectory}/${modelName}" : null
+def selectModel(chModelsList, modelParam, subfield = null, chParentModel = null) {
+
+    def chParsed = chModelsList
+        .splitJson(path: 'dna_r10.4.1_e8.2_400bps_5khz.simplex_models')
+
+    /*
+     * CASE 1: Base model selection
+     */
+    if (!subfield) {
+        return chParsed
+            .filter { it.key.contains(modelParam) }
+            .map { entry ->
+                def v = (entry.key =~ /@v([0-9.]+)/)[0][1]
+                tuple(entry.key, normalizeVersion(v))
+            }
+            .ifEmpty { error "No models found for: ${modelParam}" }
+            .toSortedList { a, b -> a[1] <=> b[1] }
+            .map { list ->
+                def exact = list.find { it[0] == modelParam }
+                exact ? exact[0] : list[-1][0]
+            }
+    }
+
+    /*
+     * CASE 2: Sub-model selection (modified, polish, etc.)
+     */
+    return chParsed
+        .combine(chParentModel)
+        .filter { entry, parent ->
+            entry.key == parent
+        }
+        .map { entry, parent ->
+            (entry.value[subfield] ?: [:]).entrySet()
+        }
+        .flatMap { it }
+        .filter { entry ->
+            entry.key.contains(modelParam) || entry.key == modelParam
+        }
+        .map { entry ->
+            def v = (entry.key =~ /@v([0-9.]+)/)[0][1]
+            tuple(entry.key, normalizeVersion(v))
+        }
+        .ifEmpty { error "No ${subfield} models found for: ${modelParam}" }
+        .toSortedList { a, b -> a[1] <=> b[1] }
+        .map { list ->
+            def exact = list.find { it[0] == modelParam }
+            exact ? exact[0] : list[-1][0]
+        }
 }
 
-def cachedDoradoModelExists(modelName) {
-    def cachedModelPath = getCachedDoradoModelPath(modelName)
-    cachedModelPath ? file(cachedModelPath).exists() : false
+def selectBaseModel(chModelsList, modelParam) {
+    selectModel(chModelsList, modelParam)
 }
 
+def selectModifiedModel(chModelsList, chBaseModel, modifParam) {
+    selectModel(chModelsList, modifParam, 'modified_models', chBaseModel)
+}
 
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
@@ -87,7 +135,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     clairs_model  // channel: model for calling snp with ClairS-TO
     basecall_model  // channel : basecalling model used with dorado
-    ch_clin_database            // channel : from path, vcf containing the ClinVar database for annotating vcf
     sv_targets              // channel : list of genes with their position to represent in Figeno
     vep_cache
 
@@ -105,7 +152,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             bed,
             clairs_model,
             basecall_model,
-            ch_clin_database,
             sv_targets,
             tumor_type,
             ch_ref_t2t,
@@ -120,7 +166,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             ch_ref_t2t,
             bed,
             basecall_model,
-            ch_clin_database,
             sv_targets,
             vep_cache
         )
@@ -141,7 +186,6 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     ichor_bin
     mapq_wig
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     clairs_model
     bed                     // channel: bed file used for adaptive sampling regions
     targets
@@ -164,7 +208,6 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         ichor_bin,
         mapq_wig,
         basecall_model,
-        ch_clin_database,
         clairs_model,
         bed,
         targets,
@@ -180,7 +223,6 @@ workflow NFCORE_ONCOSEQ_WGS {
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     clairs_model
     basecall_model
-    ch_clin_database
     bed_empty       // channel with empty bed file to trigger subchrom
     sv_targets
     ch_minqs
@@ -199,7 +241,6 @@ workflow NFCORE_ONCOSEQ_WGS {
         ref,
         clairs_model,
         basecall_model,
-        ch_clin_database,
         bed_empty,
         sv_targets,
         ch_minqs,
@@ -244,78 +285,131 @@ workflow {
     )
 
     // Load model channels from parameters:
+    if (!params.skip_basecalling && params.basecall_offline) {
+        def model_resolved = select_latest_model(params.basecall_model,file("${params.reference_cache_dir}/dorado_models"))
+        def modif_resolved = params.m_bases && model_resolved ?
+            select_latest_modif(file("${params.reference_cache_dir}/dorado_models"), model_resolved, params.m_bases) :
+            null
+        ch_modif = channel.of('')
 
-    def doradoModelsDirectory = getDoradoModelsDirectory()
-    if (
-        params.basecall_model &&
-        !params.basecall_model_path &&
-        !params.skip_basecalling &&
-        doradoModelsDirectory
-    ) {
-        if (cachedDoradoModelExists(params.basecall_model)) {
-            ch_model = channel.of(
-                getCachedDoradoModelPath(params.basecall_model)
-            )
-        } else {
-            ch_model = channel.of(
-                tuple([id: 'dorado_model'], params.basecall_model,
-                    doradoModelsDirectory)
+        if (model_resolved) {
+            ch_model = channel.of(model_resolved)
+        }
+
+        if (modif_resolved) {
+            ch_modif = channel.of(modif_resolved)
+        }
+
+        // download both
+        if (!model_resolved && !modif_resolved && params.m_bases) {
+
+            DORADO_DOWNLOAD_LIST()
+
+            ch_model_to_download = selectBaseModel(
+                DORADO_DOWNLOAD_LIST.out.list,
+                params.basecall_model
             )
 
-            DORADO_DOWNLOAD_MODEL(ch_model)
+            ch_modif_to_download = selectModifiedModel(
+                DORADO_DOWNLOAD_LIST.out.list,
+                ch_model_to_download,
+                params.m_bases
+            )
+
+            ch_in_download = ch_model_to_download
+                .mix(ch_modif_to_download)
+
+            DORADO_DOWNLOAD_MODEL(ch_in_download)
 
             ch_model = DORADO_DOWNLOAD_MODEL.out.model
-                .map { _meta, cachedModelPath ->
-                    cachedModelPath.toString()
-                }
-        }
-    } else {
-        ch_model = params.basecall_model
-            ? channel.of(params.basecall_model)
-            : channel.fromPath(params.basecall_model_path)
-    }
-    ch_modif = channel.of(params.m_bases)
+                .combine(ch_model_to_download)
+                .filter { model_out, model_in -> model_out.name == model_in }
+                .map { it -> it[0].name }
 
-    // Combine the samplesheet with the model :
-    if (params.skip_basecalling || params.skip_mapping) {
+            ch_modif = DORADO_DOWNLOAD_MODEL.out.model
+                .combine(ch_modif_to_download)
+                .filter { model_out, model_in -> model_out.name == model_in }
+                .map { it -> it[0].name }
+
+        // download only model
+        } else if (!model_resolved && !params.m_bases) {
+
+            DORADO_DOWNLOAD_LIST()
+
+            ch_model_to_download = selectBaseModel(
+                DORADO_DOWNLOAD_LIST.out.list,
+                params.basecall_model
+            )
+
+            ch_in_download = ch_model_to_download
+
+            DORADO_DOWNLOAD_MODEL(ch_in_download)
+
+            ch_model = DORADO_DOWNLOAD_MODEL.out.model
+                .combine(ch_in_download)
+                .filter { model_out, model_in -> model_out.name == model_in }
+                .map { it -> it[0].name }
+
+        // download only modif
+        } else if (model_resolved && !modif_resolved && params.m_bases) {
+
+            DORADO_DOWNLOAD_LIST()
+
+            ch_modif_to_download = selectModifiedModel(
+                DORADO_DOWNLOAD_LIST.out.list,
+                ch_model,
+                params.m_bases
+            )
+
+            ch_in_download = ch_modif_to_download
+
+            DORADO_DOWNLOAD_MODEL(ch_in_download)
+
+            ch_modif = DORADO_DOWNLOAD_MODEL.out.model
+                .combine(ch_in_download)
+                .filter { model_out, model_in -> model_out.name == model_in }
+                .map { it -> it[0].name }
+        }
+
+    ch_model_dir = channel.fromPath("${params.reference_cache_dir}/dorado_models")
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
+            .combine(ch_model_dir)
+            .combine(ch_model)
+            .combine(ch_modif)
+
+    } else if (!params.skip_basecalling && !params.basecall_offline) {
+        ch_model = channel.of(params.basecall_model)
+        ch_modif = channel.of(params.m_bases)
+        def model_dir = '.'
+
+        if (params.reference_cache_dir) {
+            def base = file(params.reference_cache_dir)
+            def sub  = file("${params.reference_cache_dir}/dorado_models")
+
+            if (sub.exists()) {
+                model_dir = sub
+            }
+            else if (base.exists()) {
+                model_dir = base
+            }
+        }
+
+        ch_model_dir = channel.fromPath(model_dir)
+
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
+            .combine(ch_model_dir)
+            .combine(ch_model)
+            .combine(ch_modif)
+    } else {
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .map { meta, input, _ubam ->
             tuple(meta, input) }
-    } else {
-        ch_input = PIPELINE_INITIALISATION.out.samplesheet
-            .combine(ch_model)
-            .combine(ch_modif)
     }
 
    // channels for SNP calling
     ch_clairs_model = channel.of(params.clairsto_model)
-    def clinvarDefaultUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz'
-    def clinDatabasePath = (!params.clin_database || params.clin_database == 'ClinVar') ? clinvarDefaultUrl : params.clin_database
-    ch_clin_database = channel.of(clinDatabasePath)
-            .map { dbSpec ->
-                def (vcf, index) = resolveIndexedVcfFiles(dbSpec)
-                tuple([id: 'clinvar'], 'clinvar', [vcf, index])
-            }
-
-    STAGE_CLINICAL_REFERENCE_FILES(ch_clin_database)
-
-    ch_clin_database = STAGE_CLINICAL_REFERENCE_FILES.out.staged
-            .map { _meta, _label, stagedFiles ->
-                def files = normalizeStagedFiles(stagedFiles)
-                def vcf = files.find { stagedFile ->
-                    stagedFile.name.endsWith('.vcf.gz') ||
-                        stagedFile.name.endsWith('.vcf')
-                } ?: files.find { stagedFile ->
-                    !stagedFile.name.endsWith('.tbi')
-                }
-                def index = files.find { stagedFile ->
-                    stagedFile.name.endsWith('.tbi')
-                }
-                tuple(vcf, index)
-            }
 
     // vep cache
-
     ch_vep_cache = Channel.fromPath(params.vep_cache, checkIfExists: true).collect()
 
     // channel for sv gene targets
@@ -341,7 +435,6 @@ workflow {
             PIPELINE_INITIALISATION.out.ref_t2t,
             ch_clairs_model,
             ch_model,
-            ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
             ch_vep_cache
@@ -359,7 +452,6 @@ workflow {
             ch_ichor_bin,
             ch_min_mapq,
             ch_model,
-            ch_clin_database,
             ch_clairs_model,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
@@ -372,7 +464,6 @@ workflow {
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_clairs_model,
             ch_model,
-            ch_clin_database,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
             ch_minqs,

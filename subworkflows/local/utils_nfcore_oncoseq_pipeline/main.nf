@@ -181,11 +181,9 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .combine(ch_bed)
-            .combine(ch_padding)
-            .combine(ch_low_fidelity)
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
-                tuple(meta, bed_c, padding_c, lf_c)
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, bed, padding, lf, _purity, _filter, bed_c ->
+                tuple(meta, bed_c)
             }
             .set { ch_adaptive }
 
@@ -242,7 +240,7 @@ workflow PIPELINE_INITIALISATION {
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .combine(ch_bed)
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _tumor_type, bed, padding, lf, _purity, _filter, bed_c->
                 if (bed) {
                     tuple(meta,bed)
                 } else {
@@ -490,7 +488,7 @@ def toolCitationText() {
 
 def toolBibliographyText() {
     // TODO nf-core: Optionally add bibliographic entries to this list.
-    // Can use ternary operators to dynamically construct based conditions, e.g. params["run_xyz"] ? "<li>Author (2023) Pub name, Journal, DOI</li>" : "",
+    // Can use ternary operators to dynamically construct based conditions, e.g. params["run_xyz"] ? "<li>Author (2023) Pub name, Joudnal, DOI</li>" : "",
     // Uncomment function in methodsDescriptionText to render in MultiQC report
     def reference_text = [
             "<li>Andrews S, (2010) FastQC, URL: https://www.bioinformatics.babraham.ac.uk/projects/fastqc/).</li>",
@@ -583,4 +581,94 @@ def getMinQC(model) {
         } else {
             return 8
         }
+}
+
+def select_latest_model(model,model_path) {
+    def model_name = model.toString()
+    def requested_version = null
+
+    def version_match = (model_name =~ /@v[0-9]+(\.[0-9]+)*/)
+    if (version_match.find()) {
+        requested_version = version_match.group(0).substring(2)
+        model_name = model_name.split('@v')[0]
+    }
+
+    def version_pattern = requested_version
+        ? java.util.regex.Pattern.quote(requested_version)
+        : '[0-9]+(\\.[0-9]+)*'
+
+    // 1) Find clean (unmodified) models
+    def clean_models = model_path.listFiles().findAll { f ->
+        f.name ==~ /.*_${model_name}@v${version_pattern}$/
+    }
+
+    def clean_model_dna = clean_models.findAll { f ->
+        f.name.contains('dna')
+    }
+
+    if (clean_model_dna.size() == 0) {
+        def version_note = requested_version ? " (requested version ${requested_version})" : ""
+        log.warn(
+            "No model file found in the provided ${model_path} for model ${model_name}${version_note}: model will be downloaded"
+        )
+        return null
+    } else {
+        if (requested_version) {
+            return clean_model_dna.first()
+        }
+
+        // 2) Select latest clean model
+        return clean_model_dna
+            .sort { a, b ->
+                def va = a.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
+                def vb = b.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
+                va <=> vb
+            }
+            .last()
+            .getName()
+    }
+}
+
+def select_latest_modif(model_path, model, modif) {
+    def modif_full = modif.toString()
+    def modif_name = modif_full
+    def requested_version = null
+
+    if (modif_full.startsWith(model + '_')) {
+        modif_name = modif_full.substring(model.length() + 1)
+    }
+
+    def lastVIndex = modif_name.lastIndexOf('@v')
+    if (lastVIndex != -1) {
+        requested_version = modif_name.substring(lastVIndex + 2)
+        modif_name = modif_name.substring(0, lastVIndex)
+    }
+
+    def version_pattern = requested_version
+        ? java.util.regex.Pattern.quote(requested_version)
+        : '[0-9]+(\\.[0-9]+)*'
+
+    def clean_model_mod = model_path.listFiles().findAll { f ->
+        f.name ==~ /${model}_${modif_name}@v${version_pattern}$/
+    }
+
+    if (!clean_model_mod) {
+        def version_note = requested_version ? " (requested version ${requested_version})" : ""
+        log.warn(
+            "No modified model found for ${model} with ${modif_name}${version_note} in ${model_path}: model will be downloaded"
+        )
+        return null
+    } else {
+        if (requested_version) {
+            return clean_model_mod.first()
+        }
+        return clean_model_mod
+            .sort { a, b ->
+                def va = a.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
+                def vb = b.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
+                va <=> vb
+            }
+            .last()
+            .getName()
+    }
 }

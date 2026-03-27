@@ -36,10 +36,10 @@ workflow CFDNA {
     ichor_bin
     mapq_wig
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     clairs_model
     bed                     // channel: bed file used for adaptive sampling regions
     targets
+    vep_cache
 
     main:
 
@@ -141,7 +141,6 @@ workflow CFDNA {
             ch_high_cov_bam,
             ref,
             basecall_model,
-            ch_clin_database,
             bed,
             vep_cache
         )
@@ -150,7 +149,6 @@ workflow CFDNA {
             ch_high_cov_bam,
             ref,
             clairs_model,
-            ch_clin_database,
             bed,
             vep_cache
         )

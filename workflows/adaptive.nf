@@ -62,7 +62,6 @@ workflow ADAPTIVE {
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     clairs_model            // channel: model for ClairS variant calling
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
     tumor_type
@@ -167,7 +166,6 @@ workflow ADAPTIVE {
             MAPPING_HG.out.bam,
             ref,
             clairs_model,
-            ch_clin_database,
             COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )
@@ -177,7 +175,6 @@ workflow ADAPTIVE {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
             COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )
@@ -392,7 +389,6 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             clairs_model,
-            ch_clin_database,
             COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )
@@ -402,7 +398,6 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             basecall_model,
-            ch_clin_database,
             COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )

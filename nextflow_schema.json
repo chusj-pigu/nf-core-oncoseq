@@ -221,12 +221,7 @@
         },
         "m_bases": {
             "type": "string",
-            "description": "Modifications model to usefor basecalling",
-            "default": "none"
-        },
-        "m_bases_path": {
-            "type": "string",
-            "description": "If using on a HPC, path to the local basecalling model for modifications"
+            "description": "Modifications model to usefor basecalling"
         },
         "device": {
             "type": "string",
@@ -289,11 +284,6 @@
             "type": "boolean",
             "description": "Option to skip basecalling and start with fastq files in the samplesheet input column"
         },
-        "clin_database": {
-            "type": "string",
-            "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)",
-            "default": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
-        },
         "max_memory": {
             "type": "string",
             "default": "16G",
@@ -311,7 +301,8 @@
         },
         "reference_cache_dir": {
             "type": "string",
-            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation."
+            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation.",
+            "default": "/workspaces/nf-core-oncoseq"
         },
         "time_series": {
             "type": "boolean"
@@ -325,9 +316,6 @@
             "default": true
         },
         "basecall_model": {
-            "type": "string"
-        },
-        "basecall_model_path": {
             "type": "string"
         },
         "realtime": {
@@ -410,6 +398,5 @@
             "default": "IMPACT != LOW and (gnomADe_AF <= 0.01 or not gnomADe_AF) and DP >= 20 and INFO is PASS and not CLIN_SIG matches \\'BENIGN\\",
             "description": "Expression accepted by filtervep for filtering snp"
         }
-    },
-    "required": ["clin_database"]
+    }
 }

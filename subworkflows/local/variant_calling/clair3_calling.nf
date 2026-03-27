@@ -5,7 +5,6 @@
 */
 include { CLAIR3_CALL                             } from '../../../modules/local/clair3/main.nf'
 include { SNPEFF_ANNOTATE                         } from '../../../modules/local/snpeff/main.nf'
-include { SNPSIFT_ANNOTATE                        } from '../../../modules/local/snpeff/main.nf'
 include { BCFTOOLS_FILTER_REGION                  } from '../../../modules/local/bcftools/main.nf'
 include { BGZIP_VCF as BGZIP_VCF_FINAL            } from '../../../modules/local/bcftools/main.nf'
 include { BGZIP_VCF as BGZIP_VCF_INTER            } from '../../../modules/local/bcftools/main.nf'
@@ -34,7 +33,6 @@ workflow CLAIR3_CALLING {
     bam  // channel: from mapping workflow (tuple include bai)
     ref     // channel: from input samplesheet
     basecall_model       // channel: basecalling model
-    clinic_database
     bed
     vep_cache
     main:
@@ -164,27 +162,11 @@ workflow CLAIR3_CALLING {
 
     SNPEFF_ANNOTATE(ch_snp_annotate)
 
-    //ch_clin_db = clinic_database.toSortedList()
-
-    ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
-        .combine(clinic_database)
-
-    SNPSIFT_ANNOTATE(ch_snpsift_annotate)
-
-    // Add clinvar into meta_id of SNPSIFT output
-
-    ch_snipsift_out = SNPSIFT_ANNOTATE.out.vcf
-        .map { meta, vcf ->
-            def meta_clinvar = modifyMetaId(meta, 'add_suffix', '', '', '_clinvar')
-            tuple(meta_clinvar, vcf)
-            }
-
     ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
-        .mix(ch_snipsift_out)
 
     // Compress and index vcf, using different names to publish only when realtime or cfdna is used (no phasing)
 
-    if (params.realtime == null || !params.cfdna ) {
+    if (!params.realtime && !params.cfdna) {
         BGZIP_VCF_INTER(ch_vcf_final)
         ch_vcf_zip = BGZIP_VCF_INTER.out.vcf_gz
         ch_versions = BGZIP_VCF_INTER.out.versions

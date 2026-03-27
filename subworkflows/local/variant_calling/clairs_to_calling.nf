@@ -115,7 +115,6 @@ workflow CLAIRS_TO_CALLING {
     bam           // channel: from mapping workflow (tuple containing [meta, bam, bai])
     ref           // channel: reference genome information from input samplesheet (tuple containing [meta, refid, ref_fasta, ref_fai])
     model         // channel: basecalling model name used for platform-specific optimizations in variant calling
-    clinic_database // channel: path to clinical database (e.g., ClinVar) for variant annotation
     bed
     vep_cache
     main:
@@ -282,30 +281,9 @@ workflow CLAIRS_TO_CALLING {
     // Adds gene names, transcript IDs, effect predictions, etc.
     SNPEFF_ANNOTATE(ch_snp_annotate)
 
-    // Convert clinical database channel to a sorted list for consistent processing
-    // Ensures deterministic channel behavior when combining with multiple files
-    //ch_clin_db = clinic_database.toSortedList()
-
-    // Prepare SNPEff-annotated VCFs for additional clinical annotation with SNPSift
-    // Combines each annotated VCF with the clinical database (e.g., ClinVar)
-    ch_snpsift_annotate = SNPEFF_ANNOTATE.out.vcf
-        .combine(clinic_database)
-
-    // Run SNPSift annotation to add clinical significance information to variants
-    // Adds ClinVar, OMIM, or other clinical database annotations
-    SNPSIFT_ANNOTATE(ch_snpsift_annotate)
-
-    // Add clinvar suffix to the sample ID in metadata for SNPSift output files
-    // This helps distinguish between different annotation stages in output files
-    ch_snipsift_out = SNPSIFT_ANNOTATE.out.vcf
-        .map { meta, vcf ->
-            addClinvarSuffixWithTs(meta, vcf)
-        }
-
     // Combine both SNPEff-annotated and SNPSift-annotated VCFs for downstream processing
     // This preserves both annotation sets in separate files
     ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
-        .mix(ch_snipsift_out)
 
     // Compress and index VCF files for efficient storage and querying
     // Two-step process: compress with bgzip, then index with bcftools

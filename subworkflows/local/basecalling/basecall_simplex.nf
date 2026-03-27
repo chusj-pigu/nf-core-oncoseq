@@ -29,7 +29,7 @@ workflow BASECALL_SIMPLEX {
     ch_samplesheet // channel: samplesheet read in from --input
     main:
 
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     DORADO_BASECALL(ch_samplesheet)
 
