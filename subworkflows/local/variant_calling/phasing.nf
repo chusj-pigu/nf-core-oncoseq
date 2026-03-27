@@ -54,8 +54,8 @@ workflow PHASING_VARIANTS {
         .filter { meta, _vcf, _vcf_tbi -> !meta.id.endsWith('_clinvar') }
         .map { meta, vcf, vcf_tbi ->
             // Remove variant type suffixes to get base sample ID, but keep original for tracking
-            def base_meta = modifyMetaId(meta, 'replace', '_somatic_snp', '', '')
-            base_meta = modifyMetaId(base_meta, 'replace', '_germline_snp', '', '')
+            def base_meta = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff', '', '')
+            base_meta = modifyMetaId(base_meta, 'replace', '_germline_snp_snpeff', '', '')
             tuple(base_meta, meta, vcf, vcf_tbi)
         }
 
@@ -68,8 +68,8 @@ workflow PHASING_VARIANTS {
         }
         .map { base_meta, meta, vcf, vcf_tbi ->
             // Remove variant type suffixes to get base sample ID, but keep original for tracking
-            base_meta = modifyMetaId(base_meta, 'replace', '_somatic_snp', '', '')
-            base_meta = modifyMetaId(base_meta, 'replace', '_germline_snp', '', '')
+            base_meta = modifyMetaId(base_meta, 'replace', '_somatic_snp_snpeff', '', '')
+            base_meta = modifyMetaId(base_meta, 'replace', '_germline_snp_snpeff', '', '')
             tuple(base_meta, meta, vcf, vcf_tbi)
         }
 
