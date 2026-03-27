@@ -12,7 +12,7 @@ option_list <- list(
                             help = "Path to the bed file with coverage calculated with filter for primary alignements [default: %default]", metavar = "FILE"),
     make_option(c("-u", "--unique"), type = "character", default = NULL,
                             help = "Path to the bed file with coverage calculated with filter for unique alignments [default: %default]", metavar = "FILE"),
-    make_option(c("-b", "--bcov"), type = "integer", default = NULL,
+    make_option(c("-b", "--bcov"), type = "double", default = NULL,
                             help = "Background coverage [default: %default]", metavar = "NUMBER"),
     make_option(c("-l", "--lowgenes"), type = "character", default = NULL,
                             help = "Path to text file containing list of low fidelity genes separated by a newline [default: %default]", metavar = "FILE"),
@@ -276,7 +276,7 @@ tryCatch({
 
   means_df <- data.frame(sample = sub("_mapq.pdf", "", opt$output),
                         panel_cov = mean,
-                        background_cov = opt$bcov)
+                        background_cov = bg_cov)
 
   write.csv(means_df, paste0(means_df$sample,"_mean_coverage.csv"), quote = FALSE, row.names = FALSE)
 
