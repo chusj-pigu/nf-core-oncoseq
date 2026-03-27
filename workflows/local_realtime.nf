@@ -155,7 +155,8 @@ workflow LOCAL_REALTIME {
         )
 
         STURGEON(
-            MAPPING_T2T.out.bam
+            MAPPING_T2T.out.bam,
+            ref_t2t
         )
 
         CNV_CALLING(
@@ -168,6 +169,8 @@ workflow LOCAL_REALTIME {
             ref
         )
 
+        ch_clair3_out = channel.empty()
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -176,7 +179,8 @@ workflow LOCAL_REALTIME {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_clair3_out
         )
 
         COVERAGE_SEPARATE(
