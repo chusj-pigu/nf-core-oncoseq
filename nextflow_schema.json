@@ -284,11 +284,6 @@
             "type": "boolean",
             "description": "Option to skip basecalling and start with fastq files in the samplesheet input column"
         },
-        "clin_database": {
-            "type": "string",
-            "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)",
-            "default": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
-        },
         "max_memory": {
             "type": "string",
             "default": "16G",
@@ -403,6 +398,5 @@
             "default": "IMPACT != LOW and (gnomADe_AF <= 0.01 or not gnomADe_AF) and DP >= 20 and INFO is PASS and not CLIN_SIG matches \\'BENIGN\\",
             "description": "Expression accepted by filtervep for filtering snp"
         }
-    },
-    "required": ["clin_database"]
+    }
 }
