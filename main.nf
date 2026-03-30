@@ -236,11 +236,13 @@ workflow {
     )
 
     // Load model channels from parameters:
-    if (params.skip_basecalling) {
+    if (params.skip_basecalling || params.skip_mapping ) {
 
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
             .map { meta, input, _ubam ->
             tuple(meta, input) }
+
+        ch_model = channel.of(params.basecall_model)
 
     } else {
 
