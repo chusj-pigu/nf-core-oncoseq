@@ -111,7 +111,7 @@ workflow COVERAGE_SEPARATE {
             def coverage = lines.last().tokenize('\t')[3].toFloat()    // Last line and only take mean coverage column (4th)
             tuple(new_meta, coverage)
         }
-        .view()
+        
     // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
 
     PIGZ_BED(MOSDEPTH_PANEL.out.bed)

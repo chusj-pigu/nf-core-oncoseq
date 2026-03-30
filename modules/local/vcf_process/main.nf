@@ -145,28 +145,23 @@ process ENSEMBL_VEP_TABLE {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    awk -F'\\t' '
-    BEGIN {OFS=","}
+    awk -F'\t' '
+    BEGIN { OFS="," }
     {
-    # Split CSQ into transcripts
-    split(\$6, transcripts, ",")
+        split(\$7, transcripts, ",")          # CSQ field
+        split(\$9, ad_vals, ",")             # AD field (last column)
+        
+        ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
 
-    # Split AD into ref/alt
-    split(\$8, ad_vals, ",")
+        for (i in transcripts) {
+            split(transcripts[i], f, "|")
 
-    for(i=1;i<=length(transcripts);i++){
-        split(transcripts[i], f, "|")
-
-        # Handle missing gnomADe_AF
-        af = (f[48]=="" ? "." : f[48])
-
-        # AD_REF = first value, AD_ALT = second value
-        ad_alt = (length(ad_vals)>=2 ? ad_vals[2] : ".")
-
-        print \$1,\$2,\$3,\$4,\$5, \
-            f[2],f[3],f[4],f[7], \
-            f[11],f[12],f[18],af, \
-            \$7,ad_alt
+            if (ad_alt > 5 && \$8 > 20 && \$6 == "PASS") {
+                print \$1,\$2,\$3,\$4,\$5, \
+                    f[2],f[3],f[4],f[7], \
+                    f[11],f[12],f[18],f[49], \
+                    \$8,ad_alt
+            }
         }
     }' ${bed} > ${prefix}_filt.csv
     """

@@ -387,7 +387,6 @@ workflow FIGENO_REPORT {
                 def process = "snp-${type}-stats-${meta.id}"
                 tuple(meta_final, table, caption, col_names, section, process)
             }
-            .view()
 
     QUARTO_SNP_TABLES(ch_snp_table_in)
 

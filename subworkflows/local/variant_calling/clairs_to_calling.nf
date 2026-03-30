@@ -88,7 +88,7 @@ def restoreIndelMeta(meta, vcf, tbx) {
 }
 
 def prepareSomaticSnpAnnotation(meta, output, database) {
-    def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_somatic_snp')
+    def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_somatic_snp_snpeff')
     return tuple(new_meta, output, database)
 }
 
