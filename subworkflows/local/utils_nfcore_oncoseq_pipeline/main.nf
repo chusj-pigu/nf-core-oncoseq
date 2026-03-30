@@ -583,7 +583,7 @@ def getMinQC(model) {
         }
 }
 
-def select_latest_model(model,model_path) {
+def selectLatestModel(model,model_path) {
     def model_name = model.toString()
     def requested_version = null
 
@@ -599,7 +599,7 @@ def select_latest_model(model,model_path) {
 
     // 1) Find clean (unmodified) models
     def clean_models = model_path.listFiles().findAll { f ->
-        f.name ==~ /.*_${model_name}@v${version_pattern}$/
+        f.name ==~ /.*${model_name}@v${version_pattern}$/
     }
 
     def clean_model_dna = clean_models.findAll { f ->
@@ -620,22 +620,29 @@ def select_latest_model(model,model_path) {
         // 2) Select latest clean model
         return clean_model_dna
             .sort { a, b ->
-                def va = a.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
-                def vb = b.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
-                va <=> vb
+                def va = a.name.split('@v')[-1].tokenize('.').collect { it as int }
+                def vb = b.name.split('@v')[-1].tokenize('.').collect { it as int }
+
+                int len = Math.max(va.size(), vb.size())
+                for (int i = 0; i < len; i++) {
+                    int ai = i < va.size() ? va[i] : 0
+                    int bi = i < vb.size() ? vb[i] : 0
+                    if (ai != bi) return ai <=> bi
+                }
+                return 0
             }
             .last()
-            .getName()
     }
 }
 
-def select_latest_modif(model_path, model, modif) {
+def selectLatestModif(model_path, model, modif) {
+    def base_model = model.name
     def modif_full = modif.toString()
     def modif_name = modif_full
     def requested_version = null
 
-    if (modif_full.startsWith(model + '_')) {
-        modif_name = modif_full.substring(model.length() + 1)
+    if (modif_full.startsWith(base_model + '_')) {
+        modif_name = modif_full.substring(base_model.length() + 1)
     }
 
     def lastVIndex = modif_name.lastIndexOf('@v')
@@ -649,13 +656,13 @@ def select_latest_modif(model_path, model, modif) {
         : '[0-9]+(\\.[0-9]+)*'
 
     def clean_model_mod = model_path.listFiles().findAll { f ->
-        f.name ==~ /${model}_${modif_name}@v${version_pattern}$/
+        f.name ==~ /${base_model}_${modif_name}@v${version_pattern}$/
     }
 
     if (!clean_model_mod) {
         def version_note = requested_version ? " (requested version ${requested_version})" : ""
         log.warn(
-            "No modified model found for ${model} with ${modif_name}${version_note} in ${model_path}: model will be downloaded"
+            "No modified model found for ${base_model} with ${modif_name}${version_note} in ${model_path}: model will be downloaded"
         )
         return null
     } else {
@@ -669,6 +676,62 @@ def select_latest_modif(model_path, model, modif) {
                 va <=> vb
             }
             .last()
-            .getName()
     }
+}
+
+def normalizeVersion(versionString) {
+    versionString
+        .tokenize('.')
+        .collect { String.format('%03d', it as int) }
+        .join()
+}
+
+def selectModelDownload(chModelsList, modelParam, subfield = null, chParentModel = null) {
+
+    def chParsed = chModelsList
+        .splitJson(path: 'dna_r10.4.1_e8.2_400bps_5khz.simplex_models')
+
+    /*
+     * CASE 1: Base model selection
+     */
+    if (!subfield) {
+        return chParsed
+            .filter { it.key.contains(modelParam) }
+            .map { entry ->
+                def v = (entry.key =~ /@v([0-9.]+)/)[0][1]
+                tuple(entry.key, normalizeVersion(v))
+            }
+            .ifEmpty { error "No models found for: ${modelParam}" }
+            .toSortedList { a, b -> a[1] <=> b[1] }
+            .map { list ->
+                def exact = list.find { it[0] == modelParam }
+                exact ? exact[0] : list[-1][0]
+            }
+    }
+
+    /*
+     * CASE 2: Sub-model selection (modified, polish, etc.)
+     */
+    return chParsed
+        .combine(chParentModel)
+        .filter { entry, parent ->
+            entry.key == parent
+        }
+        .map { entry, parent ->
+            (entry.value[subfield] ?: [:]).entrySet()
+        }
+        .flatMap { it }
+        .filter { entry ->
+            entry.key.contains(modelParam) || entry.key == modelParam
+        }
+        .map { entry ->
+            def v = (entry.key =~ /@v([0-9.]+)/)[0][1]
+            tuple(entry.key, normalizeVersion(v))
+        }
+        .ifEmpty { error "No ${subfield} models found for: ${modelParam}" }
+        .toSortedList { a, b -> a[1] <=> b[1] }
+        .map { list ->
+            def exact = list.find { it[0] == modelParam }
+            exact ? exact[0] : list[-1][0]
+        }
 }

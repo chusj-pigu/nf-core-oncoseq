@@ -338,10 +338,6 @@
             "type": "string",
             "description": "Path to the T2T human reference genome, only used with CNS tumor for running Sturgeon"
         },
-        "basecall_offline": {
-            "type": "boolean",
-            "description": "Turn on when basecalling with no access to internet (requires local copy of model)"
-        },
         "max_length": {
             "type": "integer",
             "default": 700,

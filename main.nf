@@ -22,8 +22,9 @@ include { LOCAL_REALTIME          } from './workflows/local_realtime'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { getMinQC                } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
-include { select_latest_model     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
-include { select_latest_modif     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { selectLatestModel       } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { selectLatestModif       } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { selectModelDownload     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { DORADO_DOWNLOAD_LIST    } from './modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from './modules/local/dorado/main.nf'
 include { STAGE_REFERENCE_FILES as STAGE_CLINICAL_REFERENCE_FILES } from './modules/local/reference_cache/main.nf'
@@ -61,62 +62,12 @@ def normalizeVersion(versionString) {
         .join()
 }
 
-def selectModel(chModelsList, modelParam, subfield = null, chParentModel = null) {
-
-    def chParsed = chModelsList
-        .splitJson(path: 'dna_r10.4.1_e8.2_400bps_5khz.simplex_models')
-
-    /*
-     * CASE 1: Base model selection
-     */
-    if (!subfield) {
-        return chParsed
-            .filter { it.key.contains(modelParam) }
-            .map { entry ->
-                def v = (entry.key =~ /@v([0-9.]+)/)[0][1]
-                tuple(entry.key, normalizeVersion(v))
-            }
-            .ifEmpty { error "No models found for: ${modelParam}" }
-            .toSortedList { a, b -> a[1] <=> b[1] }
-            .map { list ->
-                def exact = list.find { it[0] == modelParam }
-                exact ? exact[0] : list[-1][0]
-            }
-    }
-
-    /*
-     * CASE 2: Sub-model selection (modified, polish, etc.)
-     */
-    return chParsed
-        .combine(chParentModel)
-        .filter { entry, parent ->
-            entry.key == parent
-        }
-        .map { entry, parent ->
-            (entry.value[subfield] ?: [:]).entrySet()
-        }
-        .flatMap { it }
-        .filter { entry ->
-            entry.key.contains(modelParam) || entry.key == modelParam
-        }
-        .map { entry ->
-            def v = (entry.key =~ /@v([0-9.]+)/)[0][1]
-            tuple(entry.key, normalizeVersion(v))
-        }
-        .ifEmpty { error "No ${subfield} models found for: ${modelParam}" }
-        .toSortedList { a, b -> a[1] <=> b[1] }
-        .map { list ->
-            def exact = list.find { it[0] == modelParam }
-            exact ? exact[0] : list[-1][0]
-        }
+def selectBaseModelDownload(chModelsList, modelParam) {
+    selectModelDownload(chModelsList, modelParam)
 }
 
-def selectBaseModel(chModelsList, modelParam) {
-    selectModel(chModelsList, modelParam)
-}
-
-def selectModifiedModel(chModelsList, chBaseModel, modifParam) {
-    selectModel(chModelsList, modifParam, 'modified_models', chBaseModel)
+def selectModifiedModelDownload(chModelsList, chBaseModel, modifParam) {
+    selectModelDownload(chModelsList, modifParam, 'modified_models', chBaseModel)
 }
 
 //
@@ -285,19 +236,27 @@ workflow {
     )
 
     // Load model channels from parameters:
-    if (!params.skip_basecalling && params.basecall_offline) {
-        def model_resolved = select_latest_model(params.basecall_model,file("${params.reference_cache_dir}/dorado_models"))
+    if (params.skip_basecalling) {
+
+        ch_input = PIPELINE_INITIALISATION.out.samplesheet
+            .map { meta, input, _ubam ->
+            tuple(meta, input) }
+
+    } else {
+
+        ch_model_dir = channel.fromPath("${params.reference_cache_dir}")
+        def model_resolved = selectLatestModel(params.basecall_model,file("${params.reference_cache_dir}/dorado_models"))
         def modif_resolved = params.m_bases && model_resolved ?
-            select_latest_modif(file("${params.reference_cache_dir}/dorado_models"), model_resolved, params.m_bases) :
+            selectLatestModif(file("${params.reference_cache_dir}/dorado_models"), model_resolved, params.m_bases) :
             null
-        ch_modif = channel.of('')
+        ch_modif = channel.fromPath("${projectDir}/assets/NOMOD")
 
         if (model_resolved) {
-            ch_model = channel.of(model_resolved)
+            ch_model = channel.fromPath(model_resolved)
         }
 
         if (modif_resolved) {
-            ch_modif = channel.of(modif_resolved)
+            ch_modif = channel.fromPath(modif_resolved)
         }
 
         // download both
@@ -305,16 +264,22 @@ workflow {
 
             DORADO_DOWNLOAD_LIST()
 
-            ch_model_to_download = selectBaseModel(
+            ch_model_to_download_resolved = selectBaseModelDownload(
                 DORADO_DOWNLOAD_LIST.out.list,
                 params.basecall_model
             )
 
-            ch_modif_to_download = selectModifiedModel(
+            ch_model_to_download = ch_model_to_download_resolved
+                .combine(ch_model_dir)
+                .map { type, model -> tuple("base", type, model)}
+
+            ch_modif_to_download = selectModifiedModelDownload(
                 DORADO_DOWNLOAD_LIST.out.list,
-                ch_model_to_download,
+                ch_model_to_download_resolved,
                 params.m_bases
             )
+                .combine(ch_model_dir)
+                .map { type, model -> tuple("modif", type, model)}
 
             ch_in_download = ch_model_to_download
                 .mix(ch_modif_to_download)
@@ -322,88 +287,56 @@ workflow {
             DORADO_DOWNLOAD_MODEL(ch_in_download)
 
             ch_model = DORADO_DOWNLOAD_MODEL.out.model
-                .combine(ch_model_to_download)
-                .filter { model_out, model_in -> model_out.name == model_in }
-                .map { it -> it[0].name }
+                .filter { type, model -> type == "base" }
+                .map { type, model -> model }
 
             ch_modif = DORADO_DOWNLOAD_MODEL.out.model
-                .combine(ch_modif_to_download)
-                .filter { model_out, model_in -> model_out.name == model_in }
-                .map { it -> it[0].name }
+                .filter { type, model -> type == "modif" }
+                .map { type, model -> model }
 
         // download only model
         } else if (!model_resolved && !params.m_bases) {
 
             DORADO_DOWNLOAD_LIST()
 
-            ch_model_to_download = selectBaseModel(
+            ch_model_to_download = selectBaseModelDownload(
                 DORADO_DOWNLOAD_LIST.out.list,
                 params.basecall_model
             )
+            .combine(ch_model_dir)
+            .map { type, model -> tuple("base", type, model)}
 
             ch_in_download = ch_model_to_download
 
-            DORADO_DOWNLOAD_MODEL(ch_in_download)
+            DORADO_DOWNLOAD_MODEL(ch_model_to_download)
 
             ch_model = DORADO_DOWNLOAD_MODEL.out.model
-                .combine(ch_in_download)
-                .filter { model_out, model_in -> model_out.name == model_in }
-                .map { it -> it[0].name }
+                .map { type, model -> model }
 
         // download only modif
         } else if (model_resolved && !modif_resolved && params.m_bases) {
 
             DORADO_DOWNLOAD_LIST()
 
-            ch_modif_to_download = selectModifiedModel(
+            ch_model_match = ch_model.map { it -> it.name }
+
+            ch_modif_to_download = selectModifiedModelDownload(
                 DORADO_DOWNLOAD_LIST.out.list,
-                ch_model,
+                ch_model_match,
                 params.m_bases
             )
+                .combine(ch_model_dir)
+                .map { type, model -> tuple("modif", type, model)}
 
-            ch_in_download = ch_modif_to_download
-
-            DORADO_DOWNLOAD_MODEL(ch_in_download)
+            DORADO_DOWNLOAD_MODEL(ch_modif_to_download)
 
             ch_modif = DORADO_DOWNLOAD_MODEL.out.model
-                .combine(ch_in_download)
-                .filter { model_out, model_in -> model_out.name == model_in }
-                .map { it -> it[0].name }
+                .map { type, model -> model }
         }
 
-    ch_model_dir = channel.fromPath("${params.reference_cache_dir}/dorado_models")
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
-            .combine(ch_model_dir)
             .combine(ch_model)
             .combine(ch_modif)
-
-    } else if (!params.skip_basecalling && !params.basecall_offline) {
-        ch_model = channel.of(params.basecall_model)
-        ch_modif = channel.of(params.m_bases)
-        def model_dir = '.'
-
-        if (params.reference_cache_dir) {
-            def base = file(params.reference_cache_dir)
-            def sub  = file("${params.reference_cache_dir}/dorado_models")
-
-            if (sub.exists()) {
-                model_dir = sub
-            }
-            else if (base.exists()) {
-                model_dir = base
-            }
-        }
-
-        ch_model_dir = channel.fromPath(model_dir)
-
-        ch_input = PIPELINE_INITIALISATION.out.samplesheet
-            .combine(ch_model_dir)
-            .combine(ch_model)
-            .combine(ch_modif)
-    } else {
-        ch_input = PIPELINE_INITIALISATION.out.samplesheet
-            .map { meta, input, _ubam ->
-            tuple(meta, input) }
     }
 
    // channels for SNP calling
