@@ -46,7 +46,6 @@ workflow LOCAL_REALTIME {
     tumor_type              // channel: samplesheet read in from --input, contains only tumor type
     ref_t2t                 // channel: Path to T2T reference from params.ref_t2t
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
     vep_cache
@@ -233,7 +232,6 @@ workflow LOCAL_REALTIME {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
             COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )
@@ -278,7 +276,6 @@ workflow LOCAL_REALTIME {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
             COVERAGE_SEPARATE.out.split_bed,
             vep_cache
         )
