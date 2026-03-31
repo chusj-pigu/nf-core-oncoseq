@@ -150,7 +150,7 @@ process ENSEMBL_VEP_TABLE {
     {
         split(\$7, transcripts, ",")          # CSQ field
         split(\$9, ad_vals, ",")             # AD field (last column)
-        
+
         ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
 
         for (i in transcripts) {
@@ -158,7 +158,7 @@ process ENSEMBL_VEP_TABLE {
 
             if (ad_alt > 5 && \$8 > 20 && \$6 == "PASS") {
                 print \$1,\$2,\$3,\$4,\$5, \
-                    f[2],f[3],f[4],f[7], \
+                    f[4],f[2],f[3],f[72],f[7],f[27], \
                     f[11],f[12],f[18],f[49], \
                     \$8,ad_alt
             }
