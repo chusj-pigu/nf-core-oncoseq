@@ -46,9 +46,9 @@ workflow LOCAL_REALTIME {
     tumor_type              // channel: samplesheet read in from --input, contains only tumor type
     ref_t2t                 // channel: Path to T2T reference from params.ref_t2t
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
+    vep_cache
 
     main:
 
@@ -154,7 +154,8 @@ workflow LOCAL_REALTIME {
         )
 
         STURGEON(
-            MAPPING_T2T.out.bam
+            MAPPING_T2T.out.bam,
+            ref_t2t
         )
 
         CNV_CALLING(
@@ -167,6 +168,8 @@ workflow LOCAL_REALTIME {
             ref
         )
 
+        ch_clair3_out = channel.empty()
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -175,7 +178,8 @@ workflow LOCAL_REALTIME {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_clair3_out
         )
 
         COVERAGE_SEPARATE(
@@ -218,17 +222,6 @@ workflow LOCAL_REALTIME {
             ref
         )
 
-        // Filter variants to visualize :
-        VARIANT_PROCESS (
-            MAPPING_HG.out.bam,
-            SV_UNPHASED.out.vcf,
-            CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs,
-            targets,
-            CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
-        )
-
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
             bed,
@@ -239,8 +232,20 @@ workflow LOCAL_REALTIME {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
-            bed
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
+        )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING_HG.out.bam,
+            SV_UNPHASED.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs,
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs,
+            CLAIR3_CALLING.out.vcf_vep
         )
 
         // Placeholders for report
@@ -261,17 +266,6 @@ workflow LOCAL_REALTIME {
             ref
         )
 
-        // Filter variants to visualize :
-        VARIANT_PROCESS (
-            MAPPING_HG.out.bam,
-            SV_UNPHASED.out.vcf,
-            CNV_CALLING.out.qdnaseq_bed,
-            CNV_CALLING.out.qdnaseq_segs,
-            targets,
-            CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
-        )
-
         COVERAGE_SEPARATE(
             MAPPING_HG.out.bam,
             bed,
@@ -282,8 +276,20 @@ workflow LOCAL_REALTIME {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
-            bed
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
+        )
+
+        // Filter variants to visualize :
+        VARIANT_PROCESS (
+            MAPPING_HG.out.bam,
+            SV_UNPHASED.out.vcf,
+            CNV_CALLING.out.qdnaseq_bed,
+            CNV_CALLING.out.qdnaseq_segs,
+            targets,
+            CNV_CALLING.out.delly_cov,
+            CNV_CALLING.out.delly_segs,
+            CLAIR3_CALLING.out.vcf_vep
         )
 
         ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
@@ -302,7 +308,7 @@ workflow LOCAL_REALTIME {
         SUBCHROM_CALL (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
+            CLAIR3_CALLING.out.vcf_snpeff,
             ch_panel_bin
         )
 
@@ -365,7 +371,8 @@ workflow LOCAL_REALTIME {
         VARIANT_PROCESS.out.sv_table,
         VARIANT_PROCESS.out.fusion_table,
         ch_subchrom_plot,
-        ch_subchrom_focal
+        ch_subchrom_focal,
+        VARIANT_PROCESS.out.snp_table
     )
 
     /*

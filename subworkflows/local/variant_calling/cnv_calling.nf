@@ -3,9 +3,9 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { QDNASEQ_CALL       } from '../../../modules/local/qdnaseq/main.nf'
-include { DELLY_CNV          } from '../../../modules/local/delly/main.nf'
-include { BCFTOOLS_QUERY     } from '../../../modules/local/bcftools/main.nf'
+include { QDNASEQ_CALL                         } from '../../../modules/local/qdnaseq/main.nf'
+include { DELLY_CNV                            } from '../../../modules/local/delly/main.nf'
+include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_CNV } from '../../../modules/local/bcftools/main.nf'
 
 
 /*
@@ -38,17 +38,17 @@ workflow CNV_CALLING {
         .join(ch_ref_delly)
 
     DELLY_CNV(ch_in_delly)
-    BCFTOOLS_QUERY(DELLY_CNV.out.bcf)
+    BCFTOOLS_QUERY_CNV(DELLY_CNV.out.bcf)
 
     ch_versions = QDNASEQ_CALL.out.versions
         .mix(DELLY_CNV.out.versions)
-        .mix(BCFTOOLS_QUERY.out.versions)
+        .mix(BCFTOOLS_QUERY_CNV.out.versions)
 
     emit:
     qdnaseq_plot        = QDNASEQ_CALL.out.cov_png             // TODO: Quarto report
     qdnaseq_bed         = QDNASEQ_CALL.out.calls_bed
     qdnaseq_segs        = QDNASEQ_CALL.out.segs_bed
-    delly_segs          = BCFTOOLS_QUERY.out.bed
+    delly_segs          = BCFTOOLS_QUERY_CNV.out.bed
     delly_cov           = DELLY_CNV.out.cov
     versions            = ch_versions
 

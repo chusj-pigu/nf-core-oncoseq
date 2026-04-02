@@ -41,12 +41,12 @@ workflow WGS {
     ref                     // channel : reference for mapping, either empty if skipping mapping, or a path
     clairs_model
     basecall_model
-    ch_clin_database
-    bed_empty
+    bed
     targets                 // channel : list of genes with their position to represent in Figeno
     minqs                   // channel obtained dynamically from params.basecall_model
     tumor_type
     ref_t2t
+    vep_cache
 
     main:
 
@@ -204,35 +204,36 @@ workflow WGS {
             MAPPING_HG.out.bam,
             ref,
             clairs_model,
-            ch_clin_database
+            bed,
+            vep_cache
         )
 
         CLAIR3_CALLING (
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
-            bed_empty
+            bed,
+            vep_cache
         )
 
         PHASING_SOMATIC (
             MAPPING_HG.out.bam,
             ref,
-            CLAIRS_TO_CALLING.out.vcf
+            CLAIRS_TO_CALLING.out.vcf_snpeff
         )
 
         PHASING_GERMLINE (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf_snpeff
         )
 
         SV_CALLING (
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                     // Restore original sample ID for output naming
-                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff_phased', '', '')
+                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_snpeff_phased', '', '')
                     tuple(meta_restore, bamfile, bai)
                 },
             ref
@@ -246,9 +247,13 @@ workflow WGS {
         SUBCHROM_CALL (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
-            bed_empty
+            CLAIR3_CALLING.out.vcf_snpeff,
+            bed
         )
+
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -257,7 +262,8 @@ workflow WGS {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_snp_to_process
         )
 
     ch_versions = ch_versions
@@ -315,7 +321,8 @@ workflow WGS {
             VARIANT_PROCESS.out.sv_table,
             VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
-            ch_subchrom_focal
+            ch_subchrom_focal,
+            VARIANT_PROCESS.out.snp_table
         )
 
         ch_classifiers_plots = STURGEON.out.plot

@@ -177,7 +177,7 @@
                     "type": "string",
                     "fa_icon": "far fa-check-circle",
                     "description": "Base URL or local path to location of pipeline test dataset files",
-                    "default": "\"${projectDir}/test_data/\"",
+                    "default": "/workspaces/nf-core-oncoseq/test_data/",
                     "hidden": true
                 },
                 "trace_report_suffix": {
@@ -213,7 +213,7 @@
         "bed": {
             "type": "string",
             "description": "Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)",
-            "default": "\"${projectDir}/assets/CRA-CHUSJ-targets-panel-v2.bed\""
+            "default": "/workspaces/nf-core-oncoseq/assets/NO_BED"
         },
         "demux": {
             "type": "boolean",
@@ -221,12 +221,7 @@
         },
         "m_bases": {
             "type": "string",
-            "description": "Modifications model to usefor basecalling",
-            "default": "none"
-        },
-        "m_bases_path": {
-            "type": "string",
-            "description": "If using on a HPC, path to the local basecalling model for modifications"
+            "description": "Modifications model to usefor basecalling"
         },
         "device": {
             "type": "string",
@@ -235,11 +230,6 @@
         "batch": {
             "type": "string",
             "description": "Batch size for basecalling"
-        },
-        "minqs": {
-            "type": "integer",
-            "default": 10,
-            "description": "Minimum Phred quality score for filtering reads."
         },
         "demux_samplesheet": {
             "type": "string",
@@ -269,7 +259,6 @@
         },
         "huge": {
             "type": "boolean",
-            "default": false,
             "description": "Scale resource allocations for very large datasets."
         },
         "clairsto_model": {
@@ -283,7 +272,7 @@
         },
         "low_fidelity": {
             "type": "string",
-            "default": "\"${projectDir}/assets/panel_low_fidelity.txt\"",
+            "default": "/workspaces/nf-core-oncoseq/assets/panel_low_fidelity.txt",
             "description": "Path to text file containing list of genes of low fidelity for adaptive sampling (default is empty list)"
         },
         "padding": {
@@ -294,11 +283,6 @@
         "skip_basecalling": {
             "type": "boolean",
             "description": "Option to skip basecalling and start with fastq files in the samplesheet input column"
-        },
-        "clin_database": {
-            "type": "string",
-            "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)",
-            "default": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
         },
         "max_memory": {
             "type": "string",
@@ -317,7 +301,8 @@
         },
         "reference_cache_dir": {
             "type": "string",
-            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation."
+            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation.",
+            "default": "/workspaces/nf-core-oncoseq"
         },
         "time_series": {
             "type": "boolean"
@@ -333,9 +318,6 @@
         "basecall_model": {
             "type": "string"
         },
-        "basecall_model_path": {
-            "type": "string"
-        },
         "realtime": {
             "type": "integer",
             "description": "Use number of sequencing hour to activate real time mode"
@@ -346,7 +328,7 @@
         },
         "sv_targets": {
             "type": "string",
-            "default": "\"${projectDir}/assets/NOCSV\"",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOCSV",
             "description": "List of genes to visualize with Figeno (columns GENE and pos)"
         },
         "skip_mapping": {
@@ -354,12 +336,7 @@
         },
         "ref_t2t": {
             "type": "string",
-            "description": "Path to the T2T human reference genome, only used with CNS tumor for running Sturgeon",
-            "default": null
-        },
-        "basecall_offline": {
-            "type": "boolean",
-            "description": "Turn on when basecalling with no access to internet (requires local copy of model)"
+            "description": "Path to the T2T human reference genome, only used with CNS tumor for running Sturgeon"
         },
         "max_length": {
             "type": "integer",
@@ -382,7 +359,7 @@
         },
         "report_template": {
             "type": "string",
-            "default": "\"${projectDir}/assets/templates/report_template.qmd\""
+            "default": "/workspaces/nf-core-oncoseq/assets/templates/report_template.qmd"
         },
         "ref": {
             "type": "string",
@@ -395,14 +372,27 @@
         },
         "ubam": {
             "type": "string",
-            "default": "\"${projectDir}nf-core-oncoseq/assets/NOFILE\"",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOFILE",
             "description": "Placeholder for incomplete ubam, to use basecalling resume, specify path to incomplete ubam in samplesheet"
         },
         "delly_bin_size": {
             "type": "integer",
             "default": 50000,
             "description": "Bin size to use with Delly CNV calling"
+        },
+        "vep_cache": {
+            "type": "string",
+            "description": "Path to cache used by ensembl VEP"
+        },
+        "vep_version": {
+            "type": "integer",
+            "default": 115,
+            "description": "Version of Emsembl to use"
+        },
+        "filtervep_expression": {
+            "type": "string",
+            "default": "IMPACT != LOW and (gnomADe_AF <= 0.01 or not gnomADe_AF) and DP >= 20 and INFO is PASS and not CLIN_SIG matches \\'BENIGN\\",
+            "description": "Expression accepted by filtervep for filtering snp"
         }
-    },
-    "required": ["clin_database"]
+    }
 }

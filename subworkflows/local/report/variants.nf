@@ -10,6 +10,7 @@ include { QUARTO_SECTION as QUARTO_DELLY_SECTION        } from '../../../modules
 include { QUARTO_SECTION as QUARTO_SV_SECTION           } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_FUSION_SECTION       } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_TARGETS_SECTION      } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_SNP_SECTION          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_QDNASEQ        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_DELLY          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_SV             } from '../../../modules/local/quarto/main.nf'
@@ -19,6 +20,7 @@ include { QUARTO_FIGURE as QUARTO_FIGURE_FOCAL          } from '../../../modules
 include { QUARTO_FIGURE as QUARTO_FIGURE_TARGETS        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_COLNAMES as QUARTO_FUSION_TABLES } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_COLNAMES as QUARTO_SV_TABLES     } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TABLE_COLNAMES as QUARTO_SNP_TABLES    } from '../../../modules/local/quarto/main.nf'
 include { modifyMetaId                                  } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
@@ -35,6 +37,7 @@ workflow FIGENO_REPORT {
     ch_fusion_tables
     ch_subchrom_figure
     ch_subchrom_focal
+    ch_snp_table
 
     main:
 
@@ -366,6 +369,35 @@ workflow FIGENO_REPORT {
        ch_section_targets
     )
 
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FILTERED SNP TABLE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    ch_snp_table_in = ch_snp_table
+            .map { meta, table ->
+                def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
+                def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
+                def type = meta.id.contains('germline') ? "Clair3" : "ClairS-TO"
+                def caption = "SNPs called by $type and filtered for regions included in the panels"
+                def col_names = "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
+                def section = "SNPs"
+                def process = "snp-${type}-stats-${meta.id}"
+                tuple(meta_final, table, caption, col_names, section, process)
+            }
+
+    QUARTO_SNP_TABLES(ch_snp_table_in)
+
+    ch_section_snp = QUARTO_SNP_TABLES.out.quarto_table
+            .groupTuple()
+            .map { id, section, filePaths ->
+                [id, section[0], filePaths, "SNPs filtered with EnsemblVep using filters :'$params.filtervep_expression'"]
+            }
+
+    QUARTO_SNP_SECTION(ch_section_snp)
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     OUTPUTS
@@ -377,6 +409,7 @@ workflow FIGENO_REPORT {
         .mix(QUARTO_SV_SECTION.out.quarto_section)
         .mix(QUARTO_TARGETS_SECTION.out.quarto_section)
         .mix(QUARTO_DELLY_SECTION.out.quarto_section)
+        .mix(QUARTO_SNP_SECTION.out.quarto_section)
 
     emit:
     sections = ch_sections
