@@ -232,8 +232,8 @@ workflow WGS {
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                     // Restore original sample ID for output naming
-                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff_phased', '', '')
+                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_snpeff_phased', '', '')
                     tuple(meta_restore, bamfile, bai)
                 },
             ref

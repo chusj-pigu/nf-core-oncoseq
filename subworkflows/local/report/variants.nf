@@ -382,7 +382,7 @@ workflow FIGENO_REPORT {
                 def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
                 def type = meta.id.contains('germline') ? "Clair3" : "ClairS-TO"
                 def caption = "SNPs called by $type and filtered for regions included in the panels"
-                def col_names = "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,gnomADe_AF,Read_depth (DP),Variant_depth (AD)
+                def col_names = "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
                 def section = "SNPs"
                 def process = "snp-${type}-stats-${meta.id}"
                 tuple(meta_final, table, caption, col_names, section, process)

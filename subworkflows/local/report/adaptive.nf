@@ -96,7 +96,7 @@ workflow ADAPTIVE_REPORT {
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths,
-                'Coverage analysis with mosdepth and custom coverage plot.']
+                'Coverage analysis with mosdepth and custom coverage plot']
         }
 
     QUARTO_SECTION(
