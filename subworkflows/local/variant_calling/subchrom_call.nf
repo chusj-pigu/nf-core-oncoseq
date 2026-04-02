@@ -24,9 +24,9 @@ workflow SUBCHROM_CALL {
             tuple(meta, ref_id, ref_fasta) }
 
     ch_in_subchrom_wgs = vcf
-        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('germline_snp') }       // Only keep the snp file created by clair3 annotated with SnpEff
+        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('_germline_snp_snpeff') }       // Only keep the snp file created by clair3 annotated with SnpEff
         .map { meta, vcf_file, _vcf_tbi ->
-            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp', '', '')       // Restore meta to be sample id only to join with ref
+            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')       // Restore meta to be sample id only to join with ref
                 tuple(meta_restore, vcf_file)
                 }
         .join(ch_ref_subchrom)
@@ -42,9 +42,9 @@ workflow SUBCHROM_CALL {
     }
 
     ch_in_subchrom_panel = vcf
-        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('germline_snp') }       // Only keep the snp file created by clair3 annotated with SnpEff
+        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('_germline_snp_snpeff') }       // Only keep the snp file created by clair3 annotated with SnpEff
         .map { meta, vcf_file, _vcf_tbi ->
-            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp', '', '')       // Restore meta to be sample id only to join with ref and bam
+            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')       // Restore meta to be sample id only to join with ref and bam
                 tuple(meta_restore, vcf_file)
             }
         .join(bam)
