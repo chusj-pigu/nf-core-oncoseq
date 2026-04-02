@@ -62,7 +62,7 @@ process PIGZ_BED {
 process COVERAGE_PLOT {
 
     //TODO: SET FIXED VERSION WHEN PIPELINE IS STABLE
-    container 'ghcr.io/chusj-pigu/tidyverse:latest'
+    container 'ghcr.io/chusj-pigu/tidyverse:006154f90a8b1b1c8647a246a76cb0562517da61'
     label 'local'
     label 'process_low'
     label 'process_single_cpu'
