@@ -21,6 +21,8 @@ include { QUARTO_FIGURE as QUARTO_FIGURE_TARGETS        } from '../../../modules
 include { QUARTO_TABLE_COLNAMES as QUARTO_FUSION_TABLES } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_COLNAMES as QUARTO_SV_TABLES     } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_COLNAMES as QUARTO_SNP_TABLES    } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TEXT as QUARTO_TEXT_SV                 } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TEXT as QUARTO_TEXT_FUSION             } from '../../../modules/local/quarto/main.nf'
 include { modifyMetaId                                  } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
@@ -128,12 +130,6 @@ workflow FIGENO_REPORT {
                 "Pan chromosome plots showing Delly calls with bin size of ${params.delly_bin_size} kb"]
         }
 
-    // ch_delly_section_caption = ch_bin_sizes
-    //     .filter { meta, _value ->
-    //     meta == "Delly" }
-    //     .map { meta, value ->
-    //     "Pan chromosome plots showing ${meta} calls with bin size of ${value} kb" }
-
     QUARTO_DELLY_SECTION(
         ch_section_delly
     )
@@ -210,7 +206,14 @@ workflow FIGENO_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_sv_table_in = ch_sv_tables
+    // If table is empty, skip quarto table
+
+    ch_sv_tables = ch_sv_tables
+        .branch { meta, table ->
+            pos: table.size() > 0
+            empty: true }
+
+    ch_sv_table_in = ch_sv_tables.pos
         .combine(ch_sv)
         .map { meta, table, type ->
             def type_lower = type.toLowerCase()
@@ -226,7 +229,7 @@ workflow FIGENO_REPORT {
 
     // Process tables to extract necessary information to put in legend
 
-    ch_sv_stats = ch_sv_tables
+    ch_sv_stats = ch_sv_tables.pos
         .flatMap { meta, table ->
             def tuples = []
             table.readLines().each { line ->
@@ -256,8 +259,25 @@ workflow FIGENO_REPORT {
         ch_sv_files
         )
 
+    // Empty table :
+    ch_empty = ch_sv_tables.empty
+        .combine(ch_sv)
+        .map { meta, table, type ->
+            def type_lower = type.toLowerCase()
+            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
+            def text = "No Structural variants remaining after applying filters"  // Placeholder text for empty table
+            def section = type_lower
+            def process = "${type_lower}-empty-${meta.id}"
+            tuple(new_meta, text, section, process)
+        }
+
+    QUARTO_TEXT_SV(
+        ch_empty
+    )
+
     ch_section_sv = QUARTO_SV_TABLES.out.quarto_table
         .mix(QUARTO_FIGURE_SV.out.quarto_figure)
+        .mix(QUARTO_TEXT_SV.out.quarto_text)
 
     ch_section_sv = ch_section_sv
         .groupTuple()
@@ -276,7 +296,12 @@ workflow FIGENO_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_fusion_table_in = ch_fusion_tables
+    ch_fusion_tables = ch_fusion_tables
+        .branch { meta, table ->
+            pos: table.size() > 0
+            empty: true }
+
+    ch_fusion_table_in = ch_fusion_tables.pos
         .combine(ch_fusion)
         .map { meta, table, type ->
             def type_lower = type.toLowerCase()
@@ -290,7 +315,7 @@ workflow FIGENO_REPORT {
 
     QUARTO_FUSION_TABLES(ch_fusion_table_in)
 
-    ch_fusion_stats = ch_fusion_tables
+    ch_fusion_stats = ch_fusion_tables.pos
         .flatMap { meta, table ->
             def tuples = []
             table.readLines().each { line ->
@@ -320,8 +345,26 @@ workflow FIGENO_REPORT {
         ch_fusion_files
         )
 
+    // Empty table :
+
+    ch_empty_fusion = ch_fusion_tables.empty
+        .combine(ch_fusion)
+        .map { meta, table, type ->
+            def type_lower = type.toLowerCase()
+            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
+            def text = "No gene fusions remaining after applying filters"
+            def section = type_lower
+            def process = "${type_lower}-empty-${meta.id}"
+            tuple(new_meta, text, section, process)
+        }
+
+    QUARTO_TEXT_FUSION(
+        ch_empty_fusion
+    )
+
     ch_section_fusion = QUARTO_FUSION_TABLES.out.quarto_table
         .mix(QUARTO_FIGURE_FUSION.out.quarto_figure)
+        .mix(QUARTO_TEXT_FUSION.out.quarto_text)
 
     ch_section_fusion = ch_section_fusion
         .groupTuple()
