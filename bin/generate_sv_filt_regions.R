@@ -13,6 +13,8 @@ option_list <- list(
               help = "Path to input TSV file (required)", metavar = "file"),
   make_option(c("-t", "--target"), type = "character",
               help = "Path to target csv file", metavar = "file")
+  make_option(c("-e", "--exclude"), type = "character",
+              help = "Path blacklist of artefact", metavar = "file")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -24,6 +26,7 @@ if (is.null(opt$input)) {
 input <- opt$input
 target_list <- opt$target
 sample_id <- sub("_filt\\.tsv$", "", basename(input))
+blacklist <- opt$exclude
 
 # -----------------------------
 # Helper Functions
@@ -216,33 +219,63 @@ if (nrow(missing_rows) > 0) {
     target_final <- data.frame()
 }
 
-# Define unwanted suffixes
-unwanted_suffixes <- c("BAGE2-KMT2C", "BAGE2", "GPR42", "FAM230D", "FAM230F", "RNF213", "FRG1FP", "MPPED1")
+# --------------------------------------------
+# Exclude blacklisted genes that are artefacts
+# ---------------------------------------------
 
-# Create the full unwanted names with sample_id prefix
-unwanted_genes <- paste(sample_id, unwanted_suffixes, sep = "_")
+# Define SV blacklist suffixes
+unwanted_calls <- readLines(blacklist)
 
 # -----------------------------
 # Save to output
 # -----------------------------
-safe_write <- function(df, file) {
+safe_write_figeno <- function(df, file) {
   if (nrow(df) > 0) {
+    # Build a regex pattern that matches sample_id_SUFFIX at the start of the gene name
+    unwanted_pattern <- paste0("^", sample_id, "_(", paste(unwanted_suffixes, collapse = "|"), ")")
+    
     if ("GENE" %in% colnames(df)) {
       df <- df %>%
-        filter(!GENE %in% unwanted_genes)  # Filter based on 'GENE'
+        filter(!str_detect(GENE, unwanted_pattern)) %>%
+        filter(!GENE %in% paste(sample_id, unwanted_calls, sep = "_"))
     } else if ("FUSION" %in% colnames(df)) {
       df <- df %>%
-        filter(!FUSION %in% unwanted_genes)  # Filter based on 'FUSION'
+        filter(!str_detect(FUSION, unwanted_pattern)) %>%
+        filter(!FUSION %in% paste(sample_id, unwanted_calls, sep = "_"))
     }
-    write_tsv(df, file, col_names = FALSE, quote = "none")
+    if (nrow(df > 0)) {
+      write_tsv(df, file, col_names = FALSE, quote = "none")
+    } else {
+      message(paste("Skipping", file, "No SV remaining after filtering out blacklist"))
+    }
+  } else {
+    message(paste("Skipping", file, "- dataframe is empty"))
+  }
+}
+
+safe_write_tables <- function(df, file) {
+  if (nrow(df) > 0) {
+    
+    unwanted_pattern <- paste0("^", "(", paste(unwanted_suffixes, collapse = "|"), ")")
+    
+    if ("GENE" %in% colnames(df)) {
+      df <- df %>%
+        filter(!str_detect(GENE, unwanted_pattern)) %>%
+        filter(!GENE %in% unwanted_calls)
+    } else if ("FUSION" %in% colnames(df)) {
+      df <- df %>%
+        filter(!str_detect(FUSION, unwanted_pattern)) %>%
+        filter(!FUSION %in% unwanted_calls)
+    }
+      write_tsv(df, file, col_names = FALSE, quote = "none")       # Write empty table if no rows left after filtering
   } else {
     message(paste("Skipping", file, "- dataframe is empty"))
   }
 }
 
 
-safe_write(vcf_bnd, paste(sample_id, "region_fusions.txt", sep = "_"))
-safe_write(vcf_del_ins, paste(sample_id, "region_indel.txt", sep = "_"))
-safe_write(target_final, paste(sample_id, "targets_nohit.txt", sep = "_"))
-safe_write(bnd_table, paste(sample_id, "table_fusions.tsv", sep = "_"))
-safe_write(delin_table, paste(sample_id, "table_indel.tsv", sep = "_"))
+safe_write_figeno(vcf_bnd, paste(sample_id, "region_fusions.txt", sep = "_"))
+safe_write_figeno(vcf_del_ins, paste(sample_id, "region_indel.txt", sep = "_"))
+safe_write_figeno(target_final, paste(sample_id, "targets_nohit.txt", sep = "_"))
+safe_write_tables(bnd_table, paste(sample_id, "table_fusions.tsv", sep = "_"))
+safe_write_tables(delin_table, paste(sample_id, "table_indel.tsv", sep = "_"))
