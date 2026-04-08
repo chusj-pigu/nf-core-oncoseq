@@ -3,18 +3,20 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { BCFTOOLS_INDEX                    } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_FILTER_SUPPORT           } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_FILTER_ID                } from '../../../modules/local/bcftools/main.nf'
-include { SV_PROCESS                        } from '../../../modules/local/vcf_process/main.nf'
-include { FIGENO_SV_FIGURE as FIGENO_FUSION } from '../../../modules/local/figeno/main.nf'
-include { FIGENO_SV_FIGURE as FIGENO_OTHER  } from '../../../modules/local/figeno/main.nf'
-include { FIGENO_SV_FIGURE as FIGENO_TARGETS} from '../../../modules/local/figeno/main.nf'
-include { FIGENO_CIRCOS                     } from '../../../modules/local/figeno/main.nf'
-include { FIGENO_PAN_CHR                    } from '../../../modules/local/figeno/main.nf'
-include { BGZIP_VCF                         } from '../../../modules/local/bcftools/main.nf'
-include { QDNASEQ_PROCESS                   } from '../../../modules/local/vcf_process/main.nf'
-include { modifyMetaId                      } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+include { BCFTOOLS_INDEX                       } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_FILTER_SUPPORT              } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_FILTER_ID                   } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_SNP } from '../../../modules/local/bcftools/main.nf'
+include { SV_PROCESS                           } from '../../../modules/local/vcf_process/main.nf'
+include { FIGENO_SV_FIGURE as FIGENO_FUSION    } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_SV_FIGURE as FIGENO_OTHER     } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_SV_FIGURE as FIGENO_TARGETS   } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_CIRCOS                        } from '../../../modules/local/figeno/main.nf'
+include { FIGENO_PAN_CHR                       } from '../../../modules/local/figeno/main.nf'
+include { BGZIP_VCF                            } from '../../../modules/local/bcftools/main.nf'
+include { QDNASEQ_PROCESS                      } from '../../../modules/local/vcf_process/main.nf'
+include { ENSEMBL_VEP_TABLE                    } from '../../../modules/local/vcf_process/main.nf'
+include { modifyMetaId                         } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 
 /*
@@ -35,6 +37,7 @@ workflow VARIANT_PROCESS {
     sv_targets
     delly_cov
     delly_bed
+    snp_filt
     main:
 
     // Circos with cnv
@@ -102,6 +105,11 @@ workflow VARIANT_PROCESS {
 
     FIGENO_PAN_CHR(ch_delly_figeno)
 
+    // Table for Filtered snps :
+    BCFTOOLS_QUERY_SNP(snp_filt)
+
+    ENSEMBL_VEP_TABLE(BCFTOOLS_QUERY_SNP.out.bed)
+
     ch_versions = BCFTOOLS_FILTER_SUPPORT.out.versions
         .mix(BCFTOOLS_FILTER_ID.out.versions)
         .mix(SV_PROCESS.out.versions)
@@ -117,6 +125,7 @@ workflow VARIANT_PROCESS {
     sv_table            = SV_PROCESS.out.indel_tsv
     fusion_table        = SV_PROCESS.out.fusion_tsv
     panchr_plot         = FIGENO_PAN_CHR.out.figure
+    snp_table           = ENSEMBL_VEP_TABLE.out.csv
     versions            = ch_versions
 
 }

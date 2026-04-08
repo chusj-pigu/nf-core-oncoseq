@@ -31,6 +31,8 @@ workflow SV_CALLING {
 
     SNIFFLES_CALL(ch_in_sniffles)
 
+    BCFTOOLS_SORT(SNIFFLES_CALL.out.vcf)
+
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
             tuple(meta, refid) }
@@ -51,15 +53,14 @@ workflow SV_CALLING {
     ch_databases_ref = ch_databases_hg38
         .mix(ch_databases_hg19)
 
-    ch_sv_annotate = SNIFFLES_CALL.out.vcf
+    ch_sv_annotate = BCFTOOLS_SORT.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_sv')
             tuple(new_meta, output, database) }
 
     SNPEFF_ANNOTATE(ch_sv_annotate)
-    BCFTOOLS_SORT(SNPEFF_ANNOTATE.out.vcf)
-    BGZIP_VCF(BCFTOOLS_SORT.out.vcf)
+    BGZIP_VCF(SNPEFF_ANNOTATE.out.vcf)
     BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
 
     ch_versions = SNIFFLES_CALL.out.versions

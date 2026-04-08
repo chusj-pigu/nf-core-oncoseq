@@ -1,7 +1,7 @@
 process SV_PROCESS {
 
     //TODO: SET FIXED VERSION WHEN PIPELINE IS STABLE
-    container 'ghcr.io/chusj-pigu/tidyverse:latest'
+    container 'ghcr.io/chusj-pigu/tidyverse:006154f90a8b1b1c8647a246a76cb0562517da61'
     label 'local'
     label 'process_low'
     label 'process_single_cpu'
@@ -118,5 +118,51 @@ process QDNASEQ_PROCESS {
             print \$1, \$2, (\$5+1)
         }
     ' $segs_bed > ${prefix}_ratio.txt
+    """
+}
+
+process ENSEMBL_VEP_TABLE {
+
+    label 'local'
+    label 'process_low'
+    label 'process_single_cpu'
+    label 'process_very_low_memory'
+
+    tag "$meta.id"
+
+    input:
+    tuple val(meta),
+        path(bed)
+
+    output:
+    tuple val(meta),
+        path("*.csv"),
+        emit: csv
+
+    when:
+    bed.size() > 0
+
+    script:
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    """
+    awk -F'\t' '
+    BEGIN { OFS="," }
+    {
+        split(\$7, transcripts, ",")          # CSQ field
+        split(\$9, ad_vals, ",")             # AD field (last column)
+
+        ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
+
+        for (i in transcripts) {
+            split(transcripts[i], f, "|")
+
+            if (ad_alt > 5 && \$8 > 20 && \$6 == "PASS") {
+                print \$1,\$2,\$3,\$4,\$5, \
+                    f[4],f[2],f[3],f[72],f[7],f[27], \
+                    f[11],f[12],f[18],f[49], \
+                    \$8,ad_alt
+            }
+        }
+    }' ${bed} > ${prefix}_filt.csv
     """
 }

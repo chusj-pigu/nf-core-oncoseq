@@ -62,11 +62,11 @@ workflow ADAPTIVE {
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     clairs_model            // channel: model for ClairS variant calling
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
     tumor_type
     ref_t2t
+    vep_cache
 
     main:
 
@@ -161,12 +161,13 @@ workflow ADAPTIVE {
             ref
         )
 
-        // Somatic variant calling using ClairS
+       // Somatic variant calling using ClairS
         CLAIRS_TO_CALLING (
             MAPPING_HG.out.bam,
             ref,
             clairs_model,
-            ch_clin_database
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
         )
 
         // Germline variant calling using Clair3
@@ -174,22 +175,22 @@ workflow ADAPTIVE {
             MAPPING_HG.out.bam,
             ref,
             basecall_model,
-            ch_clin_database,
-            bed
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
         )
 
-        // Phase somatic variants
+       // Phase somatic variants
         PHASING_SOMATIC (
             MAPPING_HG.out.bam,
             ref,
-            CLAIRS_TO_CALLING.out.vcf
+            CLAIRS_TO_CALLING.out.vcf_snpeff
         )
 
-        // Phase germline variants
+    //    // Phase germline variants
         PHASING_GERMLINE (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf_snpeff
         )
 
         // Structural variant calling using phased BAM
@@ -209,6 +210,9 @@ workflow ADAPTIVE {
             MAPPING_HG.out.bam,
             ref
         )
+
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -217,7 +221,8 @@ workflow ADAPTIVE {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_snp_to_process
         )
 
         ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
@@ -236,7 +241,7 @@ workflow ADAPTIVE {
         SUBCHROM_CALL (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
+            CLAIR3_CALLING.out.vcf_snpeff,
             ch_panel_bin
         )
 
@@ -384,7 +389,8 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             clairs_model,
-            ch_clin_database
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
         )
 
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -392,32 +398,31 @@ workflow ADAPTIVE {
             ch_bam_for_calling,
             ch_ref_for_calling,
             basecall_model,
-            ch_clin_database,
-            bed
+            COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
         )
 
         // // Phase somatic variants (uses original mapping output)
         PHASING_SOMATIC (
             ch_bam_for_calling,
             ch_ref_for_calling,
-            CLAIRS_TO_CALLING.out.vcf
+            CLAIRS_TO_CALLING.out.vcf_snpeff
         )
 
         // Phase germline variants (can use time series BAM if enabled)
         PHASING_GERMLINE (
             ch_bam_for_calling,
             ch_ref_for_calling,
-            CLAIR3_CALLING.out.vcf
+            CLAIR3_CALLING.out.vcf_snpeff
         )
 
         // Structural variant calling using phased BAM
-        // TODO: find
         SV_CALLING (
             PHASING_GERMLINE.out.haptag_bam
                 .map { meta, bamfile, bai ->
                 // Restore original sample ID for output naming
-                def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
+                def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff_phased', '', '')
+                meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_snpeff_phased', '', '')
                 tuple(meta_restore, bamfile, bai)
                 },
             ch_ref_for_calling
@@ -429,6 +434,9 @@ workflow ADAPTIVE {
             ch_ref_for_calling
         )
 
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING_HG.out.bam,
@@ -437,7 +445,8 @@ workflow ADAPTIVE {
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
-            CNV_CALLING.out.delly_segs
+            CNV_CALLING.out.delly_segs,
+            ch_snp_to_process
         )
 
         ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
@@ -456,7 +465,7 @@ workflow ADAPTIVE {
         SUBCHROM_CALL (
             MAPPING_HG.out.bam,
             ref,
-            CLAIR3_CALLING.out.vcf,
+            CLAIR3_CALLING.out.vcf_snpeff,
             ch_panel_bin
         )
     }
@@ -522,7 +531,8 @@ workflow ADAPTIVE {
             VARIANT_PROCESS.out.sv_table,
             VARIANT_PROCESS.out.fusion_table,
             ch_subchrom_plot,
-            ch_subchrom_focal
+            ch_subchrom_focal,
+            VARIANT_PROCESS.out.snp_table
         )
 
         ch_classifiers_plots = STURGEON.out.plot
