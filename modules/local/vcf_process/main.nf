@@ -68,7 +68,7 @@ process SV_PROCESS {
     generate_sv_filt_regions.R \\
         --input "${prefix}_filt.tsv" \\
         --target ${gene_list} \\
-        --blacklist ${blacklist}
+        --exclude ${blacklist}
 
 
     cat <<-END_VERSIONS > versions.yml
