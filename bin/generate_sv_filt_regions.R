@@ -12,7 +12,7 @@ option_list <- list(
   make_option(c("-i", "--input"), type = "character",
               help = "Path to input TSV file (required)", metavar = "file"),
   make_option(c("-t", "--target"), type = "character",
-              help = "Path to target csv file", metavar = "file")
+              help = "Path to target csv file", metavar = "file"),
   make_option(c("-e", "--exclude"), type = "character",
               help = "Path blacklist of artefact", metavar = "file")
 )
@@ -224,6 +224,8 @@ if (nrow(missing_rows) > 0) {
 # ---------------------------------------------
 
 # Define SV blacklist suffixes
+
+unwanted_suffixes <- c("LOC")
 unwanted_calls <- readLines(blacklist)
 
 # -----------------------------
@@ -267,9 +269,10 @@ safe_write_tables <- function(df, file) {
         filter(!str_detect(FUSION, unwanted_pattern)) %>%
         filter(!FUSION %in% unwanted_calls)
     }
-      write_tsv(df, file, col_names = FALSE, quote = "none")       # Write empty table if no rows left after filtering
+
+    write_tsv(df, file, col_names = FALSE, quote = "none")
   } else {
-    message(paste("Skipping", file, "- dataframe is empty"))
+    write_tsv(df, file, col_names = FALSE, quote = "none")
   }
 }
 
