@@ -51,9 +51,12 @@ workflow VARIANT_PROCESS {
     // Filter all variants with support >4
     BCFTOOLS_FILTER_SUPPORT(sv_vcf)
 
+    ch_blacklist = channel.fromPath(params.sv_blacklist)
+
     // Filter variants with HIGH and MODERATE impacts, create region file expected by figeno and list of selected IDS
     ch_to_process = BCFTOOLS_FILTER_SUPPORT.out.filt_vcf
         .combine(sv_targets)
+        .combine(ch_blacklist)
     SV_PROCESS(ch_to_process)
 
     // Create a filtered vcf file with only HIGH and MODERATE effects variants with support > 4

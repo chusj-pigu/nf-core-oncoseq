@@ -12,7 +12,9 @@ option_list <- list(
   make_option(c("-i", "--input"), type = "character",
               help = "Path to input TSV file (required)", metavar = "file"),
   make_option(c("-t", "--target"), type = "character",
-              help = "Path to target csv file", metavar = "file")
+              help = "Path to target csv file", metavar = "file"),
+  make_option(c("-e", "--exclude"), type = "character",
+              help = "Path blacklist of artefact", metavar = "file")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -24,6 +26,7 @@ if (is.null(opt$input)) {
 input <- opt$input
 target_list <- opt$target
 sample_id <- sub("_filt\\.tsv$", "", basename(input))
+blacklist <- opt$exclude
 
 # -----------------------------
 # Helper Functions
@@ -144,27 +147,73 @@ targets_df <- read.csv(target_list)
 # Process Variants
 # -----------------------------
 if (nrow(vcf) > 0) {
-  vcf_bnd     <- process_variant(vcf, type = "BND") %>%
-    select(GENE, pos, pos2) %>%
-    mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
-    distinct()
+  vcf_bnd <- process_variant(vcf, type = "BND") %>%
+    # Collapse duplicate fusions: keep lowest BREAKPOINT1, highest BREAKPOINT2
+    group_by(GENE, CHR1, CHR2) %>%
+    summarise(
+      BREAKPOINT1 = min(BREAKPOINT1),
+      BREAKPOINT2 = max(BREAKPOINT2),
+      SUPPORT     = max(SUPPORT),
+      direction   = first(direction),
+      TYPE        = first(TYPE),
+      .groups     = "drop"
+    ) %>%
+    mutate(
+      pos  = paste0(CHR1, ":", clamp0(BREAKPOINT1 - 30000), "-", clamp0(BREAKPOINT1 + 30000)),
+      pos2 = paste0(CHR2, ":", clamp0(BREAKPOINT2 - 30000), "-", clamp0(BREAKPOINT2 + 30000)),
+      GENE = paste(sample_id, GENE, sep = "_")
+    ) %>%
+    select(GENE, pos, pos2)
+
   vcf_del_ins <- process_variant(vcf, type = "DEL_INS") %>%
+    # Collapse duplicate genes: keep lowest START, highest END
+    group_by(GENE, X1, TYPE) %>%
+    summarise(
+      START   = min(START),
+      END     = max(END),
+      SUPPORT = max(SUPPORT),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      LEN  = abs(END - START),
+      pos  = paste0(X1, ":", clamp0(START - 20000), "-", clamp0(END + 20000)),
+      GENE = paste(sample_id, GENE, sep = "_")
+    ) %>%
     filter(LEN < 1000000) %>%
-    select(GENE, pos) %>%
-    mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
-    distinct()
+    select(GENE, pos)
+
   delin_table <- process_variant(vcf, type = "DEL_INS") %>%
+    group_by(GENE, X1, TYPE) %>%
+    summarise(
+      START   = min(START),
+      END     = max(END),
+      SUPPORT = max(SUPPORT),
+      .groups = "drop"
+    ) %>%
+    mutate(LEN = abs(END - START)) %>%
+    filter(LEN < 1000000) %>%
     rename(CHR = X1) %>%
-    select(CHR,GENE,TYPE,SUPPORT,START,END,LEN)
+    select(CHR, GENE, TYPE, SUPPORT, START, END, LEN)
+
   bnd_table <- process_variant(vcf, type = "BND") %>%
+    group_by(GENE, CHR1, CHR2) %>%
+    summarise(
+      BREAKPOINT1 = min(BREAKPOINT1),
+      BREAKPOINT2 = max(BREAKPOINT2),
+      SUPPORT     = max(SUPPORT),
+      direction   = first(direction),
+      TYPE        = first(TYPE),
+      .groups     = "drop"
+    ) %>%
     rename(FUSION = GENE) %>%
-    select(FUSION,CHR1,BREAKPOINT1,CHR2,BREAKPOINT2,TYPE,direction,SUPPORT) %>%
-    arrange(FUSION,CHR1)
+    select(FUSION, CHR1, BREAKPOINT1, CHR2, BREAKPOINT2, TYPE, direction, SUPPORT) %>%
+    arrange(FUSION, CHR1)
+
 } else {
-  vcf_bnd <- vcf
+  vcf_bnd     <- vcf
   vcf_del_ins <- vcf
   delin_table <- vcf
-  bnd_table <- vcf
+  bnd_table   <- vcf
 }
 
 # -----------------------------
@@ -216,33 +265,64 @@ if (nrow(missing_rows) > 0) {
     target_final <- data.frame()
 }
 
-# Define unwanted suffixes
-unwanted_suffixes <- c("BAGE2-KMT2C", "BAGE2", "GPR42", "FAM230D", "FAM230F", "RNF213", "FRG1FP", "MPPED1")
+# --------------------------------------------
+# Exclude blacklisted genes that are artefacts
+# ---------------------------------------------
 
-# Create the full unwanted names with sample_id prefix
-unwanted_genes <- paste(sample_id, unwanted_suffixes, sep = "_")
+# Define SV blacklist suffixes
+
+unwanted_calls <- readLines(blacklist)
+unwanted_pattern <- "(^|_|-)LOC|(^|_|-)LINC"
 
 # -----------------------------
 # Save to output
 # -----------------------------
-safe_write <- function(df, file) {
+safe_write_figeno <- function(df, file) {
   if (nrow(df) > 0) {
+    
     if ("GENE" %in% colnames(df)) {
       df <- df %>%
-        filter(!GENE %in% unwanted_genes)  # Filter based on 'GENE'
+        filter(!str_detect(GENE, unwanted_pattern)) %>%
+        filter(!GENE %in% paste(sample_id, unwanted_calls, sep = "_"))
     } else if ("FUSION" %in% colnames(df)) {
       df <- df %>%
-        filter(!FUSION %in% unwanted_genes)  # Filter based on 'FUSION'
+        filter(!str_detect(FUSION, unwanted_pattern)) %>%
+        filter(!FUSION %in% paste(sample_id, unwanted_calls, sep = "_"))
     }
-    write_tsv(df, file, col_names = FALSE, quote = "none")
+    if (nrow(df > 0)) {
+      write_tsv(df, file, col_names = FALSE, quote = "none")
+    } else {
+      message(paste("Skipping", file, "No SV remaining after filtering out blacklist"))
+    }
   } else {
     message(paste("Skipping", file, "- dataframe is empty"))
   }
 }
 
+safe_write_tables <- function(df, file) {
+  if (nrow(df) > 0) {
+    
+    loc_fusion_pattern <- paste0("^", sample_id, "_LOC|-LOC|_LINC|-LINC")
+    
+    if ("GENE" %in% colnames(df)) {
+      df <- df %>%
+        filter(!str_detect(GENE, unwanted_pattern)) %>%
+        filter(!GENE %in% unwanted_calls)
+    } else if ("FUSION" %in% colnames(df)) {
+      df <- df %>%
+        filter(!str_detect(FUSION, unwanted_pattern)) %>%
+        filter(!FUSION %in% unwanted_calls)
+    }
 
-safe_write(vcf_bnd, paste(sample_id, "region_fusions.txt", sep = "_"))
-safe_write(vcf_del_ins, paste(sample_id, "region_indel.txt", sep = "_"))
-safe_write(target_final, paste(sample_id, "targets_nohit.txt", sep = "_"))
-safe_write(bnd_table, paste(sample_id, "table_fusions.tsv", sep = "_"))
-safe_write(delin_table, paste(sample_id, "table_indel.tsv", sep = "_"))
+    write_tsv(df, file, col_names = FALSE, quote = "none")
+  } else {
+    write_tsv(df, file, col_names = FALSE, quote = "none")
+  }
+}
+
+
+safe_write_figeno(vcf_bnd, paste(sample_id, "region_fusions.txt", sep = "_"))
+safe_write_figeno(vcf_del_ins, paste(sample_id, "region_indel.txt", sep = "_"))
+safe_write_figeno(target_final, paste(sample_id, "targets_nohit.txt", sep = "_"))
+safe_write_tables(bnd_table, paste(sample_id, "table_fusions.tsv", sep = "_"))
+safe_write_tables(delin_table, paste(sample_id, "table_indel.tsv", sep = "_"))

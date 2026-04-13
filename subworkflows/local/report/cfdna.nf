@@ -110,12 +110,11 @@ workflow CFNDA_REPORT {
     ch_section_qc = ch_section_qc
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths, "QC statistics"]
         }
 
     QUARTO_SECTION_QC(
-        ch_section_qc,
-        "QC statistics"
+        ch_section_qc
     )
 
 /*
@@ -144,12 +143,11 @@ workflow CFNDA_REPORT {
     ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths]
+            [id, section[0], filePaths, "IchorCNA"]
         }
 
     QUARTO_SECTION_CNV(
-        ch_section_cnv,
-        "IchorCNA"
+        ch_section_cnv
     )
 
 /*

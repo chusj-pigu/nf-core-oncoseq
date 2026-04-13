@@ -77,7 +77,7 @@ workflow ADAPTIVE_REPORT {
             def (meta, file) = tuple
 
             // Transform chrom into two new variables
-            def caption = "Coverage Plot for ${meta.id}."
+            def caption = "Coverage Plot for ${meta.id}"
             def section = "Coverage"
             def process = "coverage-plot-${meta.id}"
 
@@ -96,7 +96,7 @@ workflow ADAPTIVE_REPORT {
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths,
-                'Coverage analysis with mosdepth and custom coverage plot']
+                'Distribution of sequencing coverage across the target regions and background regions. This plot is used to assess the efficiency of the adaptive sampling enrichment.']
         }
 
     QUARTO_SECTION(

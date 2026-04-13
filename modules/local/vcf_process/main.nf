@@ -12,7 +12,8 @@ process SV_PROCESS {
     input:
     tuple val(meta),
         path(filt_vcf),
-        path(gene_list)
+        path(gene_list),
+        path(blacklist)
 
     output:
     tuple val(meta),
@@ -66,7 +67,8 @@ process SV_PROCESS {
     # Transform into figeno region input file
     generate_sv_filt_regions.R \\
         --input "${prefix}_filt.tsv" \\
-        --target ${gene_list}
+        --target ${gene_list} \\
+        --exclude ${blacklist}
 
 
     cat <<-END_VERSIONS > versions.yml
