@@ -147,27 +147,73 @@ targets_df <- read.csv(target_list)
 # Process Variants
 # -----------------------------
 if (nrow(vcf) > 0) {
-  vcf_bnd     <- process_variant(vcf, type = "BND") %>%
-    select(GENE, pos, pos2) %>%
-    mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
-    distinct()
+  vcf_bnd <- process_variant(vcf, type = "BND") %>%
+    # Collapse duplicate fusions: keep lowest BREAKPOINT1, highest BREAKPOINT2
+    group_by(GENE, CHR1, CHR2) %>%
+    summarise(
+      BREAKPOINT1 = min(BREAKPOINT1),
+      BREAKPOINT2 = max(BREAKPOINT2),
+      SUPPORT     = max(SUPPORT),
+      direction   = first(direction),
+      TYPE        = first(TYPE),
+      .groups     = "drop"
+    ) %>%
+    mutate(
+      pos  = paste0(CHR1, ":", clamp0(BREAKPOINT1 - 30000), "-", clamp0(BREAKPOINT1 + 30000)),
+      pos2 = paste0(CHR2, ":", clamp0(BREAKPOINT2 - 30000), "-", clamp0(BREAKPOINT2 + 30000)),
+      GENE = paste(sample_id, GENE, sep = "_")
+    ) %>%
+    select(GENE, pos, pos2)
+
   vcf_del_ins <- process_variant(vcf, type = "DEL_INS") %>%
+    # Collapse duplicate genes: keep lowest START, highest END
+    group_by(GENE, X1, TYPE) %>%
+    summarise(
+      START   = min(START),
+      END     = max(END),
+      SUPPORT = max(SUPPORT),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      LEN  = abs(END - START),
+      pos  = paste0(X1, ":", clamp0(START - 20000), "-", clamp0(END + 20000)),
+      GENE = paste(sample_id, GENE, sep = "_")
+    ) %>%
     filter(LEN < 1000000) %>%
-    select(GENE, pos) %>%
-    mutate(GENE = paste(sample_id, GENE, sep = "_")) %>%
-    distinct()
+    select(GENE, pos)
+
   delin_table <- process_variant(vcf, type = "DEL_INS") %>%
+    group_by(GENE, X1, TYPE) %>%
+    summarise(
+      START   = min(START),
+      END     = max(END),
+      SUPPORT = max(SUPPORT),
+      .groups = "drop"
+    ) %>%
+    mutate(LEN = abs(END - START)) %>%
+    filter(LEN < 1000000) %>%
     rename(CHR = X1) %>%
-    select(CHR,GENE,TYPE,SUPPORT,START,END,LEN)
+    select(CHR, GENE, TYPE, SUPPORT, START, END, LEN)
+
   bnd_table <- process_variant(vcf, type = "BND") %>%
+    group_by(GENE, CHR1, CHR2) %>%
+    summarise(
+      BREAKPOINT1 = min(BREAKPOINT1),
+      BREAKPOINT2 = max(BREAKPOINT2),
+      SUPPORT     = max(SUPPORT),
+      direction   = first(direction),
+      TYPE        = first(TYPE),
+      .groups     = "drop"
+    ) %>%
     rename(FUSION = GENE) %>%
-    select(FUSION,CHR1,BREAKPOINT1,CHR2,BREAKPOINT2,TYPE,direction,SUPPORT) %>%
-    arrange(FUSION,CHR1)
+    select(FUSION, CHR1, BREAKPOINT1, CHR2, BREAKPOINT2, TYPE, direction, SUPPORT) %>%
+    arrange(FUSION, CHR1)
+
 } else {
-  vcf_bnd <- vcf
+  vcf_bnd     <- vcf
   vcf_del_ins <- vcf
   delin_table <- vcf
-  bnd_table <- vcf
+  bnd_table   <- vcf
 }
 
 # -----------------------------
