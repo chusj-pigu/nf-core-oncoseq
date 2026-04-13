@@ -4,8 +4,7 @@ include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_
 
 // Core analysis subworkflows
 // Core analysis subworkflows
-include { MAPPING as MAPPING_HG  } from '../subworkflows/local/mapping/mapping'
-include { MAPPING as MAPPING_T2T } from '../subworkflows/local/mapping/mapping'
+include { MAPPING            } from '../subworkflows/local/mapping/mapping'
 
 
 // Variant calling subworkflows
@@ -22,10 +21,8 @@ include { modifyMetaId                         } from '../subworkflows/local/uti
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
 
 // Tumor classification
-include { CLASSY                               } from '../subworkflows/local/methylation_analysis/marlin.nf'
-include { STURGEON                             } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
+include { CLASSY                               } from '../subworkflows/local/methylation_analysis/classy.nf'
 include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_BAM } from '../subworkflows/local/read_processing/subsample_time.nf'
-include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_FQ  } from '../subworkflows/local/read_processing/subsample_time.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
@@ -44,8 +41,6 @@ workflow WGS {
     bed
     targets                 // channel : list of genes with their position to represent in Figeno
     minqs                   // channel obtained dynamically from params.basecall_model
-    tumor_type
-    ref_t2t
     vep_cache
 
     main:
@@ -56,71 +51,23 @@ workflow WGS {
 
     ch_versions = channel.empty()
 
-    ch_tumor_type = tumor_type
-            .branch { meta, tumor ->
-                leukemia: tumor == "leukemia"
-                cns: tumor == "cns"
-                other: tumor == "other"
-            }
-
     if (params.skip_mapping) {
 
-        MAPPING_HG (
+        MAPPING (
             samplesheet,
             ref
         )
 
-        ch_seqkit = MAPPING_HG.out.seqkit
-
-        ch_in_mapt2t = samplesheet
-            .join(ch_tumor_type.cns)
-            .map { meta, bam, _tumor ->
-            tuple(meta, bam)
-            }
-
-        MAPPING_T2T(
-            ch_in_mapt2t,
-            ref_t2t
-        )
-
-        STURGEON(
-            MAPPING_T2T.out.bam_t2t,
-            ref_t2t
-        )
+        ch_seqkit = MAPPING.out.seqkit
 
     } else if (params.skip_basecalling) {
 
-        MAPPING_HG (
+        MAPPING (
             samplesheet,
             ref
         )
 
-        ch_seqkit = MAPPING_HG.out.seqkit
-
-        ch_fastq = samplesheet
-
-        // Downsample for running Sturgeon
-
-        ch_in_subsample_sturgeon = ch_fastq
-            .join(ch_tumor_type.cns)
-            .map { meta, fastq, _tumor_type ->
-                tuple(meta, fastq, 0, 1)
-            }
-
-        SUBSAMPLE_TIME_FQ(
-            ch_in_subsample_sturgeon,
-            'fq'
-        )
-
-        MAPPING_T2T(
-            SUBSAMPLE_TIME_FQ.out.fq,
-            ref_t2t
-        )
-
-        STURGEON(
-            MAPPING_T2T.out.bam,
-            ref_t2t
-        )
+        ch_seqkit = MAPPING.out.seqkit
 
     } else {
 
@@ -131,7 +78,7 @@ workflow WGS {
                 demux_samplesheet
             )
 
-            MAPPING_HG (
+            MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
                 ref
             )
@@ -147,7 +94,7 @@ workflow WGS {
                 samplesheet
             )
 
-            MAPPING_HG (
+            MAPPING (
                 BASECALL_SIMPLEX.out.fastq,
                 ref
             )
@@ -157,51 +104,28 @@ workflow WGS {
             ch_seqkit   = BASECALL_SIMPLEX.out.stats_pass
             ch_versions = BASECALL_SIMPLEX.out.versions
         }
-
-        // Downsample for running Sturgeon
-
-        ch_in_subsample_sturgeon = ch_fastq
-            .join(ch_tumor_type.cns)
-            .map { meta, fastq, _tumor_type ->
-                tuple(meta, fastq, 0, 1)
-            }
-
-        SUBSAMPLE_TIME_FQ(
-            ch_in_subsample_sturgeon,
-            'fq'
-        )
-
-        MAPPING_T2T(
-            SUBSAMPLE_TIME_FQ.out.fq,
-            ref_t2t
-        )
-
-        STURGEON(
-            MAPPING_T2T.out.bam,
-            ref_t2t
-        )
     }
 
         // Downsample to 1h to run methylation classification
 
-        ch_in_subsample = MAPPING_HG.out.bam
-            .join(ch_tumor_type.leukemia)
-            .map { meta, bam, index, _tumor_type ->
+        ch_in_subsample = MAPPING.out.bam
+            .map { meta, bam, index ->
             tuple(meta, bam, index, 0, 1)
             }
 
         SUBSAMPLE_TIME_BAM(
-            ch_in_subsample,
-            'bam'
+            ch_in_subsample
         )
 
+        ch_in_classy = SUBSAMPLE_TIME_BAM.out.bam
+
         CLASSY(
-            SUBSAMPLE_TIME_BAM.out.bam,
+            ch_in_classy,
             ref
         )
 
         CLAIRS_TO_CALLING (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             clairs_model,
             bed,
@@ -209,7 +133,7 @@ workflow WGS {
         )
 
         CLAIR3_CALLING (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             basecall_model,
             bed,
@@ -217,13 +141,13 @@ workflow WGS {
         )
 
         PHASING_SOMATIC (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             CLAIRS_TO_CALLING.out.vcf_snpeff
         )
 
         PHASING_GERMLINE (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf_snpeff
         )
@@ -240,12 +164,12 @@ workflow WGS {
         )
 
         CNV_CALLING (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref
         )
 
         SUBCHROM_CALL (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf_snpeff,
             bed
@@ -256,7 +180,7 @@ workflow WGS {
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             SV_CALLING.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
@@ -267,7 +191,7 @@ workflow WGS {
         )
 
     ch_versions = ch_versions
-        .mix(MAPPING_HG.out.versions)
+        .mix(MAPPING.out.versions)
         .mix(CLAIRS_TO_CALLING.out.versions)
         .mix(CLAIR3_CALLING.out.versions)
         .mix(PHASING_SOMATIC.out.versions)
@@ -283,7 +207,7 @@ workflow WGS {
 */
 
         WGS_REPORT(
-            MAPPING_HG.out.coverage,
+            MAPPING.out.coverage,
             ch_seqkit,
             minqs
         )
@@ -325,15 +249,9 @@ workflow WGS {
             VARIANT_PROCESS.out.snp_table
         )
 
-        ch_classifiers_plots = STURGEON.out.plot
-            .mix(CLASSY.out.plot)
-
-        ch_classifiers_pred = STURGEON.out.pred
-            .mix(CLASSY.out.pred)
-
         CLASSIFIER_REPORT(
-            ch_classifiers_plots,
-            ch_classifiers_pred
+            CLASSY.out.plot,
+            CLASSY.out.pred
         )
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -349,7 +267,7 @@ workflow WGS {
     ch_mode = channel.of("WGS")
 
      // channel id containing only meta
-    ch_id = MAPPING_HG.out.bam
+    ch_id = MAPPING.out.bam
         .map { meta, _bam, _bai ->
         meta }
 

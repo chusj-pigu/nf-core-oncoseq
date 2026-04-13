@@ -7,12 +7,10 @@ include { BASECALL_SIMPLEX     } from '../subworkflows/local/basecalling/basecal
 include { BASECALL_MULTIPLEX   } from '../subworkflows/local/basecalling/basecall_multiplex'
 
 // Core analysis subworkflows
-include { MAPPING as MAPPING_HG  } from '../subworkflows/local/mapping/mapping'
-include { MAPPING as MAPPING_T2T } from '../subworkflows/local/mapping/mapping'
+include { MAPPING              } from '../subworkflows/local/mapping/mapping'
 
 // Tumor Classifiers
-include { CLASSY                } from '../subworkflows/local/methylation_analysis/marlin.nf'
-include { STURGEON              } from '../subworkflows/local/methylation_analysis/sturgeon.nf'
+include { CLASSY                } from '../subworkflows/local/methylation_analysis/classy.nf'
 
 // Variant calling subworkflows
 include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
@@ -43,8 +41,6 @@ workflow LOCAL_REALTIME {
     samplesheet             // channel: samplesheet read in from --input
     demux_samplesheet       // channel: demux samplesheet read in from --demux_samplesheet
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
-    tumor_type              // channel: samplesheet read in from --input, contains only tumor type
-    ref_t2t                 // channel: Path to T2T reference from params.ref_t2t
     basecall_model          // channel: model for basecalling
     bed                     // channel: bed file used for adaptive sampling regions
     targets                 // channel : list of genes with their position to represent in Figeno
@@ -55,29 +51,11 @@ workflow LOCAL_REALTIME {
     ch_versions = channel.empty()
     ch_sections = channel.empty()
 
-    // Branch by tumor type
-    ch_tumor_type = tumor_type
-        .branch { meta, tumor ->
-            leukemia: tumor == "leukemia"
-            cns: tumor == "cns"
-            other: tumor == "other"
-        }
-
     if (params.skip_basecalling || params.skip_mapping) {
 
-        ch_mapping_t2t = ch_tumor_type.cns
-            .join(samplesheet)
-            .map { meta, _tumor, input ->
-                tuple(meta, input)}
-
-        MAPPING_HG(
+        MAPPING(
             samplesheet,
             ref
-        )
-
-        MAPPING_T2T(
-            ch_mapping_t2t,
-            ref_t2t
         )
 
     } else {
@@ -90,21 +68,10 @@ workflow LOCAL_REALTIME {
                 ref
             )
 
-            ch_mapping_t2t = ch_tumor_type.cns
-                .join(BASECALL_MULTIPLEX.out.fastq)
-                .map { meta, _tumor, input ->
-                    tuple(meta, input)}
-
             // Map basecalled reads to reference
-            MAPPING_HG (
+            MAPPING (
                 BASECALL_MULTIPLEX.out.fastq,
                 BASECALL_MULTIPLEX.out.ref
-            )
-
-            // Map basecalled reads from CNS tumor to t2t
-            MAPPING_T2T (
-                ch_mapping_t2t,
-                ref_t2t
             )
 
             ch_versions = ch_versions
@@ -118,21 +85,10 @@ workflow LOCAL_REALTIME {
                 samplesheet
             )
 
-            ch_mapping_t2t = ch_tumor_type.cns
-                .join(BASECALL_SIMPLEX.out.fastq)
-                .map { meta, _tumor, input ->
-                    tuple(meta, input)}
-
             // Map basecalled reads to reference
-            MAPPING_HG (
+            MAPPING (
                 BASECALL_SIMPLEX.out.fastq,
                 ref
-            )
-
-            // Map basecalled reads from CNS tumor to t2t
-            MAPPING_T2T (
-                ch_mapping_t2t,
-                ref_t2t
             )
 
             ch_versions = ch_versions
@@ -143,28 +99,20 @@ workflow LOCAL_REALTIME {
     if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
         // Run Marlin on leukemia samples only:
-        ch_marlin_bam = MAPPING_HG.out.bam
-            .join(ch_tumor_type.leukemia)
-            .map { meta, bam, bai, _tumor ->
-                tuple(meta, bam, bai)}
+        ch_classy_in = MAPPING.out.bam
 
         CLASSY(
-            ch_marlin_bam,
+            ch_classy_in,
             ref
         )
 
-        STURGEON(
-            MAPPING_T2T.out.bam,
-            ref_t2t
-        )
-
         CNV_CALLING(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref
         )
 
         SV_UNPHASED(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref
         )
 
@@ -172,7 +120,7 @@ workflow LOCAL_REALTIME {
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
@@ -183,7 +131,7 @@ workflow LOCAL_REALTIME {
         )
 
         COVERAGE_SEPARATE(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             bed,
             ref
         )
@@ -193,19 +141,11 @@ workflow LOCAL_REALTIME {
         ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
-            .mix(MAPPING_T2T.out.versions)
             .mix(CLASSY.out.versions)
-            .mix(STURGEON.out.versions)
-
-        ch_classifiers_plots = STURGEON.out.plot
-            .mix(CLASSY.out.plot)
-
-        ch_classifiers_pred = STURGEON.out.pred
-            .mix(CLASSY.out.pred)
 
         CLASSIFIER_REPORT(
-            ch_classifiers_plots,
-            ch_classifiers_pred
+            CLASSY.out.plot,
+            CLASSY.out.pred
         )
 
         ch_sections = CLASSIFIER_REPORT.out.sections
@@ -213,23 +153,23 @@ workflow LOCAL_REALTIME {
     } else if (params.realtime >=6 & params.realtime < 72 ) {
 
         CNV_CALLING(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref
         )
 
         SV_UNPHASED(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref
         )
 
         COVERAGE_SEPARATE(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             bed,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             basecall_model,
             COVERAGE_SEPARATE.out.split_bed,
@@ -238,7 +178,7 @@ workflow LOCAL_REALTIME {
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
@@ -257,23 +197,23 @@ workflow LOCAL_REALTIME {
 
     } else if (params.realtime == 72) {
         CNV_CALLING(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref
         )
 
         SV_UNPHASED(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref
         )
 
         COVERAGE_SEPARATE(
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             bed,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             basecall_model,
             COVERAGE_SEPARATE.out.split_bed,
@@ -282,7 +222,7 @@ workflow LOCAL_REALTIME {
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
@@ -306,7 +246,7 @@ workflow LOCAL_REALTIME {
         ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
 
         SUBCHROM_CALL (
-            MAPPING_HG.out.bam,
+            MAPPING.out.bam,
             ref,
             CLAIR3_CALLING.out.vcf_snpeff,
             ch_panel_bin
@@ -329,7 +269,7 @@ workflow LOCAL_REALTIME {
 */
 
     ch_versions = ch_versions
-        .mix(MAPPING_HG.out.versions)
+        .mix(MAPPING.out.versions)
         .mix(COVERAGE_SEPARATE.out.versions)
         .mix(CNV_CALLING.out.versions)
         .mix(SV_UNPHASED.out.versions)
@@ -389,7 +329,7 @@ workflow LOCAL_REALTIME {
     ch_mode = channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
 
      // channel id containing only meta
-    ch_id = MAPPING_HG.out.bam
+    ch_id = MAPPING.out.bam
         .map { meta, _bam, _bai ->
         meta }
 
