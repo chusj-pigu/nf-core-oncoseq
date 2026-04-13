@@ -17,7 +17,6 @@ include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_SUB  } from '../../../modules/local/s
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_FULL } from '../../../modules/local/samtools/main.nf'         // Index BAM
 include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_CHUNK } from '../../../modules/local/samtools/main.nf'         // Merge BAMs
 include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_FINAL } from '../../../modules/local/samtools/main.nf'         // Merge BAMs
-include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_BAM   } from '../read_processing/subsample_time.nf'
 include { SAMTOOLS_TOFASTQ       } from '../../../modules/local/samtools/main.nf'
 include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'
 include { SEQKIT_STATS           } from '../../../modules/local/seqkit/main.nf'          // Coverage stats
@@ -104,10 +103,10 @@ workflow MAPPING {
                         }
                     }
                 } else {
-                    def bai = dir.parent.listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }.flatten()
+                    def bai = "${bams}.bai"
                     def type = bai.size() > 0 ? 'single' : 'to_index'
                     def index = bai.size() > 0 ? bai : 'index'
-                    def bam_file = dir.parent.listFiles().findAll { f -> f.name ==~ /.*\.bam$/ }.flatten()
+                    def bam_file = bams
                     return [tuple(meta, type, bam_file, index)]                   // Only bam file is provided
                 }
             }
@@ -161,59 +160,8 @@ workflow MAPPING {
 
             CRAMINO_STATS(bam_ch)
 
-            // Remap bam file to T2T ref if tumor is cns
-
-            ch_bam_to_sub = bam_ch
-                .join(ch_ref)
-                .filter{ meta, bam, bai, ref, ref_fasta ->
-                ref == "t2t" }
-                .map { meta, bam, bai, ref, ref_fasta ->
-                    def end_time = params.adaptive || params.wgs ? 1 : 8
-                    tuple(meta, bam, bai, 0, end_time)
-                }
-
-            SUBSAMPLE_TIME_BAM(
-                ch_bam_to_sub,
-                'bam'
-            )
-
-            ch_to_reconvert_fastq = SUBSAMPLE_TIME_BAM.out.bam
-                .map { meta, bam, bai ->
-                tuple(meta, bam) }
-
-            SAMTOOLS_TOFASTQ(ch_to_reconvert_fastq)
-
-            ch_fq_to_remap = SAMTOOLS_TOFASTQ.out.fq
-                .join(ch_ref)
-                .map { meta, fastq, ref, ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${ref}")
-                    tuple(meta_ref, fastq, ref_fasta)
-                    }
-
-            MINIMAP2_ALIGN(ch_fq_to_remap)
-
-            // Convert SAM to BAM
-            SAMTOOLS_TOBAM(MINIMAP2_ALIGN.out.sam)
-            // Sort and index BAM
-            SAMTOOLS_SORT(SAMTOOLS_TOBAM.out.bamfile)
-            SAMTOOLS_INDEX_SUB(SAMTOOLS_SORT.out.sortedbam)
-
-            ch_ref_id = ch_ref
-                .map { meta, ref, _ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${ref}")
-                    tuple(meta_ref, meta.id) }
-
-            bam_ch_t2t = SAMTOOLS_INDEX_SUB.out.bamfile_index
-                .join(ch_ref_id)
-                .map { meta, bam, bai, meta_restore ->
-                    tuple(id:meta_restore, bam, bai) }
-
-            ch_versions = MINIMAP2_ALIGN.out.versions
-                .mix(SAMTOOLS_TOBAM.out.versions)
-                .mix(SAMTOOLS_SORT.out.versions)
+            ch_versions = SAMTOOLS_MERGE_CHUNK.out.versions
                 .mix(SAMTOOLS_INDEX_FULL.out.versions)
-                .mix(SAMTOOLS_TOFASTQ.out.versions)
-                .mix(SUBSAMPLE_TIME_BAM.out.versions)
                 .mix(CRAMINO_STATS.out.versions)
 
         } else {
@@ -250,8 +198,6 @@ workflow MAPPING {
             // Compute coverage stats
             CRAMINO_STATS(bam_ch)
 
-            bam_ch_t2t = channel.empty()
-
             // Collect versions from all modules
             ch_versions = MINIMAP2_ALIGN.out.versions
                 .mix(SAMTOOLS_TOBAM.out.versions)
@@ -262,7 +208,6 @@ workflow MAPPING {
 
     emit:
     bam      = bam_ch                                   // Final sorted BAM with index
-    bam_t2t  = bam_ch_t2t                               // Final channel containing only subsampled re-mapped reads on T2T
     coverage = CRAMINO_STATS.out.stats                // Coverage stats
     seqkit   = ch_seqkit_out                          // Input fastq stats
     versions = ch_versions                            // All tool versions

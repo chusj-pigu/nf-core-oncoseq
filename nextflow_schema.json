@@ -334,10 +334,6 @@
         "skip_mapping": {
             "type": "boolean"
         },
-        "ref_t2t": {
-            "type": "string",
-            "description": "Path to the T2T human reference genome, only used with CNS tumor for running Sturgeon"
-        },
         "max_length": {
             "type": "integer",
             "default": 700,
