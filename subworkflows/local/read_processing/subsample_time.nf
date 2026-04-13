@@ -20,41 +20,25 @@ workflow SUBSAMPLE_TIME {
 
     take:
     input_time            // Channel with bam, bai or fastq, target sequencing start time and end time
-    type
 
     main:
 
     // When using Marlin or remap to t2t
 
-    if (type == "bam") {
-        ONTIME_RANGE_FILTER(input_time)
+    ONTIME_RANGE_FILTER(input_time)
 
-        SAMTOOLS_SORT(ONTIME_RANGE_FILTER.out.bam)
+    SAMTOOLS_SORT(ONTIME_RANGE_FILTER.out.bam)
 
-        SAMTOOLS_INDEX(SAMTOOLS_SORT.out.sortedbam)
+    SAMTOOLS_INDEX(SAMTOOLS_SORT.out.sortedbam)
 
-        ch_versions = ONTIME_RANGE_FILTER.out.versions
-            .mix(SAMTOOLS_SORT.out.versions)
-            .mix(SAMTOOLS_INDEX.out.versions)
+    ch_versions = ONTIME_RANGE_FILTER.out.versions
+        .mix(SAMTOOLS_SORT.out.versions)
+        .mix(SAMTOOLS_INDEX.out.versions)
 
-        ch_out_fastq = channel.empty()
-        ch_out_bam = SAMTOOLS_INDEX.out.bamfile_index
-    }
-
-    // When using Sturgeon
-
-    if (type == "fq") {
-        ONTIME_RANGE_FILTER_FASTQ(input_time)
-
-        ch_versions = ONTIME_RANGE_FILTER_FASTQ.out.versions
-
-        ch_out_bam = channel.empty()
-        ch_out_fastq = ONTIME_RANGE_FILTER_FASTQ.out.fastq
-    }
+    ch_out_bam = SAMTOOLS_INDEX.out.bamfile_index
 
     emit:
     bam                 = ch_out_bam
-    fq                  = ch_out_fastq
     versions            = ch_versions
 
 }
