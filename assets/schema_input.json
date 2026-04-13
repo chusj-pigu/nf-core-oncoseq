@@ -33,7 +33,7 @@
             "ref": {
                 "type": "string",
                 "pattern": "^\\S+$",
-                "errorMessage": "Reference type must be provided and be either hg38|GRCh38 or hg19|GRCh37"
+                "errorMessage": "Reference type must be provided and be either hg38|GRCh38, hg19|GRCh37 or t2t|CHM13"
             },
             "ref_path": {
                 "type": "string",
@@ -90,12 +90,6 @@
                 "type": "string",
                 "pattern": "^\\S+$",
                 "errorMessage": "First column must contain barcode"
-            },
-            "tumor_type": {
-                "type": "string",
-                "pattern": "^\\S+$",
-                "enum": ["leukemia", "cns", "other"],
-                "default": "leukemia"
             },
             "bed": {
                 "type": "string",

@@ -81,8 +81,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     samplesheet // channel: samplesheet read in from --input
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
-    tumor_type  // channel: samplesheet read in from --input, contains only tumor type
-    ch_ref_t2t  // channel : from params.ref_t2t
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     clairs_model  // channel: model for calling snp with ClairS-TO
     basecall_model  // channel : basecalling model used with dorado
@@ -104,8 +102,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             clairs_model,
             basecall_model,
             sv_targets,
-            tumor_type,
-            ch_ref_t2t,
             vep_cache
         )
     } else {
@@ -113,8 +109,6 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
             samplesheet,
             demux,
             ref,
-            tumor_type,
-            ch_ref_t2t,
             bed,
             basecall_model,
             sv_targets,
@@ -129,9 +123,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     samplesheet         // channel: samplesheet read in from --input
     demux               // channel: demux_samplesheet read in from --demux_samplesheet
     cfdna_samplesheet   // channel : from demux or samplesheeet
-    tumor_type
     ref                 // channel : reference for mapping, either empty if skipping mapping, or a path
-    ref_t2t
     max_len
     minqs
     ichor_bin
@@ -151,9 +143,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         samplesheet,
         demux,
         cfdna_samplesheet,
-        tumor_type,
         ref,
-        ref_t2t,
         max_len,
         minqs,
         ichor_bin,
@@ -177,8 +167,6 @@ workflow NFCORE_ONCOSEQ_WGS {
     bed_empty       // channel with empty bed file to trigger subchrom
     sv_targets
     ch_minqs
-    tumor_type
-    ref_t2t
     vep_cache
 
     main:
@@ -195,8 +183,6 @@ workflow NFCORE_ONCOSEQ_WGS {
         bed_empty,
         sv_targets,
         ch_minqs,
-        tumor_type,
-        ref_t2t,
         vep_cache
     )
 }
@@ -366,8 +352,6 @@ workflow {
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
             PIPELINE_INITIALISATION.out.ref_ch,
-            PIPELINE_INITIALISATION.out.tumor_type,
-            PIPELINE_INITIALISATION.out.ref_t2t,
             ch_clairs_model,
             ch_model,
             PIPELINE_INITIALISATION.out.bed_sheet,
@@ -378,10 +362,7 @@ workflow {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
-            PIPELINE_INITIALISATION.out.cfdna_ch,
-            PIPELINE_INITIALISATION.out.tumor_type,
             PIPELINE_INITIALISATION.out.ref_ch,
-            PIPELINE_INITIALISATION.out.ref_t2t,
             ch_max_len,
             ch_minqs,
             ch_ichor_bin,
@@ -402,8 +383,6 @@ workflow {
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
             ch_minqs,
-            PIPELINE_INITIALISATION.out.tumor_type,
-            PIPELINE_INITIALISATION.out.ref_t2t,
             ch_vep_cache
         )
     }
