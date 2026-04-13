@@ -225,16 +225,14 @@ if (nrow(missing_rows) > 0) {
 
 # Define SV blacklist suffixes
 
-unwanted_suffixes <- c("LOC")
 unwanted_calls <- readLines(blacklist)
+unwanted_pattern <- "(^|_|-)LOC|(^|_|-)LINC"
 
 # -----------------------------
 # Save to output
 # -----------------------------
 safe_write_figeno <- function(df, file) {
   if (nrow(df) > 0) {
-    # Build a regex pattern that matches sample_id_SUFFIX at the start of the gene name
-    unwanted_pattern <- paste0("^", sample_id, "_(", paste(unwanted_suffixes, collapse = "|"), ")")
     
     if ("GENE" %in% colnames(df)) {
       df <- df %>%
@@ -258,7 +256,7 @@ safe_write_figeno <- function(df, file) {
 safe_write_tables <- function(df, file) {
   if (nrow(df) > 0) {
     
-    unwanted_pattern <- paste0("^", "(", paste(unwanted_suffixes, collapse = "|"), ")")
+    loc_fusion_pattern <- paste0("^", sample_id, "_LOC|-LOC|_LINC|-LINC")
     
     if ("GENE" %in% colnames(df)) {
       df <- df %>%
