@@ -362,6 +362,7 @@ workflow {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.cfdna_ch,
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_max_len,
             ch_minqs,

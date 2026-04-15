@@ -242,7 +242,6 @@ workflow CFDNA {
         ch_versions = ch_versions
             .mix(MAPPING.out.versions)
             .mix(CLASSY.out.versions)
-            .mix(STURGEON.out.versions)
             .mix(CNV_CALLING.out.versions)
             .mix(ICHORCNA_CALLING.out.versions)
 
