@@ -154,12 +154,12 @@ workflow CFDNA {
             ref
         )
 
-        ch_in_subsample = ch_coverage.high
+        ch_in_subsample = ch_high_cov_bam
             .map { meta, bam, index ->
             tuple(meta, bam, index, 0, 8)}          // Subsample to first 8h of sequencing to avoid slowing down classification
 
         SUBSAMPLE_TIME_BAM(
-            ch_in_subsample,
+            ch_in_subsample
         )
 
         ch_in_classy = SUBSAMPLE_TIME_BAM.out.bam
