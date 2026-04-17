@@ -147,24 +147,24 @@ process ENSEMBL_VEP_TABLE {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    awk -F'\t' '
-    BEGIN { OFS="," }
-    {
-        split(\$7, transcripts, ",")          # CSQ field
-        split(\$9, ad_vals, ",")             # AD field (last column)
-
-        ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
-
-        for (i in transcripts) {
-            split(transcripts[i], f, "|")
-
-            if (ad_alt > 5 && \$8 > 20 && \$6 == "PASS") {
-                print \$1,\$2,\$3,\$4,\$5, \
+        awk -F'\t' '
+        BEGIN { 
+            OFS=","
+            print "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
+        }
+        {
+            split(\$7, transcripts, ",")
+            split(\$9, ad_vals, ",")
+            ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
+            for (i in transcripts) {
+                split(transcripts[i], f, "|")
+                if (ad_alt > 5 && \$8 > 20 && \$6 == "PASS") {
+                    print \$1,\$2,\$3,\$4,\$5, \
                     f[4],f[2],f[3],f[72],f[7],f[27], \
                     f[11],f[12],f[18],f[49], \
                     \$8,ad_alt
+                }
             }
-        }
-    }' ${bed} > ${prefix}_filt.csv
+        }' ${bed} > ${prefix}_filt.csv
     """
 }

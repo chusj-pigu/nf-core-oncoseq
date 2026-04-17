@@ -20,7 +20,7 @@ include { QUARTO_FIGURE as QUARTO_FIGURE_FOCAL          } from '../../../modules
 include { QUARTO_FIGURE as QUARTO_FIGURE_TARGETS        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_COLNAMES as QUARTO_FUSION_TABLES } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_COLNAMES as QUARTO_SV_TABLES     } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_TABLE_COLNAMES as QUARTO_SNP_TABLES    } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TABLE          as QUARTO_SNP_TABLES    } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_SV                 } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_FUSION             } from '../../../modules/local/quarto/main.nf'
 include { modifyMetaId                                  } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
@@ -425,7 +425,7 @@ workflow FIGENO_REPORT {
                 def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
                 def type = meta.id.contains('germline') ? "Clair3" : "ClairS-TO"
                 def caption = "SNPs called by $type and filtered for regions included in the panels"
-                def col_names = "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
+                def col_names = ""
                 def section = "SNPs"
                 def process = "snp-${type}-stats-${meta.id}"
                 tuple(meta_final, table, caption, col_names, section, process)
