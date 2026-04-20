@@ -273,19 +273,20 @@ workflow CFDNA {
             .mix(CLASSIFIER_REPORT.out.sections)
             .mix(FIGENO_REPORT.out.sections)
 
-
-        ch_mode = channel.of("cfDNA")
-
          // channel id containing only meta
         ch_id = MAPPING.out.bam
             .map { meta, _bam, _bai ->
             meta }
 
+        ch_title = ch_id
+            .map { meta ->
+            tuple(meta, "OncoSeq cfDNA Report — ${meta.id}")}
+
         MIDNIGHT_REPORT(
             ch_id,
             ch_sections,
             ch_versions,
-            ch_mode
+            ch_title
         )
     }
 }

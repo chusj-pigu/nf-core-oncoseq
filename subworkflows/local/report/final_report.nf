@@ -16,7 +16,7 @@ workflow MIDNIGHT_REPORT {
     ch_id
     ch_sections
     ch_versions
-    ch_mode
+    ch_title
 
     main:
 
@@ -76,16 +76,12 @@ workflow MIDNIGHT_REPORT {
         }
 
     ch_title = ch_id
-        .combine(ch_mode)
-        .map { meta, mode ->
-            def title = "Oncoseq Pipeline ${mode} Report for ${meta.id}"
-            tuple(meta, title) }
+        .join(ch_title)
 
     ch_subtitle = ch_id
-        .combine(ch_mode)
-        .map { meta, mode ->
-            def subtitles = "Outputs for the ${mode} branch of the Oncoseq pipeline"
-            tuple(meta, subtitles)}
+        .map { meta ->
+            def type = params.adaptive ? 'adaptive' : (params.wgs ? 'wgs' : 'cfdna')
+            tuple(meta, "Ouputs summary for oncoseq ran with mode ${type}")}
 
     ch_template = channel.fromPath(params.report_template)
 

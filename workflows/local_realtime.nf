@@ -30,10 +30,11 @@ include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 // Reporting
-include { MIDNIGHT_REPORT } from '../subworkflows/local/report/final_report.nf'
-include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
-include { FIGENO_REPORT  } from '../subworkflows/local/report/variants.nf'
-include { ADAPTIVE_REPORT } from '../subworkflows/local/report/adaptive.nf'
+include { ONTIME_TIME_RANGE } from '../modules/local/ontime/main.nf'
+include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
+include { CLASSIFIER_REPORT } from '../subworkflows/local/report/methylation.nf'
+include { FIGENO_REPORT     } from '../subworkflows/local/report/variants.nf'
+include { ADAPTIVE_REPORT   } from '../subworkflows/local/report/adaptive.nf'
 
 workflow LOCAL_REALTIME {
 
@@ -326,7 +327,34 @@ workflow LOCAL_REALTIME {
         .mix(ADAPTIVE_REPORT.out.sections)
         .mix(FIGENO_REPORT.out.sections)
 
-    ch_mode = channel.of("Adaptive Sampling atfer ${params.realtime}h sequencing")
+
+    // Automatically detect the time stamp
+
+    ONTIME_TIME_RANGE(MAPPING.out.bam)
+
+    ch_title = ONTIME_TIME_RANGE.out.txt
+        .map { meta, file ->
+            def lines = file.readLines()
+            def start_str = lines[0].split(':\\s+')[1].trim()
+            def end_str   = lines[1].split(':\\s+')[1].trim()
+
+            def fmt   = new java.time.format.DateTimeFormatterBuilder()
+                .appendPattern("yyyy-MM-dd'T'HH:mm:ss")
+                .appendFraction(java.time.temporal.ChronoField.MILLI_OF_SECOND, 0, 3, true)
+                .appendLiteral('Z')
+                .toFormatter()
+
+            def start = java.time.LocalDateTime.parse(start_str, fmt)
+            def end   = java.time.LocalDateTime.parse(end_str, fmt)
+
+            def duration = java.time.Duration.between(start, end)
+            def hours    = duration.toHours()
+            def minutes  = duration.toMinutesPart()
+
+            def time_str = "${hours}h${minutes > 0 ? String.format('%02dm', minutes) : ''}"
+
+            tuple(meta, "OncoSeq Adaptive Sampling Report in realtime — ${meta.id} (atfer ${time_str} of sequencing)")
+        }
 
      // channel id containing only meta
     ch_id = MAPPING.out.bam
@@ -338,7 +366,7 @@ workflow LOCAL_REALTIME {
         ch_id,
         ch_sections,
         ch_versions,
-        ch_mode
+        ch_title
     )
 
 }
