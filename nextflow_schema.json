@@ -331,9 +331,9 @@
             "default": "/workspaces/nf-core-oncoseq/assets/NOCSV",
             "description": "List of genes to visualize with Figeno (columns GENE and pos)"
         },
-        "sv_blacklist": {
+        "sv_exclude": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/sv_blacklist.txt",
+            "default": "/workspaces/nf-core-oncoseq/assets/sv_exclude.txt",
             "description": "List of genes to exclude from SV analysis"
         },
         "skip_mapping": {
