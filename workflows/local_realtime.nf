@@ -31,10 +31,28 @@ include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncos
 
 // Reporting
 include { ONTIME_TIME_RANGE } from '../modules/local/ontime/main.nf'
+include { SAMTOOLS_TOFASTQ as SAMTOOLS_TIME_FASTQ } from '../modules/local/samtools/main.nf'
 include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
 include { CLASSIFIER_REPORT } from '../subworkflows/local/report/methylation.nf'
 include { FIGENO_REPORT     } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT   } from '../subworkflows/local/report/adaptive.nf'
+
+// Useful functions to handle time parsing
+def parseToInstant(str) {
+    try {
+        return java.time.Instant.parse(str)
+    } catch (e) {}
+    try {
+        return java.time.OffsetDateTime.parse(str).toInstant()
+    } catch (e) {}
+    try {
+        def fmt = java.time.format.DateTimeFormatter
+            .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz")
+            .withZone(java.time.ZoneId.of("UTC"))
+        return java.time.ZonedDateTime.parse(str, fmt).toInstant()
+    } catch (e) {}
+    throw new RuntimeException("Could not parse timestamp: ${str}")
+}
 
 workflow LOCAL_REALTIME {
 
@@ -52,12 +70,34 @@ workflow LOCAL_REALTIME {
     ch_versions = channel.empty()
     ch_sections = channel.empty()
 
-    if (params.skip_basecalling || params.skip_mapping) {
+    if (params.skip_basecalling) {
 
         MAPPING(
             samplesheet,
             ref
         )
+
+        ch_bam = MAPPING.out.bam
+            .map { meta, bam, _bai ->
+                tuple(meta,bam) }
+
+        ONTIME_TIME_RANGE(ch_bam)
+
+    } else if (params.skip_mapping) {
+
+        MAPPING(
+            samplesheet,
+            ref
+        )
+
+        // We have to convert to fastq when input is from MinKnow :
+        ch_bam = MAPPING.out.bam
+            .map { meta, bam, _bai ->
+                tuple(meta,bam) }
+
+        SAMTOOLS_TIME_FASTQ(ch_bam)
+
+        ONTIME_TIME_RANGE(SAMTOOLS_TIME_FASTQ.out.fq)
 
     } else {
         if (params.demux) {
@@ -95,6 +135,12 @@ workflow LOCAL_REALTIME {
             ch_versions = ch_versions
                 .mix(BASECALL_SIMPLEX.out.versions)
         }
+
+        ch_bam = MAPPING.out.bam
+            .map { meta, bam, _bai ->
+                tuple(meta,bam) }
+
+        ONTIME_TIME_RANGE(ch_bam)
     }
 
     if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
@@ -330,23 +376,14 @@ workflow LOCAL_REALTIME {
 
     // Automatically detect the time stamp
 
-    ONTIME_TIME_RANGE(MAPPING.out.bam)
-
     ch_title = ONTIME_TIME_RANGE.out.txt
         .map { meta, file ->
-            def lines = file.readLines()
+            def lines     = file.readLines()
             def start_str = lines[0].split(':\\s+')[1].trim()
             def end_str   = lines[1].split(':\\s+')[1].trim()
 
-            def fmt   = new java.time.format.DateTimeFormatterBuilder()
-                .appendPattern("yyyy-MM-dd'T'HH:mm:ss")
-                .appendFraction(java.time.temporal.ChronoField.MILLI_OF_SECOND, 0, 3, true)
-                .appendLiteral('Z')
-                .toFormatter()
-
-            def start = java.time.LocalDateTime.parse(start_str, fmt)
-            def end   = java.time.LocalDateTime.parse(end_str, fmt)
-
+            def start    = parseToInstant(start_str)
+            def end      = parseToInstant(end_str)
             def duration = java.time.Duration.between(start, end)
             def hours    = duration.toHours()
             def minutes  = duration.toMinutesPart()
