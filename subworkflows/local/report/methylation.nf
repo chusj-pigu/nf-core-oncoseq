@@ -17,11 +17,10 @@ include { QUARTO_TABLE_TABS     } from '../../../modules/local/quarto/main.nf'
 
 // Reusable closure to filter calls by cutoff or fall back to max
 def applyFilter(flatCalls, cutoff, scoreField) {
-    def topCalls = flatCalls.findAll { scoreField(it) >= cutoff }
-    if (!topCalls) {
-        topCalls = [ flatCalls.max { scoreField(it) } ]
-    }
-    return topCalls
+    flatCalls
+        .sort { a, b -> scoreField(a) <=> scoreField(b) }  // ascending first
+        .reverse()                                          // then reverse to get descending
+        .take(5)
 }
 
 // Single shared channel transformation
@@ -32,20 +31,25 @@ def makeCallChannel(ch, typeName, modelConfig, cutoffMap) {
         .splitJson(path: config.path)
         .groupTuple()
         .map { meta, calls, type ->
-            def flatCalls = calls.flatten()
-            def cutoff    = cutoffMap[type.flatten().first()]
-            def topCalls  = applyFilter(flatCalls, cutoff, config.score)
+            def flatCalls  = calls.flatten()
+            def cutoff     = cutoffMap[type.flatten().first()]
+            def scoreField = config.score
+            def topCalls   = applyFilter(flatCalls, cutoff, scoreField)
 
-            topCalls.collect { call ->
-                def f = config.fields(call)
-                tuple(meta.id, f[0], f[1], f[2], f[3], type.flatten().first())
+            def rows = topCalls.collect { call ->
+                def f      = config.fields(call)
+                def status = scoreField(call) >= cutoff ? "PASS" : "FAIL"
+                [meta.id, f[0], f[1], f[2], f[3], status, type.flatten().first()]
             }
+            // Return as single tuple with all rows — don't flatMap yet
+            tuple(meta.id, type.flatten().first(), rows)
         }
-        .flatMap { it }
-        .collectFile { table ->
-            def type_corr = table[5].replace(' ', '-')
-            def content   = "${table[1]}\t${table[2]}\t${table[3]}\t${table[4]}\n"
-            return [ "${table[0]}_score_${type_corr}.tsv", content ]
+        .collectFile { meta_id, type_name, rows ->
+            def type_corr = type_name.replace(' ', '-')
+            def content   = rows.collect { r ->
+                "${r[1]}\t${r[2]}\t${r[3]}\t${r[4]}\t${r[5]}"
+            }.join('\n') + '\n'
+            return [ "${meta_id}_score_${type_corr}.tsv", content ]
         }
 }
 
@@ -136,7 +140,7 @@ workflow CLASSIFIER_REPORT {
             path  : 'crossnn.votes',
             score : { call -> call.score },
             fields: { call -> [
-                call['Methylation.Class.Family'].toString().replace(', ', '-'),
+                call['Methylation.Class.Family'].toString().replace(', ', '_'),
                 call['class'].toString().replace(', ', '-'),
                 call['Methylation.Class.Name'].toString().replace(', ', '-'),
                 call.score
@@ -180,6 +184,7 @@ workflow CLASSIFIER_REPORT {
             def sample = table.name.split('_score_')[0].replace('.tsv', '')
             def type = table.name.split('_score_')[1].replace('.tsv', '').replace('-', ' ')
             tuple(id: sample, table, type) }
+        .view()
 
     ch_tables_in_quarto = ch_tables
         .groupTuple()
@@ -189,7 +194,7 @@ workflow CLASSIFIER_REPORT {
                 def cutoff = cutoffMap[types]
                 "Tumor classifier predictions by ${types} model above score cutoff ${cutoff}"
             }
-            def colnames = "Family, Class, Class name, Score"
+            def colnames = "Family, Class, Class name, Score, Cutoff"
             def section = "Methylation"
             def process = "methylation-calls-${meta.id}"
             tuple(meta, section, process, tables, tab, captions, colnames)}
