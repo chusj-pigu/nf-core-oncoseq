@@ -94,7 +94,7 @@ All classifiers are used, but their relevency is the following:
 
 If you want to run IchorCNA as part of the cfDNA mode, please include `-profile ichor_hg38` or `-profile ichor_hg19` depending on your reference genome.
 
-![nf-core-oncoseq summary of workflow with `--cfdna`](assets/nf-core-oncoseq_cfdna.jpg)
+![nf-core-oncoseq summary of workflow with `--cfdna`](assets/nf-core-oncoseq_schema_cfdna.jpg)
 
 ---
 
@@ -110,13 +110,25 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
-| sample <br> *(required)* | project <br> *(only with `--demux`)* | input <br> *(required)* | ref <br> *(required if not provided as parameter)* | ref_path <br> *(required if not provided as parameter)* | kit <br> *(only with `--demux`)* | bed <br> *(only with `--adaptive` and if not provided as parameter)* | low_fidelity <br> *(only with `--adaptive` and if not provided as parameter)* | padding <br> *(only with `--adaptive` and if not provided as parameter)* | purity <br> *(only with `--cfdna`)* | filter <br> *(only with `--cfdna`)* |
-|---------------------------|-------------------------|-----------------------|-----------------------------|----------------------------------|------------------------------------|--------------------------------------------------------------------------|--------------------------------------------|--------------------------------------------|---------------------------|-----------------------------|-------------------------------------------|
-| sample1 | project ID for multiplexed input | path to <br> pod5, fastq or bam | hg38 | Path to reference genome, <br> index must exist in this path | Multiplexing kit used | Path to BED file containing <br> regions targeted by adaptive sampling | List of low-fidelity genes <br> in panel | Padding used around ROI <br> in bp | Estimated tumor purity <br> (between 0 and 1) | `yes` or `no` — whether to <br> filter out genomic DNA
+| sample | project | input | ref | ref_path | kit | bed | padding | low_fidelity | purity | filter |
+|--------|---------|-------|-----|----------|-----|-----|---------|--------------|--------|--------|
+| sample1 | project1 | /path/to/pod5/ | hg38 | /path/to/ref/ | SQK-NBD114-24 | /path/to/bed.bed | 20000 | /path/to/low_fidelity.txt | 0.5 | yes |
 
+**Column descriptions:**
 
+- `sample` *(required)*: Sample identifier
+- `project` *(optional)*: Project ID for multiplexed samples
+- `input` *(required)*: Path to pod5, fastq, or bam files
+- `ref` *(optional)*: Reference genome ID (hg38/hg19) if not provided as parameter
+- `ref_path` *(optional)*: Path to reference genome directory if not provided as parameter
+- `kit` *(optional)*: Barcoding kit for demultiplexing
+- `bed` *(optional)*: BED file for adaptive sampling regions
+- `padding` *(optional)*: Padding around BED regions (bp)
+- `low_fidelity` *(optional)*: Text file with low-fidelity genes to exclude
+- `purity` *(optional)*: Tumor purity estimate (0-1) for cf-DNA analysis
+- `filter` *(optional)*: Whether to filter reads by length (`yes`/`no`) for cf-DNA
 
-Each row represents the pod5/fastq/bam directory for one sample, and the reference to map it to.
+Each row represents one sample with its input data and analysis parameters.
 
 Now, you can run the pipeline using:
 
