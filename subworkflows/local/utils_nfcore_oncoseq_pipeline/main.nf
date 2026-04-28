@@ -16,39 +16,8 @@ include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
-include { STAGE_REFERENCE_FILES     } from '../../../modules/local/reference_cache/main.nf'
-
-def resolveReferenceFiles(refSpec) {
-    def resolved = file(refSpec, checkIfExists: true)
-    def refFiles = resolved instanceof List ? resolved : [resolved]
-    def fasta = refFiles.find { refFile ->
-        refFile.name ==~ /.+\.(fa|fasta|fna)(\.gz)?$/
-    } ?: refFiles.find { refFile ->
-        !refFile.name.endsWith('.fai')
-    }
-
-    if (!fasta) {
-        throw new IllegalArgumentException(
-            "Could not resolve a FASTA file from reference path: ${refSpec}"
-        )
-    }
-
-    def fai = refFiles.find { refFile ->
-        refFile.name.endsWith('.fai')
-    } ?: file("${fasta}.fai")
-
-    if (!fai.exists()) {
-        throw new IllegalArgumentException(
-            "Missing index for reference: ${fasta} (expected: ${fai})"
-        )
-    }
-
-    tuple(fasta, fai)
-}
-
-def normalizeStagedFiles(stagedFiles) {
-    stagedFiles instanceof List ? stagedFiles : [stagedFiles]
-}
+include { SAMTOOLS_FAIDX            } from '../../../modules/local/samtools/main.nf'
+include { BGZIP_RECOMPRESS          } from '../../../modules/local/bcftools/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -112,7 +81,6 @@ workflow PIPELINE_INITIALISATION {
     ch_bed          = channel.fromPath(params.bed, checkIfExists: true)
     ch_low_fidelity = channel.fromPath(params.low_fidelity, checkIfExists: true)
     ch_padding      = channel.of(params.padding)
-    ch_ref_id       = channel.of(params.ref_id)
 
     // Initialize empty channels to fall back on:
 
@@ -254,68 +222,150 @@ workflow PIPELINE_INITIALISATION {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
 
-    if (params.ref == null) {
-        ch_ref = channel.of(params.ref)
-        ch_ref_index = channel.of(params.ref)
-        ch_ref = ch_ref.combine(ch_ref_index)
-    } else {
-        ch_ref = channel.of(params.ref)
-            .map { refSpec ->
-                resolveReferenceFiles(refSpec)
-            }
-    }
+    def genomeMap = [
+        'hg38'   : 'hg38',
+        'GRCh38' : 'hg38',
+        'hg19'   : 'hg19',
+        'GRCh37' : 'hg19',
+        'hs1'    : 'hs1',
+        'CHM13'  : 'hs1'
+    ]
 
-    // Throw error if no reference is provided
-
-    channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .combine(ch_ref)
-        .combine(ch_ref_id)
-        .map {
-            meta, project, _input, _ubam, ref, ref_path ,kit, _barcode, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, ref_index, ref_id_c ->
-            if(!ref_path && ref_c == null) {
-                throw new IllegalArgumentException("No reference file provided, please provide a reference throuh --ref or samplesheet")
-            }
-        }
+    ch_genome    = params.genome ? channel.of(params.genome) : channel.empty()
+    ch_ref_cache = params.ref_cache
+        ? channel.fromPath(params.ref_cache, checkIfExists: true)
+        : channel.empty()
 
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .combine(ch_ref)
-        .combine(ch_ref_id)
-        .branch {
-            meta, project, _input, _ubam, ref, ref_path ,kit, _barcode, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, ref_index, ref_id_c ->
-            common: (!ref && !ref_path)
-                return [ meta, ref_id_c, ref_c, ref_index ]
-            diff: (ref_path && ref)
-                def (refFasta, refFai) = resolveReferenceFiles(ref_path)
-                return [ meta, ref, refFasta, refFai ]
-        }
-        .set { ch_ref_branched }
+        .combine(ch_ref_cache.ifEmpty([null]))
+        .combine(ch_genome.ifEmpty([null]))
+        .map { meta, project, _input, _ubam, sample_genome, ref_path, kit, _barcode, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, genome_c ->
 
-    ch_ref_branched.diff
-        .mix(ch_ref_branched.common)
+            def faExts  = ['.fa', '.fasta', '.fa.gz', '.fasta.gz']
+            def faiExts = ['.fa.fai', '.fasta.fai', '.fa.gz.fai', '.fasta.gz.fai']
+
+            // Resolve genome: sample-level takes priority over global param
+            def rawGenome = sample_genome ?: genome_c
+            if (!rawGenome) error "ERROR: No genome provided. Set params.genome or provide genome in samplesheet."
+            def genome = genomeMap[rawGenome] ?: { error "ERROR: Unrecognized genome '${rawGenome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
+
+            def aliases  = genomeMap.findAll { k, v -> v == genome }.keySet()
+
+            def faFinal  = null
+            def faiFinal = null
+
+            // --- Case 1: sample-level ref_path provided ---
+            if (ref_path) {
+                def refFile = ref_path instanceof Path ? ref_path : file(ref_path)
+
+                // --- Case 1a: ref_path is a direct FASTA file ---
+                if (refFile.isFile()) {
+                    if (faExts.any { ext -> refFile.name.endsWith(ext) }) {
+                        faFinal  = refFile
+                        def faiFile = file("${refFile.parent}/${refFile.name}.fai")
+                        faiFinal = faiFile.exists() ? faiFile : null
+                        if (!faiFinal) log.warn("No FAI found next to '${refFile}' — will index")
+                    } else {
+                        error "ERROR: ref_path '${refFile}' does not look like a FASTA file. Expected extensions: ${faExts}"
+                    }
+
+                // --- Case 1b: ref_path is a directory ---
+                } else if (refFile.isDirectory()) {
+                    def allFiles = refFile.listFiles() as List
+                    def faFile  = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faExts.any  { ext -> f.name.endsWith(ext) } }
+                    def faiFile = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faiExts.any { ext -> f.name.endsWith(ext) } }
+
+                    faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
+                    faiFinal = faiFile ?: null
+
+                    if (!faFile)  log.warn("No FASTA found in ref_path '${refFile}' for '${genome}' — falling back to UCSC FTP")
+                    if (!faiFile) log.warn("No FAI found in ref_path '${refFile}' for '${genome}' — will index")
+
+                } else {
+                    error "ERROR: ref_path '${refFile}' does not exist"
+                }
+
+            // --- Case 2: global ref_cache provided ---
+            } else if (ref_c) {
+                def refCacheFile = ref_c instanceof Path ? ref_c : file(ref_c)
+
+                // --- Case 2a: ref_cache is a direct FASTA file ---
+                if (refCacheFile.isFile()) {
+                    if (faExts.any { ext -> refCacheFile.name.endsWith(ext) }) {
+                        faFinal  = refCacheFile
+                        def faiFile = file("${refCacheFile.parent}/${refCacheFile.name}.fai")
+                        faiFinal = faiFile.exists() ? faiFile : null
+                        if (!faiFinal) log.warn("No FAI found next to '${refCacheFile}' — will index")
+                    } else {
+                        error "ERROR: ref_cache '${refCacheFile}' does not look like a FASTA file. Expected extensions: ${faExts}"
+                    }
+
+                // --- Case 2b: ref_cache is a directory ---
+                } else if (refCacheFile.isDirectory()) {
+                    def allFiles = refCacheFile.listFiles() as List
+                    def faFile  = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faExts.any  { ext -> f.name.endsWith(ext) } }
+                    def faiFile = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faiExts.any { ext -> f.name.endsWith(ext) } }
+
+                    faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
+                    faiFinal = faiFile ?: null
+
+                    if (!faFile)  log.warn("No FASTA found in ref_cache '${refCacheFile}' for '${genome}' — falling back to UCSC FTP")
+                    if (!faiFile) log.warn("No FAI found in ref_cache '${refCacheFile}' for '${genome}' — will index")
+
+                } else {
+                    error "ERROR: ref_cache '${refCacheFile}' does not exist"
+                }
+
+            // --- Case 3: no ref_cache, no ref_path — FTP on demand ---
+            } else {
+                log.warn("No ref_cache or ref_path provided — staging FTP genome '${genome}' from UCSC")
+                faFinal  = file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
+                faiFinal = null
+            }
+
+            tuple(meta, genome, faFinal, faiFinal)
+        }
         .set { ch_ref }
 
-    ch_ref_stage = ch_ref
-        .map { meta, ref_id, ref_fasta, ref_index ->
-            tuple(meta, ref_id, [ref_fasta, ref_index])
+    ch_ref
+        .branch { meta, ref_id_c, faFinal, faiFinal ->        // <-- missing -> fixed
+            indexed  : faiFinal != null
+            to_index : faiFinal == null
         }
+        .set { ch_ref_branched }                              // <-- branch result must be .set{}
 
-    STAGE_REFERENCE_FILES(ch_ref_stage)
+    // If genome is compressed, always recompress with bgzip otherwise samtools faidx will fail
 
-    ch_ref = STAGE_REFERENCE_FILES.out.staged
-        .map { meta, ref_id, stagedFiles ->
-            def files = normalizeStagedFiles(stagedFiles)
-            def refFasta = files.find { stagedFile ->
-                stagedFile.name ==~ /.+\.(fa|fasta|fna)(\.gz)?$/
-            } ?: files.find { stagedFile ->
-                !stagedFile.name.endsWith('.fai')
-            }
-            def refFai = files.find { stagedFile ->
-                stagedFile.name.endsWith('.fai')
-            }
-            tuple(meta, ref_id, refFasta, refFai)
+    ch_ref_branched.to_index
+        .branch { meta, ref_id_c, faFinal, faiFinal ->
+            gzip: faFinal.extension == "gz"
+            unzip: (faFinal.extension == "fa" || faFinal.extension == "fasta")
         }
+        .set { ch_ref_to_index_branched }
+
+    BGZIP_RECOMPRESS(ch_ref_to_index_branched.gzip
+        .map { meta, ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) }
+        .groupTuple(by: 1)
+        )
+
+    // Reunite bgzipped FTP files with local files, then index all
+    ch_to_index = BGZIP_RECOMPRESS.out.file
+        .mix(ch_ref_to_index_branched.unzip.map { meta, ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) })
+        .transpose()
+
+    SAMTOOLS_FAIDX(ch_to_index
+        .groupTuple(by: 1)
+    )
+
+    // Rejoin with ref IDs
+    ch_ref_ids = ch_ref
+        .map { meta, ref_id_c, faFinal, faiFinal ->
+        tuple(meta, ref_id_c) }
+
+    ch_ref_indexed = ch_ref_ids
+        .join(SAMTOOLS_FAIDX.out.fasta_index.transpose())
+        .mix(ch_ref_branched.indexed)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -353,7 +403,7 @@ workflow PIPELINE_INITIALISATION {
     bed_sheet   = ch_adaptive
     demux_sheet = ch_demux
     samplesheet = ch_in_samplesheet
-    ref_ch      = ch_ref
+    ref_ch      = ch_ref_indexed
     cfdna_ch    = ch_cfdna
     versions    = ch_versions
 }
