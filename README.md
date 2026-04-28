@@ -119,8 +119,8 @@ First, prepare a samplesheet with your input data that looks as follows:
 - `sample` *(required)*: Sample identifier
 - `project` *(optional)*: Project ID for multiplexed samples
 - `input` *(required)*: Path to pod5, fastq, or bam files
-- `ref` *(optional)*: Reference genome ID (hg38/hg19) if not provided as parameter
-- `ref_path` *(optional)*: Path to reference genome directory if not provided as parameter
+- `genome` *(optional)*: Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Takes priority over `--genome` if provided.
+- `ref_path` *(optional)*: Path to a reference FASTA file (`.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`) or a directory containing one. Takes priority over `--ref_cache`. If no `.fai` index is found alongside the file or in the directory, it will be generated automatically. If no fasta file is found for corresponding `genome`, it will be downloaded automatically from UCSC using ftp.
 - `kit` *(optional)*: Barcoding kit for demultiplexing
 - `bed` *(optional)*: BED file for adaptive sampling regions
 - `padding` *(optional)*: Padding around BED regions (bp)
@@ -139,7 +139,7 @@ nextflow run nf-core/oncoseq \
    -profile narval \
    --input samplesheet.csv \
    --outdir results \
-   --reference_cache_dir /path/to/reference/cache \
+   --ref_cache /path/to/reference/cache \
    [--adaptive | --wgs | --cfdna] \
    [--realtime INT] \
    [--skip_basecalling] \
@@ -149,8 +149,6 @@ nextflow run nf-core/oncoseq \
 By default, the pipeline will run in adaptive mode starting from basecalling, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
 
 If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files or folder containing fastq files in input. If your input is already mapped with minimap2, use the parameter `--skip_mapping` and provide the path to bam files or folder containing bam files as input.
-
-The parameter `--vep_cache` indicates the path to the Ensembl vep database.
 
 To run in real time while data is still sequencing, use the `--realtime [INT]` where you must provide the time of sequencing as an integer. **This is only available for the adaptive mode**
 
@@ -169,11 +167,10 @@ For more details and further functionality, please refer to the [usage documenta
 |------------------------|----------|---------|-----------------------------------------------------------------------------|
 | `--input`              | `path`   | _None_  | Path to input samplesheet (**required**).                                   |
 | `--outdir`             | `path`   | _None_  | Directory where outputs will be published (**required**).                   |
-| `--reference_cache_dir`| `path`   | workspace | Directory for staging reference assets and Dorado models.                   |
+| `--genome`             | `string` | `hg38`  | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
+| `--ref_cache`         | `path`   | _None_  | Path to a reference FASTA file or a directory containing one. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no fasta file is found for corresponding `genome`, it will be downloaded automatically from UCSC using ftp. If this directory contains the vep cache under `/vep`, no need to provide `--vep_cache` |
 | `--basecall_model`     | `string` | _None_  | Dorado basecalling model name (e.g., `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
 | `--m_bases`            | `string` | _None_  | Basecalling modification model (e.g., `5mC_5hmC`, `5mC`).                   |
-| `--ref`                | `path`   | _None_  | Path to reference genome (must include `.fai` index). Required if not in samplesheet. |
-| `--ref_id`             | `string` | hg38    | Reference genome ID: `hg38` (GRCh38) or `hg19` (GRCh37).                    |
 | `--skip_basecalling`   | `bool`   | `false` | Skip basecalling; input is FASTQ files.                                     |
 | `--skip_mapping`       | `bool`   | `false` | Skip basecalling and mapping; input is BAM files.                           |
 | `--demux`              | `bool`   | `false` | Enable demultiplexing via `--demux_samplesheet` (requires kit column).       |
@@ -234,7 +231,7 @@ Choose exactly one mode:
 
 | Parameter              | Type     | Default | Description                                                                 |
 |------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `--vep_cache`          | `path`   | _None_  | Path to VEP cache directory (**required** for annotation).                  |
+| `--vep_cache`          | `path`   | _None_  | Path to VEP cache directory. If not provided and `--ref_cache` is, will look for a vep directory in `--ref_cache` (**required** for annotation).                  |
 | `--vep_version`        | `int`    | `115`   | Ensembl VEP version matching your cache.                                    |
 | `--filtervep_expression` | `string` | (see schema) | FilterVEP expression for SNV filtering (impacts, frequencies, etc.). |
 
