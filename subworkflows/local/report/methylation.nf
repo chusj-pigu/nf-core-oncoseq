@@ -184,7 +184,6 @@ workflow CLASSIFIER_REPORT {
             def sample = table.name.split('_score_')[0].replace('.tsv', '')
             def type = table.name.split('_score_')[1].replace('.tsv', '').replace('-', ' ')
             tuple(id: sample, table, type) }
-        .view()
 
     ch_tables_in_quarto = ch_tables
         .groupTuple()
