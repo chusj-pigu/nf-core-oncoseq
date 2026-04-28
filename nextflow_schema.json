@@ -362,15 +362,6 @@
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/templates/report_template.qmd"
         },
-        "ref": {
-            "type": "string",
-            "description": "Path to reference genome (index must be in same directory), use if same reference is to be used for all samples"
-        },
-        "ref_id": {
-            "type": "string",
-            "default": "hg38",
-            "description": "Reference ID, either hg38/GRCh38 or hg19/GRCh37"
-        },
         "ubam": {
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/NOFILE",
@@ -392,8 +383,15 @@
         },
         "filtervep_expression": {
             "type": "string",
-            "default": "IMPACT != LOW and (gnomADe_AF <= 0.01 or not gnomADe_AF) and DP >= 20 and INFO is PASS and not CLIN_SIG matches \\'BENIGN\\",
+            "default": "IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE",
             "description": "Expression accepted by filtervep for filtering snp"
+        },
+        "ref_cache": {
+            "type": "string"
+        },
+        "genome": {
+            "type": "string",
+            "default": "GRCh38"
         }
     }
 }
