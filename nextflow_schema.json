@@ -206,10 +206,6 @@
             "description": "Bin size to use for CNV calling with QDNAseq (Kbp)",
             "default": 500
         },
-        "ubam_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet pointing to the ubam to restart basecalling from"
-        },
         "bed": {
             "type": "string",
             "description": "Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)",
@@ -230,10 +226,6 @@
         "batch": {
             "type": "string",
             "description": "Batch size for basecalling"
-        },
-        "demux_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet for demultiplexing, first column must be barcode and second column sample"
         },
         "igenomes_base": {
             "type": "string",
@@ -265,10 +257,6 @@
             "type": "string",
             "description": "ClairS_TO model to use for SNP calling",
             "default": "ont_r10_dorado_sup_5khz_ssrs"
-        },
-        "adaptive_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet to specify which bed file was used for which sample in adaptive mode"
         },
         "low_fidelity": {
             "type": "string",
