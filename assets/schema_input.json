@@ -30,10 +30,10 @@
                 "exists": true,
                 "errorMessage": "Absolute path to ubam file path must be provided"
             },
-            "ref": {
+            "genome": {
                 "type": "string",
-                "pattern": "^\\S+$",
-                "errorMessage": "Reference type must be provided and be either hg38|GRCh38, hg19|GRCh37 or t2t|CHM13"
+                "pattern": "^(?i)(hg38|GRCh38|hg19|GRCh37|hs1|CHM13)$",
+                "errorMessage": "Reference type must be provided and be either hg38|GRCh38, hg19|GRCh37 or hs1|CHM13"
             },
             "ref_path": {
                 "type": "string",
