@@ -23,6 +23,7 @@ include { QUARTO_TABLE_COLNAMES as QUARTO_SV_TABLES     } from '../../../modules
 include { QUARTO_TABLE          as QUARTO_SNP_TABLES    } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_SV                 } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_FUSION             } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TEXT as QUARTO_TEXT_SNP                } from '../../../modules/local/quarto/main.nf'
 include { modifyMetaId                                  } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
@@ -419,7 +420,12 @@ workflow FIGENO_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_snp_table_in = ch_snp_table
+    ch_snp_table = ch_snp_table
+        .branch { meta, table ->
+            pos: table.readLines().size() > 1
+            empty: true }
+
+    ch_snp_table_in = ch_snp_table.pos
             .map { meta, table ->
                 def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
                 def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
@@ -431,13 +437,27 @@ workflow FIGENO_REPORT {
                 tuple(meta_final, table, caption, col_names, section, process)
             }
 
+    ch_empty_snp = ch_snp_table.empty
+        .map { meta, table ->
+            def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
+            def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
+            def type = meta.id.contains('germline') ? "Clair3" : "ClairS-TO"
+            def text = "No SNPs called by ${type} remaining after applying filter in targeted regions."
+            def section = "SNPs"
+            def process = "snp-${type}-empty-${meta.id}"
+            tuple(meta_final, text, section, process)
+        }
+
+    QUARTO_TEXT_SNP(ch_empty_snp)
+
     QUARTO_SNP_TABLES(ch_snp_table_in)
 
     ch_section_snp = QUARTO_SNP_TABLES.out.quarto_table
-            .groupTuple()
-            .map { id, section, filePaths ->
-                [id, section[0], filePaths, "SNPs filtered with EnsemblVep using filters :'$params.filtervep_expression'"]
-            }
+        .mix(QUARTO_TEXT_SNP.out.quarto_text)
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths, "SNPs filtered with EnsemblVep using filters :'$params.filtervep_expression'"]
+        }
 
     QUARTO_SNP_SECTION(ch_section_snp)
 
