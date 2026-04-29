@@ -133,22 +133,26 @@ workflow ADAPTIVE {
         ch_ref_for_calling = SPLIT_BAMS_TIME.out.ref
         ch_bed = SPLIT_BAMS_TIME.out.bed
 
-        ch_bam_1h = ch_bam_for_calling
-            .filter { meta, _bam, _index ->
-            meta.endsWith('_0h_1h') }
+        if (params.m_bases) {
+            ch_bam_1h = ch_bam_for_calling
+                .filter { meta, _bam, _index ->
+                meta.endsWith('_0h_1h') }
 
-        ch_bam_classy = ch_bam_1h
+            ch_bam_classy = ch_bam_1h
 
-        CLASSY(
-            ch_bam_classy,
-            ref
-        )
+            CLASSY(
+                ch_bam_classy,
+                ref
+            )
+        }
 
     } else {
         // Standard mode: Use the full BAM directly for variant calling
         ch_bam_for_calling = MAPPING.out.bam
         ch_ref_for_calling = ref
         ch_bed = bed
+
+        if (params.m_bases) {
 
         // Downsample to 1h to run methylation classification
 
@@ -170,6 +174,7 @@ workflow ADAPTIVE {
 
         ch_versions = ch_versions
             .mix(SUBSAMPLE_TIME.out.versions)
+        }
     }
 
     // Analyze coverage separation between target and background regions
@@ -329,10 +334,17 @@ workflow ADAPTIVE {
         VARIANT_PROCESS.out.snp_table
     )
 
-    CLASSIFIER_REPORT(
-        CLASSY.out.plot,
-        CLASSY.out.pred
-    )
+    if (params.m_bases) {
+
+        CLASSIFIER_REPORT(
+            CLASSY.out.plot,
+            CLASSY.out.pred
+        )
+
+        ch_classy_section = CLASSIFIER_REPORT.out.sections
+    } else {
+        ch_classy_section = channel.empty()
+    }
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

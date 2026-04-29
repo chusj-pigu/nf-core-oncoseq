@@ -106,6 +106,7 @@ workflow WGS {
         }
     }
 
+    if (params.m_bases) {
         // Downsample to 1h to run methylation classification
 
         ch_in_subsample = MAPPING.out.bam
@@ -123,6 +124,16 @@ workflow WGS {
             ch_in_classy,
             ref
         )
+
+        CLASSIFIER_REPORT(
+            CLASSY.out.plot,
+            CLASSY.out.pred
+        )
+
+        ch_classy_section = CLASSIFIER_REPORT.out.sections
+    } else {
+        ch_classy_section = channel.empty()
+    }
 
         CLAIRS_TO_CALLING (
             MAPPING.out.bam,
@@ -248,11 +259,6 @@ workflow WGS {
             ch_subchrom_focal,
             VARIANT_PROCESS.out.snp_table
         )
-
-        CLASSIFIER_REPORT(
-            CLASSY.out.plot,
-            CLASSY.out.pred
-        )
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COLLECT SECTIONS
@@ -262,7 +268,7 @@ workflow WGS {
     // Collect sections from all analysis steps
     ch_sections = WGS_REPORT.out.sections
         .mix(FIGENO_REPORT.out.sections)
-        .mix(CLASSIFIER_REPORT.out.sections)
+        .mix(ch_classy_section)
 
     ch_id = MAPPING.out.bam
         .map { meta, _bam, _bai ->

@@ -154,21 +154,32 @@ workflow CFDNA {
             ref
         )
 
-        ch_in_subsample = ch_high_cov_bam
-            .map { meta, bam, index ->
-            tuple(meta, bam, index, 0, 8)}          // Subsample to first 8h of sequencing to avoid slowing down classification
+        if (params.m_bases) {
+            ch_in_subsample = ch_high_cov_bam
+                .map { meta, bam, index ->
+                tuple(meta, bam, index, 0, 8)}          // Subsample to first 8h of sequencing to avoid slowing down classification
 
-        SUBSAMPLE_TIME_BAM(
-            ch_in_subsample
-        )
+            SUBSAMPLE_TIME_BAM(
+                ch_in_subsample
+            )
 
-        ch_in_classy = SUBSAMPLE_TIME_BAM.out.bam
-            .mix(ch_coverage.low.join(MAPPING.out.bam))
+            ch_in_classy = SUBSAMPLE_TIME_BAM.out.bam
+                .mix(ch_coverage.low.join(MAPPING.out.bam))
 
-        CLASSY(
-            ch_in_classy,
-            ref
-        )
+            CLASSY(
+                ch_in_classy,
+                ref
+            )
+
+            CLASSIFIER_REPORT(
+                CLASSY.out.plot,
+                CLASSY.out.pred
+            )
+
+            ch_classy_section = CLASSIFIER_REPORT.out.sections
+        } else {
+            ch_classy_section = channel.empty()
+        }
 
         CNV_CALLING (
             MAPPING.out.bam,
@@ -255,11 +266,6 @@ workflow CFDNA {
             READS_FILTER.out.stats,
             MAPPING.out.coverage,
             ICHORCNA_CALLING.out.ichorcna_plot
-        )
-
-        CLASSIFIER_REPORT(
-            CLASSY.out.plot,
-            CLASSY.out.pred
         )
 
         /*
