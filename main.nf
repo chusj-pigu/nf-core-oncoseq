@@ -324,9 +324,11 @@ workflow {
     ch_clairs_model = channel.of(params.clairsto_model)
 
     // vep cache
-    ch_vep_cache = params.vep_cache ? channel.fromPath(params.vep_cache, checkIfExists: true).collect() :
-        channel.fromPath("${params.ref_cache}/vep", checkIfExists: true).collect()
-
+    ch_vep_cache = params.vep_cache
+        ? channel.fromPath(params.vep_cache, checkIfExists: true).collect()
+        : params.ref_cache && file(params.ref_cache).isDirectory()
+            ? channel.fromPath("${params.ref_cache}/vep", checkIfExists: true).collect()
+            : null
     // channel for sv gene targets
     ch_sv_targets = channel.fromPath(params.sv_targets)
 
