@@ -118,6 +118,7 @@ Most input can be provided as command line parameters if they are common, but th
 | `low_fidelity` | | `path` | `--low_fidelity` | Text file listing low-fidelity genes to exclude from coverage. Samplesheet takes priority over `--low_fidelity`. |
 | `purity` | | `float` | | Tumor purity estimate (0–1) for cf-DNA analysis. Required when using `--cfdna`. |
 | `filter` | | `string` | | Whether to filter reads longer than `--max_length` for cf-DNA (`yes`/`no`). |
+
 Now, you can run the pipeline using:
 
 ```bash
@@ -125,7 +126,7 @@ nextflow run nf-core/oncoseq \
    -profile narval \
    --input samplesheet.csv \
    --outdir results \
-   --ref_source /path/to/reference/cache \
+   --ref_cache /path/to/reference/cache \
    --basecall_model 'sup' \
    --m_bases '5mCG_5hmCG' \
    [--adaptive | --wgs | --cfdna] \
@@ -166,7 +167,7 @@ For more details and further functionality, please refer to the [usage documenta
 | `--input` | ✅ | `path` | | Path to input samplesheet. |
 | `--outdir` | ✅ | `path` | | Directory where outputs will be published. |
 | `--genome` | | `string` | `hg38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
-| `--ref_source` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. If a `vep/` subdirectory is present, `--vep_cache` is not required. |
+| `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. If a `vep/` subdirectory is present, `--vep_cache` is not required. |
 | `--basecall_model` | ✅ | `string` | | Dorado basecalling model (e.g. `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
 | `--m_bases` | ✅* | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
@@ -226,7 +227,7 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--vep_cache` | ✅* | `path` | | Path to VEP cache directory. *Required for annotation unless a `vep/` subdirectory exists in `--ref_source`.* |
+| `--vep_cache` | ✅* | `path` | | Path to VEP cache directory. *Required for annotation unless a `vep/` subdirectory exists in `--ref_cache`.* |
 | `--vep_version` | | `integer` | `115` | Ensembl VEP version matching your cache. |
 | `--filtervep_expression` | | `string` | IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE | FilterVEP expression for SNV filtering (impacts, frequencies, etc.). |
 
