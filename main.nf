@@ -27,7 +27,6 @@ include { selectLatestModif       } from './subworkflows/local/utils_nfcore_onco
 include { selectModelDownload     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { DORADO_DOWNLOAD_LIST    } from './modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from './modules/local/dorado/main.nf'
-include { STAGE_REFERENCE_FILES as STAGE_CLINICAL_REFERENCE_FILES } from './modules/local/reference_cache/main.nf'
 
 def resolveIndexedVcfFiles(vcfSpec) {
     def resolved = file(vcfSpec, checkIfExists: true)
