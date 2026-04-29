@@ -97,26 +97,27 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
-| sample | project | input | genome | ref_path | kit | bed | padding | low_fidelity | purity | filter |
-|--------|---------|-------|--------|----------|-----|-----|---------|--------------|--------|--------|
-| sample1 | project1 | /path/to/pod5/ | hg38 | /path/to/ref/ | SQK-NBD114-24 | /path/to/bed.bed | 20000 | /path/to/low_fidelity.txt | 0.5 | yes |
+| sample | input | purity | filter |
+|--------|---------|---------|---------|
+| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* |
+
+Most input can be provided as command line parameters if they are common, but they can also be provided in the samplesheet if they differ between samples:
 
 **Samplesheet column descriptions:**
 
-| Column | Required | Type | Description |
-|--------|----------|------|-------------|
-| `sample` | ✅ | `string` | Sample identifier |
-| `project` | | `string` | Project ID for multiplexed samples |
-| `input` | ✅ | `path` | Path to pod5, fastq, or bam files |
-| `genome` | | `string` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Takes priority over `--genome` if provided. Aliases are normalized to their canonical form. |
-| `ref_path` | | `path` | Path to a reference FASTA file (`.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`) or a directory containing one. Takes priority over `--ref_source`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. |
-| `kit` | | `string` | Barcoding kit for demultiplexing (e.g. `SQK-NBD114-24`) |
-| `bed` | | `path` | BED file for adaptive sampling regions |
-| `padding` | | `integer` | Padding around BED regions (bp) |
-| `low_fidelity` | | `path` | Text file listing low-fidelity genes to exclude from coverage |
-| `purity` | | `float` | Tumor purity estimate (0–1) for cf-DNA analysis |
-| `filter` | | `string` | Filter reads by length for cf-DNA (`yes`/`no`) |
-
+| Column | Required | Type | CLI parameter | Description |
+|--------|----------|------|---------------|-------------|
+| `sample` | ✅ | `string` | | Sample identifier |
+| `project` | | `string` | | Project ID for multiplexed samples |
+| `input` | ✅ | `path` | | Path to pod5, fastq, or bam files |
+| `genome` | | `string` | `--genome` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Samplesheet takes priority over `--genome`. Aliases are normalized to their canonical form. |
+| `ref_path` | | `path` | `--ref_cache` | Path to a reference FASTA file (`.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`) or a directory containing one. Samplesheet takes priority over `--ref_cache`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. |
+| `kit` | | `string` | | Barcoding kit for demultiplexing (e.g. `SQK-NBD114-24`). Required alongside `project` and `barcode` when using `--demux`. |
+| `bed` | | `path` | `--bed` | BED file for adaptive sampling regions. Samplesheet takes priority over `--bed`. |
+| `padding` | | `integer` | `--padding` | Padding around BED regions (bp). Samplesheet takes priority over `--padding`. |
+| `low_fidelity` | | `path` | `--low_fidelity` | Text file listing low-fidelity genes to exclude from coverage. Samplesheet takes priority over `--low_fidelity`. |
+| `purity` | | `float` | | Tumor purity estimate (0–1) for cf-DNA analysis. Required when using `--cfdna`. |
+| `filter` | | `string` | | Whether to filter reads longer than `--max_length` for cf-DNA (`yes`/`no`). |
 Now, you can run the pipeline using:
 
 ```bash
