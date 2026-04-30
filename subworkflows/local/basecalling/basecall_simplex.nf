@@ -29,7 +29,7 @@ workflow BASECALL_SIMPLEX {
     ch_samplesheet // channel: samplesheet read in from --input
     main:
 
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     DORADO_BASECALL(ch_samplesheet)
 
@@ -57,6 +57,20 @@ workflow BASECALL_SIMPLEX {
     SEQKIT_STATS_PASS(SAMTOOLS_TOFASTQ_PASS.out.fq)              // Read stats for passed reads
     SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
 
+    ch_stats_pass = SEQKIT_STATS_PASS.out.stats
+        .map { meta, table ->
+        def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+        tuple(meta_restore, table)}
+    ch_stats_fail = SEQKIT_STATS_FAIL.out.stats
+        .map { meta, table ->
+        def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_fail')
+        tuple(meta_restore, table)}
+
+    ch_fastq = SAMTOOLS_TOFASTQ_PASS.out.fq
+        .map { meta, reads ->
+            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+            tuple(new_meta, reads)}
+
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -73,9 +87,9 @@ workflow BASECALL_SIMPLEX {
 
 
     emit:
-    fastq          = SAMTOOLS_TOFASTQ_PASS.out.fq
-    stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
-    stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
-    versions       = ch_versions              
+    fastq          = ch_fastq
+    stats_pass     = ch_stats_pass        // TODO: QUARTO REPORT
+    stats_fail     = ch_stats_fail        // TODO: QUARTO REPORT
+    versions       = ch_versions
 
 }

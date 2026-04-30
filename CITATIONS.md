@@ -28,9 +28,17 @@
 
 - [Dorado](https://dorado-docs.readthedocs.io/en/latest/)
 
+- [figeno](https://figeno.readthedocs.io/en/latest/)
+
+> Sollier, E., Heilmann, J., Gerhauser, C., Scherer, M., Plass, C., & Lutsik, P. (2024). Figeno: Multi-region genomic figures with long-read support. Bioinformatics, 40(6), btae354. https://doi.org/10.1093/bioinformatics/btae354
+
 - [minimap2](https://github.com/lh3/minimap2)
 
 > Li, H. (2021). New strategies to improve minimap2 alignment accuracy. Bioinformatics, 37(23), 4572–4574. https://doi.org/10.1093/bioinformatics/btab705
+
+- [MARLIN](https://github.com/hovestadt/MARLIN)
+
+> Steinicke, T. L., Benfatto, S., Capilla-Guerra, M. R., Monteleone, A. B., Young, J. H., Shankar, S., Michaels, P. D., Tsai, H. K., Good, J. D., Kreso, A., van Galen, P., Schliemann, C., Chen, E. C., Griffin, G. K., & Hovestadt, V. (2025). Rapid epigenomic classification of acute leukemia. Nature Genetics, 57(10), 2456–2467. https://doi.org/10.1038/s41588-025-02321-z
 
 - [mosdepth](https://github.com/brentp/mosdepth)
 
@@ -57,6 +65,10 @@
 - [SnpEff](https://pcingola.github.io/SnpEff/)
 
 > Cingolani, P., Patel, V. M., Coon, M., Nguyen, T., Land, S. J., Ruden, D. M., & Lu, X. (2012). Using Drosophila melanogaster as a Model for Genotoxic Chemical Mutational Studies with a New Program, SnpSift. Frontiers in Genetics, 3, 35. https://doi.org/10.3389/fgene.2012.00035
+
+- [Sturgeon](https://pcingola.github.io/SnpEff/)
+
+> Vermeulen, C., Pagès-Gallego, M., Kester, L., Kranendonk, M. E. G., Wesseling, P., Verburg, N., de Witt Hamer, P., Kooi, E. J., Dankmeijer, L., van der Lugt, J., van Baarsen, K., Hoving, E. W., Tops, B. B. J., & de Ridder, J. (2023). Ultra-fast deep-learned CNS tumour classification during surgery. Nature, 622(7984), 842–849. https://doi.org/10.1038/s41586-023-06615-2
 
 - [SubChrom](https://github.com/Shaohua-Lei/SubChrom/)
 

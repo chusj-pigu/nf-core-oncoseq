@@ -34,7 +34,6 @@ process PIGZ_BED {
 
     //TODO: FIND A BETTER SOLUTION FOR THIS
     container 'ghcr.io/chusj-pigu/samtools:latest'
-    label 'local'
     label 'process_low'
     label 'process_low_cpu'
     label 'process_very_low_memory'
@@ -63,7 +62,7 @@ process PIGZ_BED {
 process COVERAGE_PLOT {
 
     //TODO: SET FIXED VERSION WHEN PIPELINE IS STABLE
-    container 'ghcr.io/chusj-pigu/tidyverse:latest'
+    container 'ghcr.io/chusj-pigu/tidyverse:006154f90a8b1b1c8647a246a76cb0562517da61'
     label 'local'
     label 'process_low'
     label 'process_single_cpu'
@@ -82,14 +81,19 @@ process COVERAGE_PLOT {
     output:
     tuple val(meta),
         path("*.pdf"),
-        emit: cov_plot
+        emit: cov_plot_pdf
+    tuple val(meta),
+        path("*.svg"),
+        emit: cov_plot_svg
+    tuple val(meta),
+        path("*.csv"),
+        emit: cov_df
     path "versions.yml",
         emit: versions
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}_coverage_mapq.pdf
     coverage_plot.R \\
         -n ${nofilt_bed} \\
         -p ${primary_bed} \\

@@ -1,0 +1,223 @@
+{
+	"general": {
+		"layout": "horizontal",
+		"reference": "hg38"
+	},
+	"output": {
+		"file": "/opt/mpgi-bizon-ssd1/platform/SISJ1164-KCNQ1OT1-mods.png",
+		"dpi": 500,
+		"width": 500
+	},
+	"regions": [
+		{
+			"chr": "11",
+			"start": 2603744,
+			"end": 2704577
+		}
+	],
+	"highlights": [],
+	"tracks": [
+		{
+			"type": "coverage",
+			"height": 10,
+			"margin_above": 1.5,
+			"bounding_box": false,
+			"fontscale": 1,
+			"label": "Coverage",
+			"label_rotate": true,
+			"file": "/opt/mpgi-bizon-ssd1/platform/191690_SISJ1164_T_WGSnano_AML_46000.haplotagged.bam",
+			"color": "#888888",
+			"n_bins": 500,
+			"scale": "auto",
+			"scale_pos": "corner",
+			"upside_down": false
+		},
+		{
+			"type": "alignments",
+			"height": 50,
+			"margin_above": 1.5,
+			"bounding_box": false,
+			"fontscale": 1,
+			"file": "/opt/mpgi-bizon-ssd1/platform/191690_SISJ1164_T_WGSnano_AML_46000.haplotagged.bam",
+			"label": "Reads",
+			"label_rotate": true,
+			"hgap_bp": 30,
+			"vgap_frac": 0.3,
+			"read_color": "#cccccc",
+			"link_splitreads": false,
+			"group_by": "haplotype",
+			"show_unphased": true,
+			"exchange_haplotypes": false,
+			"show_haplotype_colors": true,
+			"haplotype_colors": [
+				"#27ae60",
+				"#e67e22",
+				"#808080"
+			],
+			"haplotype_labels": [
+				"HP1",
+				"HP2",
+				"Unphased"
+			],
+			"color_by": "basemod",
+			"color_unmodified": "#888888",
+			"basemods": [
+				[
+					"C",
+					"m",
+					"#9b59b6"
+				],
+				[
+					"C",
+					"h",
+					"#c0392b"
+				]
+			],
+			"fix_hardclip_basemod": false
+		},
+		{
+			"type": "basemod_freq",
+			"height": 20,
+			"margin_above": 1.5,
+			"bounding_box": true,
+			"fontscale": 1,
+			"label": "Phased 5hmC",
+			"label_rotate": true,
+			"style": "lines",
+			"smooth": 4,
+			"gap_frac": 0.1,
+			"bams": [
+				{
+					"file": "191690_SISJ1164_T_WGSnano_AML_46000.haplotagged.bam",
+					"base": "C",
+					"mod": "h",
+					"min_coverage": 6,
+					"linewidth": "1",
+					"opacity": "0.8",
+					"fix_hardclip": false,
+					"split_by_haplotype": true,
+					"labels": [
+						"",
+						""
+					],
+					"colors": [
+						"#27ae60",
+						"#e67e22"
+					]
+				}
+			],
+			"bedmethyls": []
+		},
+		{
+			"type": "basemod_freq",
+			"height": 20,
+			"margin_above": 1.5,
+			"bounding_box": true,
+			"fontscale": 1,
+			"label": "Phased 5mC",
+			"label_rotate": true,
+			"style": "lines",
+			"smooth": 4,
+			"gap_frac": 0.1,
+			"bams": [
+				{
+					"file": "/opt/mpgi-bizon-ssd1/platform/191690_SISJ1164_T_WGSnano_AML_46000.haplotagged.bam",
+					"base": "C",
+					"mod": "m",
+					"min_coverage": 6,
+					"linewidth": "1",
+					"opacity": "0.8",
+					"fix_hardclip": false,
+					"split_by_haplotype": true,
+					"labels": [
+						"",
+						""
+					],
+					"colors": [
+						"#27ae60",
+						"#e67e22"
+					]
+				}
+			],
+			"bedmethyls": []
+		},
+		{
+			"type": "basemod_freq",
+			"height": 20,
+			"margin_above": 1.5,
+			"bounding_box": true,
+			"fontscale": 1,
+			"label": "UP Mods",
+			"label_rotate": true,
+			"style": "dots",
+			"smooth": 4,
+			"gap_frac": 0.1,
+			"bams": [
+				{
+					"file": "/opt/mpgi-bizon-ssd1/platform/191690_SISJ1164_T_WGSnano_AML_46000.haplotagged.bam",
+					"base": "C",
+					"mod": "m",
+					"min_coverage": 6,
+					"linewidth": "1",
+					"opacity": "0.8",
+					"fix_hardclip": false,
+					"split_by_haplotype": false,
+					"labels": [
+						""
+					],
+					"colors": [
+						"#9b59b6"
+					]
+				},
+				{
+					"file": "191690_SISJ1164_T_WGSnano_AML_46000.haplotagged.bam",
+					"base": "C",
+					"mod": "h",
+					"min_coverage": 6,
+					"linewidth": "1",
+					"opacity": "0.8",
+					"fix_hardclip": false,
+					"split_by_haplotype": false,
+					"labels": [
+						""
+					],
+					"colors": [
+						"#c0392b"
+					]
+				}
+			],
+			"bedmethyls": []
+		},
+		{
+			"type": "genes",
+			"height": 10,
+			"margin_above": 1.5,
+			"bounding_box": false,
+			"fontscale": 1,
+			"label": "",
+			"label_rotate": true,
+			"style": "default",
+			"collapsed": true,
+			"only_protein_coding": false,
+			"exon_color": "#2980b9",
+			"genes": "auto",
+			"show_gene_names": true
+		},
+		{
+			"type": "chr_axis",
+			"height": 10,
+			"margin_above": 1.5,
+			"bounding_box": false,
+			"fontscale": 1,
+			"label": "",
+			"label_rotate": false,
+			"style": "default",
+			"lw_scale": "1.0",
+			"ticklabels_pos": "below",
+			"unit": "kb",
+			"ticks_interval": "auto",
+			"ticks_angle": 0,
+			"chr_prefix": "chr"
+		}
+	]
+}

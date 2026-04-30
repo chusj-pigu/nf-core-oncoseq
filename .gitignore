@@ -12,8 +12,18 @@ test_out
 scratch/
 scratch*
 test_data/adaptive/*
+test_data/cfdna/*
 test_data/realistic_data/*
+test_data/cfdna/
 test_data/variant_calling/cnv_calling/*
+test_data/methylation_analysis/*
+test_data/basecalling/
 .nf-test/
 .Rproj.user
 refs
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
+test_data/basecalling/sample*
+references

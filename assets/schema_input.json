@@ -13,22 +13,113 @@
                 "errorMessage": "Sample name must be provided and cannot contain spaces",
                 "meta": ["id"]
             },
+            "project": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Project ID must be provided and cannot contain spaces"
+            },
             "input": {
                 "type": "string",
                 "format": "path",
                 "exists": true,
-                "errorMessage": "pod5 or fastq file path must be provided"
+                "errorMessage": "pod5, fastq and bam file path must be provided"
             },
-            "ref": {
+            "ubam": {
                 "type": "string",
-                "pattern": "^\\S+$",
-                "errorMessage": "Reference type must be provided and be either hg38|GRCh38 or hg19|GRCh37"
+                "format": "file-path",
+                "exists": true,
+                "errorMessage": "Absolute path to ubam file path must be provided"
+            },
+            "genome": {
+                "type": "string",
+                "pattern": "^(?i)(hg38|GRCh38|hg19|GRCh37|hs1|CHM13)$",
+                "errorMessage": "Reference type must be provided and be either hg38|GRCh38, hg19|GRCh37 or hs1|CHM13"
             },
             "ref_path": {
                 "type": "string",
                 "errorMessage": "Glob of path to reference fasta and index file must be provided"
+            },
+            "kit": {
+                "type": "string",
+                "enum": [
+                    "EXP-NBD103",
+                    "EXP-NBD104",
+                    "EXP-NBD114",
+                    "EXP-NBD114-24",
+                    "EXP-NBD196",
+                    "EXP-PBC001",
+                    "EXP-PBC096",
+                    "SQK-16S024",
+                    "SQK-16S114-24",
+                    "SQK-DRB004-24",
+                    "SQK-LWB001",
+                    "SQK-MAB114-24",
+                    "SQK-MLK111-96-XL",
+                    "SQK-MLK114-96-XL",
+                    "SQK-NBD111-24",
+                    "SQK-NBD111-96",
+                    "SQK-NBD114-24",
+                    "SQK-NBD114-96",
+                    "SQK-PBK004",
+                    "SQK-PCB109",
+                    "SQK-PCB110",
+                    "SQK-PCB111-24",
+                    "SQK-PCB114-24",
+                    "SQK-RAB201",
+                    "SQK-RAB204",
+                    "SQK-RBK001",
+                    "SQK-RBK004",
+                    "SQK-RBK110-96",
+                    "SQK-RBK111-24",
+                    "SQK-RBK111-96",
+                    "SQK-RBK114-24",
+                    "SQK-RBK114-96",
+                    "SQK-RLB001",
+                    "SQK-RPB004",
+                    "SQK-RPB114-24",
+                    "TWIST-16-UDI",
+                    "TWIST-96A-UDI",
+                    "VSK-PTC001",
+                    "VSK-VMK001",
+                    "VSK-VMK004",
+                    "VSK-VPS001"
+                ],
+                "errorMessage": "Valid Barcoding Nanopore kit must be provided"
+            },
+            "barcode": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "First column must contain barcode"
+            },
+            "bed": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "errorMessage": "Absolute path to bed file path must be provided"
+            },
+            "padding": {
+                "type": "number",
+                "pattern": "^\\d+$",
+                "errorMessage": "Padding used around region of interest must be provided for each bed file (in bp)"
+            },
+            "low_fidelity": {
+                "type": "string",
+                "format": "file-path"
+            },
+            "purity": {
+                "type": "number",
+                "pattern": "^\\d+$",
+                "errorMessage": "Aprroximate tumor purity must be provided for each sample in the form of a fraction, from 0 to 1 (1 being 100% pure)."
+            },
+            "filter": {
+                "type": "string",
+                "enum": [
+                    "yes",
+                    "no"
+                ],
+                "errorMessage": "Write yes to pre-process reads by filtering out longer reads or no to skip this step"
             }
         },
-        "required": ["sample", "input", "ref", "ref_path"]
+        "required": ["sample", "input"]
     }
 }

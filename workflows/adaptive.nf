@@ -7,30 +7,42 @@ include { BASECALL_SIMPLEX   } from '../subworkflows/local/basecalling/basecall_
 include { BASECALL_MULTIPLEX } from '../subworkflows/local/basecalling/basecall_multiplex'
 
 // Core analysis subworkflows
-include { MAPPING           } from '../subworkflows/local/mapping/mapping'
+include { MAPPING            } from '../subworkflows/local/mapping/mapping'
 
 // Variant calling subworkflows
 include { CLAIRS_TO_CALLING                     } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
-include { BCFTOOLS_CALLING                      } from '../subworkflows/local/variant_calling/bcftools_calling.nf'
 include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
-include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
-include { SV_CALLING as SV_PHASED               } from  '../subworkflows/local/variant_calling/sv_calling.nf'
+include { SV_CALLING                            } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { SUBCHROM_CALL                         } from  '../subworkflows/local/variant_calling/subchrom_call.nf'
+
+// Variant processing and visualization subworkflow
+include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
 
 // Adaptive-specific subworkflows
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
+// Tumor Classifiers
+include { CLASSY                } from '../subworkflows/local/methylation_analysis/classy.nf'
+
 // Time series evaluation subworkflows
-include { SPLIT_BAMS_TIME       } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
-include { SPLIT_BAMS_TIME_FASTQ } from '../subworkflows/local/time_series_evaluation/split_bams_fastq.nf'
+include { SPLIT_BAMS_TIME                      } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
+include { SPLIT_BAMS_TIME_FASTQ                } from '../subworkflows/local/time_series_evaluation/split_bams_fastq.nf'
+include { SUBSAMPLE_TIME                       } from '../subworkflows/local/read_processing/subsample_time.nf'
+
+// Reporting
+include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
+include { FIGENO_REPORT     } from '../subworkflows/local/report/variants.nf'
+include { ADAPTIVE_REPORT   } from '../subworkflows/local/report/adaptive.nf'
+include { CLASSIFIER_REPORT } from '../subworkflows/local/report/methylation.nf'
+// Utility functions
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 //
 include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
 include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
-
 
 //
 // WORKFLOW: Adaptive sequencing analysis pipeline
@@ -47,8 +59,9 @@ workflow ADAPTIVE {
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     clairs_model            // channel: model for ClairS variant calling
     basecall_model          // channel: model for basecalling
-    ch_clin_database        // channel: clinical database for variant annotation
     bed                     // channel: bed file used for adaptive sampling regions
+    targets                 // channel : list of genes with their position to represent in Figeno
+    vep_cache
 
     main:
 
@@ -56,230 +69,307 @@ workflow ADAPTIVE {
     //
     // WORKFLOW: Run pipeline
     //
-    
+
+    ch_versions = channel.empty()
+
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
-    if (params.skip_basecalling) {
-        // Map FASTQ reads to reference genome
+    if (params.skip_basecalling || params.skip_mapping) {
+
+        // All samples need to be mapped to hg19 or hg38
         MAPPING(
             samplesheet,
             ref
         )
 
-        SV_UNPHASED(
-            MAPPING.out.bam,
+    } else if (params.demux) {
+
+        // Perform multiplex basecalling with demultiplexing
+        BASECALL_MULTIPLEX (
+            samplesheet,
+            demux_samplesheet
+        )
+
+        // Map basecalled reads to reference
+        MAPPING (
+            BASECALL_MULTIPLEX.out.fastq,
             ref
         )
 
-        COVERAGE_SEPARATE(
+        ch_fastq = BASECALL_MULTIPLEX.out.fastq
+
+        ch_versions = ch_versions
+            .mix(BASECALL_MULTIPLEX.out.versions)
+    } else {
+        // Sub-branch 2b: Simplex basecalling (single sample per flow cell)
+
+        // Perform simplex basecalling
+        BASECALL_SIMPLEX (
+            samplesheet
+        )
+
+        // Map basecalled reads to reference
+        MAPPING (
+            BASECALL_SIMPLEX.out.fastq,
+            ref
+        )
+
+        ch_versions = ch_versions
+            .mix(BASECALL_SIMPLEX.out.versions)
+
+        ch_fastq = BASECALL_SIMPLEX.out.fastq
+
+    }
+
+    if (params.time_series) {
+        // Time series mode: Split BAMs into time intervals for temporal analysis
+        SPLIT_BAMS_TIME(
             MAPPING.out.bam,
+            ref,
             bed
         )
 
-        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
-        .map {
-            meta, panelbed ->
-            tuple(meta, panelbed) 
-        }.join(ref)
-        .map {
-            meta, panelbed, refid, _ref, _ref_fai ->
-            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
-        }
+        // Use time series outputs for downstream variant calling
+        ch_bam_for_calling = SPLIT_BAMS_TIME.out.bam
+        ch_ref_for_calling = SPLIT_BAMS_TIME.out.ref
+        ch_bed = SPLIT_BAMS_TIME.out.bed
 
-        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
+        if (params.m_bases) {
+            ch_bam_1h = ch_bam_for_calling
+                .filter { meta, _bam, _index ->
+                meta.endsWith('_0h_1h') }
 
+            ch_bam_classy = ch_bam_1h
 
-        BCFTOOLS_CALLING(
-            MAPPING.out.bam,
-            ref,
-            ch_clin_database,
-            ch_panel_bin
-        )
-
-        // Somatic variant calling using ClairS
-        CLAIRS_TO_CALLING (
-            MAPPING.out.bam,
-            ref,
-            clairs_model,
-            ch_clin_database,
-            ch_panel_bin
-        )
-
-        // Germline variant calling using Clair3
-        CLAIR3_CALLING (
-            MAPPING.out.bam,
-            ref,
-            basecall_model,
-            ch_clin_database,
-            ch_panel_bin
-        )
-
-        // Phase somatic variants
-        PHASING_SOMATIC (
-            MAPPING.out.bam,
-            ref,
-            CLAIRS_TO_CALLING.out.vcf
-        )
-
-        // Phase germline variants
-        PHASING_GERMLINE (
-            MAPPING.out.bam,
-            ref,
-            CLAIR3_CALLING.out.vcf
-        )
-
-        // Structural variant calling using phased BAM
-        SV_PHASED (
-                PHASING_GERMLINE.out.haptag_bam
-                .map { meta, bamfile, bai ->
-                    // Restore original sample ID for output naming
-                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
-                    tuple(meta_restore, bamfile, bai)
-                },
+            CLASSY(
+                ch_bam_classy,
                 ref
-        )
-
-        // Copy number variant calling
-        CNV_CALLING (
-            MAPPING.out.bam,
-            ref,
-            CLAIR3_CALLING.out.vcf
-        )
+            )
+        }
 
     } else {
-        // Branch 2: Full pipeline - perform basecalling first
+        // Standard mode: Use the full BAM directly for variant calling
+        ch_bam_for_calling = MAPPING.out.bam
+        ch_ref_for_calling = ref
+        ch_bed = bed
 
-        // Sub-branch 2a: Multiplex basecalling (multiple samples per flow cell)
-        if (params.demux != null) {
+        if (params.m_bases) {
 
-            // Perform multiplex basecalling with demultiplexing
-            BASECALL_MULTIPLEX (
-                samplesheet,
-                demux_samplesheet
-            )
+        // Downsample to 1h to run methylation classification
 
-            // Map basecalled reads to reference
-            MAPPING (
-                BASECALL_MULTIPLEX.out.fastq,
-                ref
-            )
-        } else {
-            // Sub-branch 2b: Simplex basecalling (single sample per flow cell)
+        ch_in_subsample_classy = ch_bam_for_calling
+            .map { meta, bam, index ->
+            tuple(meta, bam, index, 0, 1)
+            }
 
-            // Perform simplex basecalling
-            BASECALL_SIMPLEX (
-                samplesheet
-            )
-
-            // Map basecalled reads to reference
-            MAPPING (
-                BASECALL_SIMPLEX.out.fastq,
-                ref
-            )
-
-        }
-
-        // Conditional processing for time series analysis
-        if (params.time_series) {
-            // Time series mode: Split BAMs into time intervals for temporal analysis
-            SPLIT_BAMS_TIME(
-                MAPPING.out.bam,
-                ref,
-                bed
-            )
-
-            // Use time series outputs for downstream variant calling
-            ch_bam_for_calling = SPLIT_BAMS_TIME.out.bam
-            ch_ref_for_calling = SPLIT_BAMS_TIME.out.ref
-            ch_bed = SPLIT_BAMS_TIME.out.bed
-        } else {
-            // Standard mode: Use the full BAM directly for variant calling
-            ch_bam_for_calling = MAPPING.out.bam
-            ch_ref_for_calling = ref
-            ch_bed = bed
-        }
-
-        SV_UNPHASED(
-            ch_bam_for_calling,
-            ch_ref_for_calling
+        SUBSAMPLE_TIME(
+            ch_in_subsample_classy
         )
 
-        // Analyze coverage separation between target and background regions
-        COVERAGE_SEPARATE(
-            ch_bam_for_calling,
-            ch_bed
-        )
-        
+        ch_in_classy = SUBSAMPLE_TIME.out.bam
 
-        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
+        CLASSY(
+            ch_in_classy,
+            ref
+        )
+
+        ch_versions = ch_versions
+            .mix(SUBSAMPLE_TIME.out.versions)
+        }
+    }
+
+    // Analyze coverage separation between target and background regions
+    COVERAGE_SEPARATE(
+        ch_bam_for_calling,
+        ch_bed,
+        ch_ref_for_calling
+    )
+
+    // Somatic variant calling using ClairS
+    CLAIRS_TO_CALLING (
+        ch_bam_for_calling,
+        ch_ref_for_calling,
+        clairs_model,
+        COVERAGE_SEPARATE.out.split_bed,
+        vep_cache
+    )
+
+    // Germline variant calling using Clair3 (always uses original mapping output)
+    CLAIR3_CALLING (
+        ch_bam_for_calling,
+        ch_ref_for_calling,
+        basecall_model,
+        COVERAGE_SEPARATE.out.split_bed,
+        vep_cache
+    )
+
+    // // Phase somatic variants (uses original mapping output)
+    PHASING_SOMATIC (
+        ch_bam_for_calling,
+        ch_ref_for_calling,
+        CLAIRS_TO_CALLING.out.vcf_snpeff
+    )
+
+    // Phase germline variants (can use time series BAM if enabled)
+    PHASING_GERMLINE (
+        ch_bam_for_calling,
+        ch_ref_for_calling,
+        CLAIR3_CALLING.out.vcf_snpeff
+    )
+
+    // Structural variant calling using phased BAM
+    SV_CALLING (
+        PHASING_GERMLINE.out.haptag_bam
+            .map { meta, bamfile, bai ->
+            // Restore original sample ID for output naming
+            def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff_phased', '', '')
+            meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_snpeff_phased', '', '')
+            tuple(meta_restore, bamfile, bai)
+            },
+        ch_ref_for_calling
+    )
+
+    // Copy number variant calling
+    CNV_CALLING(
+        ch_bam_for_calling,
+        ch_ref_for_calling
+    )
+
+    ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+        .mix(CLAIRS_TO_CALLING.out.vcf_vep)
+
+    // Filter variants to visualize :
+    VARIANT_PROCESS (
+        MAPPING.out.bam,
+        SV_CALLING.out.vcf,
+        CNV_CALLING.out.qdnaseq_bed,
+        CNV_CALLING.out.qdnaseq_segs,
+        targets,
+        CNV_CALLING.out.delly_cov,
+        CNV_CALLING.out.delly_segs,
+        ch_snp_to_process
+    )
+
+    ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
         .map {
             meta, panelbed ->
-            tuple(meta, panelbed) 
-        }.join(ch_ref_for_calling)
+            tuple(meta, panelbed)
+        }
+        .join(ref)
         .map {
             meta, panelbed, refid, _ref, _ref_fai ->
-            tuple(meta, panelbed, refid, params.subchrom_binsize ) 
+            tuple(meta, panelbed, refid, params.subchrom_binsize )
         }
 
-        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
+    ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
 
-        BCFTOOLS_CALLING(
-            ch_bam_for_calling,
-            ch_ref_for_calling,
-            ch_clin_database,
-            ch_panel_bin
+    SUBCHROM_CALL (
+        MAPPING.out.bam,
+        ref,
+        CLAIR3_CALLING.out.vcf_snpeff,
+        ch_panel_bin
+    )
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COLLECT VERSIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+
+    ch_versions = ch_versions
+        .mix(MAPPING.out.versions)
+        .mix(CLAIRS_TO_CALLING.out.versions)
+        .mix(CLAIR3_CALLING.out.versions)
+        .mix(PHASING_SOMATIC.out.versions)
+        .mix(PHASING_GERMLINE.out.versions)
+        .mix(SV_CALLING.out.versions)
+        .mix(CNV_CALLING.out.versions)
+        .mix(VARIANT_PROCESS.out.versions)
+        .mix(SUBCHROM_CALL.out.versions)
+
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COMPILE SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    ADAPTIVE_REPORT(
+        COVERAGE_SEPARATE.out.coverage_tbl,
+        COVERAGE_SEPARATE.out.coverage_plot
+    )
+
+    ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
+        //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+
+    ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
+        //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+
+    ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
+        .map { value ->
+        def meta = "qDNAseq"
+        tuple(meta, value) }
+    ch_binsize_subchrom = channel.of(params.subchrom_binsize)
+        .map { value ->
+        def meta = "Subchrom"
+        tuple(meta, value) }
+    ch_binsize_delly = channel.of(params.delly_bin_size)
+        .map { value ->
+        def meta = "Delly"
+        tuple(meta, value) }
+
+    ch_binsizes = ch_binsize_qdnaseq
+        .mix(ch_binsize_subchrom)
+        .mix(ch_binsize_delly)
+
+    FIGENO_REPORT(
+        VARIANT_PROCESS.out.circos_plot,
+        VARIANT_PROCESS.out.panchr_plot,
+        ch_binsizes,
+        VARIANT_PROCESS.out.sv_plot,
+        VARIANT_PROCESS.out.fusion_plot,
+        VARIANT_PROCESS.out.targets_plot,
+        VARIANT_PROCESS.out.sv_table,
+        VARIANT_PROCESS.out.fusion_table,
+        ch_subchrom_plot,
+        ch_subchrom_focal,
+        VARIANT_PROCESS.out.snp_table
+    )
+
+    if (params.m_bases) {
+
+        CLASSIFIER_REPORT(
+            CLASSY.out.plot,
+            CLASSY.out.pred
         )
 
-        // Somatic variant calling using ClairS
-        CLAIRS_TO_CALLING (
-            ch_bam_for_calling,
-            ch_ref_for_calling,
-            clairs_model,
-            ch_clin_database,
-            ch_panel_bin
-        )
-
-        // Germline variant calling using Clair3 (always uses original mapping output)
-        CLAIR3_CALLING (
-            ch_bam_for_calling,
-            ch_ref_for_calling,
-            basecall_model,
-            ch_clin_database,
-            ch_panel_bin
-        )
-
-        // // Phase somatic variants (uses original mapping output)
-        PHASING_SOMATIC (
-            ch_bam_for_calling,
-            ch_ref_for_calling,
-            CLAIRS_TO_CALLING.out.vcf
-        )
-
-        // Phase germline variants (can use time series BAM if enabled)
-        PHASING_GERMLINE (
-            ch_bam_for_calling,
-            ch_ref_for_calling,
-            CLAIR3_CALLING.out.vcf
-        )
-
-        // Structural variant calling using phased BAM
-        // TODO: find
-        SV_PHASED (
-            PHASING_GERMLINE.out.haptag_bam
-                .map { meta, bamfile, bai ->
-                    // Restore original sample ID for output naming
-                    def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_phased', '', '')
-                    meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_phased', '', '')
-                    tuple(meta_restore, bamfile, bai)
-                },
-            ch_ref_for_calling
-        )
-
-        // Copy number variant calling
-        CNV_CALLING(
-            ch_bam_for_calling,
-            ch_ref_for_calling,
-            CLAIR3_CALLING.out.vcf
-        )
+        ch_classy_section = CLASSIFIER_REPORT.out.sections
+    } else {
+        ch_classy_section = channel.empty()
     }
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    COLLECT SECTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    // Collect sections from all analysis steps
+    ch_sections = ADAPTIVE_REPORT.out.sections
+        .mix(FIGENO_REPORT.out.sections)
+        .mix(CLASSIFIER_REPORT.out.sections)
+
+    // channel id containing only meta
+    ch_id = MAPPING.out.bam
+        .map { meta, _bam, _bai ->
+        meta }
+
+    ch_title = ch_id
+        .map { meta ->
+        tuple(meta, "OncoSeq Adaptive Sampling Report — ${meta.id}")}
+
+    MIDNIGHT_REPORT(
+        ch_id,
+        ch_sections,
+        ch_versions,
+        ch_title
+    )
 }

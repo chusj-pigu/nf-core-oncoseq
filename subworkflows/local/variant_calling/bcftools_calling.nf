@@ -14,7 +14,6 @@ include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/uti
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { modifyMetaId                 } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
-include { SUBCHROM_CALL_PANEL          } from '../../../modules/local/subchrom/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,7 +29,6 @@ workflow BCFTOOLS_CALLING {
     bam  // channel: from mapping workflow (tuple include bai)
     ref     // channel: from input samplesheet
     clinic_database
-    ch_panel_bin // subchrom panel bin file
     main:
 
     ch_versions = Channel.empty()
@@ -99,13 +97,6 @@ workflow BCFTOOLS_CALLING {
     BGZIP_VCF(ch_vcf_final)
 
     BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
-
-    ch_subchrom_in = bam.join(BCFTOOLS_CALL.out.vcf).join(ref).join(ch_panel_bin)
-        .map {meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, _reffai, sc_panelbed ->
-            tuple(meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, sc_panelbed)
-        }
-
-    // SUBCHROM_CALL_PANEL(ch_subchrom_in)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

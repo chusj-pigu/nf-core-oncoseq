@@ -3,17 +3,21 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CLAIR3_CALL                  } from '../../../modules/local/clair3/main.nf'
-include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
-include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
-include { BGZIP_VCF                    } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX               } from '../../../modules/local/bcftools/main.nf'
-include { paramsSummaryMap             } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
-include { modifyMetaId                 } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
-include { SUBCHROM_CALL_PANEL          } from '../../../modules/local/subchrom/main.nf'
+include { CLAIR3_CALL                             } from '../../../modules/local/clair3/main.nf'
+include { SNPEFF_ANNOTATE                         } from '../../../modules/local/snpeff/main.nf'
+include { BCFTOOLS_FILTER_REGION                  } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_VCF_FINAL            } from '../../../modules/local/bcftools/main.nf'
+include { BGZIP_VCF as BGZIP_VCF_INTER            } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL  } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_RAW    } from '../../../modules/local/bcftools/main.nf'
+include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_FILTERVEP            } from '../../../modules/nf-core/ensemblvep/filtervep/main.nf'
+include { paramsSummaryMap                } from 'plugin/nf-schema'
+include { paramsSummaryMultiqc            } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML          } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText          } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { modifyMetaId                    } from '../utils_nfcore_oncoseq_pipeline' // Function to modify meta IDs
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -29,12 +33,11 @@ workflow CLAIR3_CALLING {
     bam  // channel: from mapping workflow (tuple include bai)
     ref     // channel: from input samplesheet
     basecall_model       // channel: basecalling model
-    clinic_database
-    ch_panel_bin // subchrom panel bin file
+    bed
+    vep_cache
     main:
 
-    ch_versions = Channel.empty()
-
+    ch_versions = channel.empty()
 
     ch_ref = ref
         .map { meta, _ref, ref_fasta, ref_fai ->
@@ -52,13 +55,35 @@ workflow CLAIR3_CALLING {
                     : { throw new IllegalArgumentException("Unsupported model: ${model}") }()
             tuple(meta, bamfile, bai, ref_fasta, ref_fai, model_clair3)
         }
+        .join(bed)
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
-            tuple(meta, refid) 
+            tuple(meta, refid)
             }
 
     CLAIR3_CALL(ch_input_clair3)
+
+
+// /*
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//     VCF ANNOTATION
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// */
+
+    // Filter for regions inside adaptive bed file
+
+    if (params.bed != "${projectDir}/assets/NO_BED") {
+
+        BCFTOOLS_INDEX_RAW(CLAIR3_CALL.out.vcf)
+        ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
+            .join(bed)
+        BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
+
+        ch_clair3_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
+    } else {
+        ch_clair3_out = CLAIR3_CALL.out.vcf
+    }
 
     // Branch ref channel to create database channel
     ch_databases = ch_ref_type.branch {
@@ -67,6 +92,58 @@ workflow CLAIR3_CALLING {
         other: true
             return 'Error'
     }
+
+    ch_vep_hg38 = ch_clair3_out
+        .join(ch_databases.hg38)
+        .map { meta, vcf, _refid ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep')
+            tuple(new_meta,vcf, [])}
+
+    ch_vep_hg19 = ch_clair3_out
+        .join(ch_databases.hg19)
+        .map { meta, vcf, _refid ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep')
+            tuple(new_meta,vcf, [])}
+
+    ch_fasta_hg38 = ref
+        .filter { _meta, refid, _ref_fasta, _ref_index ->
+            refid.matches('hg38|GRCh38') }
+        .map { meta, _refid, ref_fasta, _ref_index ->
+            tuple(meta, ref_fasta)}
+
+    ch_fasta_hg19 = ref
+        .filter { _meta, refid, _ref_fasta, _ref_index ->
+            refid.matches('hg19|GRCh37') }
+        .map { meta, _refid, ref_fasta, _ref_index ->
+            tuple(meta, ref_fasta)}
+
+    ENSEMBLVEP_HG38(
+        ch_vep_hg38,
+        "GRCh38",
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache,
+        ch_fasta_hg38,
+        []
+    )
+
+    ENSEMBLVEP_HG19(
+        ch_vep_hg19,
+        "GRCh37",
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache,
+        ch_fasta_hg19,
+        []
+    )
+
+    ch_vep_to_filter = ENSEMBLVEP_HG38.out.vcf
+        .mix(ENSEMBLVEP_HG19.out.vcf)
+
+    ENSEMBLVEP_FILTERVEP(
+        ch_vep_to_filter,
+        []
+    )
 
     ch_databases_hg38 = ch_databases.hg38
         .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
@@ -79,56 +156,43 @@ workflow CLAIR3_CALLING {
     ch_snp_annotate = CLAIR3_CALL.out.vcf
         .join(ch_databases_ref)
         .map { meta, output, database ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp')
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_snpeff')
             tuple(new_meta, output, database)
         }
 
     SNPEFF_ANNOTATE(ch_snp_annotate)
 
-    ch_clin_db = clinic_database.toSortedList()
-
-    ch_snpsift_annotate  = SNPEFF_ANNOTATE.out.vcf
-        .combine(ch_clin_db)
-
-    SNPSIFT_ANNOTATE(ch_snpsift_annotate)
-
-    // Add clinvar into meta_id of SNPSIFT output
-
-    ch_snipsift_out = SNPSIFT_ANNOTATE.out.vcf
-        .map { meta, vcf ->
-            def meta_clinvar = modifyMetaId(meta, 'add_suffix', '', '', '_clinvar')
-            tuple(meta_clinvar, vcf)
-            }
-
     ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
-        .mix(ch_snipsift_out)
 
-    // Compress and index vcf :
+    // Compress and index vcf, using different names to publish only when realtime or cfdna is used (no phasing)
 
-    BGZIP_VCF(ch_vcf_final)
-
-    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
-
-    ch_subchrom_in = bam.join(CLAIR3_CALL.out.vcf).join(ref).join(ch_panel_bin)
-    .map {meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, _reffai, sc_panelbed ->
-        tuple(meta, sc_bam, sc_bai, sc_vcf, sc_refid, sc_refpath, sc_panelbed)
+    if (!params.realtime && !params.cfdna) {
+        BGZIP_VCF_INTER(ch_vcf_final)
+        ch_vcf_zip = BGZIP_VCF_INTER.out.vcf_gz
+        ch_versions = BGZIP_VCF_INTER.out.versions
+    } else {
+        BGZIP_VCF_FINAL(ch_vcf_final)
+        ch_vcf_zip = BGZIP_VCF_FINAL.out.vcf_gz
+        ch_versions = BGZIP_VCF_FINAL.out.versions
     }
 
-    SUBCHROM_CALL_PANEL(ch_subchrom_in)
-
+    BCFTOOLS_INDEX_FINAL(ch_vcf_zip)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         COLLECT VERSIONS
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
-    ch_versions = CLAIR3_CALL.out.versions
+    ch_versions = ch_versions
+            .mix(CLAIR3_CALL.out.versions)
             .mix(SNPEFF_ANNOTATE.out.versions)
-            .mix(BGZIP_VCF.out.versions)
-            .mix(BCFTOOLS_INDEX.out.versions)
+            .mix(BCFTOOLS_INDEX_FINAL.out.versions)
+            //.mix(ENSEMBLVEP_VEP.out.versions_ensemblvep)
+            //.mix(ENSEMBLVEP_FILTERVEP.out.versions_ensemblvep)
 
     emit:
-    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
+    vcf_snpeff       = BCFTOOLS_INDEX_FINAL.out.vcf_tbi
+    vcf_vep          = ENSEMBLVEP_FILTERVEP.out.output
     versions         = ch_versions
 
 }

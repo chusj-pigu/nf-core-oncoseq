@@ -206,31 +206,18 @@
             "description": "Bin size to use for CNV calling with QDNAseq (Kbp)",
             "default": 500
         },
-        "ubam_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet pointing to the ubam to restart basecalling from"
-        },
         "bed": {
             "type": "string",
-            "description": "Bed file used for adaptive mode",
-            "default": "/workspaces/nf-core-oncoseq/test_data/adaptive/2025-02-05-CHUSJ-Panel-20kb-LP.bed"
+            "description": "Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)",
+            "default": "/workspaces/nf-core-oncoseq/assets/NO_BED"
         },
         "demux": {
-            "type": "string",
-            "description": "Kit used for barcoding"
-        },
-        "minqs": {
-            "type": "integer",
-            "default": 10,
-            "description": "Minimum phred score to filter reads with"
+            "type": "boolean",
+            "description": "turn on multiplex basecalling"
         },
         "m_bases": {
             "type": "string",
             "description": "Modifications model to usefor basecalling"
-        },
-        "m_bases_path": {
-            "type": "string",
-            "description": "If using on a HPC, path to the local basecalling model for modifications"
         },
         "device": {
             "type": "string",
@@ -239,10 +226,6 @@
         "batch": {
             "type": "string",
             "description": "Batch size for basecalling"
-        },
-        "demux_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet for demultiplexing, first column must be barcode and second column sample"
         },
         "igenomes_base": {
             "type": "string",
@@ -266,32 +249,28 @@
             "type": "boolean",
             "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling or wgs mode."
         },
+        "huge": {
+            "type": "boolean",
+            "description": "Scale resource allocations for very large datasets."
+        },
         "clairsto_model": {
             "type": "string",
             "description": "ClairS_TO model to use for SNP calling",
             "default": "ont_r10_dorado_sup_5khz_ssrs"
         },
-        "adaptive_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet to specify which bed file was used for which sample in adaptive mode"
-        },
         "low_fidelity": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NOLIST",
+            "default": "/workspaces/nf-core-oncoseq/assets/panel_low_fidelity.txt",
             "description": "Path to text file containing list of genes of low fidelity for adaptive sampling (default is empty list)"
         },
         "padding": {
             "type": "integer",
-            "description": "Padding around region of interest for adaptive sampling"
+            "description": "Padding around region of interest for adaptive sampling",
+            "default": 20000
         },
         "skip_basecalling": {
             "type": "boolean",
             "description": "Option to skip basecalling and start with fastq files in the samplesheet input column"
-        },
-        "clin_database": {
-            "type": "string",
-            "description": "Path to clinical database with which to further annotate SNP vcf (ex. clinvar)",
-            "default": "ClinVar"
         },
         "max_memory": {
             "type": "string",
@@ -308,21 +287,99 @@
             "default": "4h",
             "description": "Maximum amount of time any process can take"
         },
+        "reference_cache_dir": {
+            "type": "string",
+            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation.",
+            "default": "/workspaces/nf-core-oncoseq"
+        },
         "time_series": {
             "type": "boolean"
         },
         "time_points": {
-            "type": "string"
+            "type": "string",
+            "default": "1,3,6,12,18,24,48,60,72"
         },
         "include_full": {
-            "type": "boolean"
+            "type": "boolean",
+            "default": true
         },
         "basecall_model": {
             "type": "string"
         },
-        "basecall_model_path": {
+        "realtime": {
+            "type": "integer",
+            "description": "Use number of sequencing hour to activate real time mode"
+        },
+        "subchrom_binsize": {
+            "type": "integer",
+            "default": 500
+        },
+        "sv_targets": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOCSV",
+            "description": "List of genes to visualize with Figeno (columns GENE and pos)"
+        },
+        "sv_exclude": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/sv_exclude.txt",
+            "description": "List of genes to exclude from SV analysis"
+        },
+        "skip_mapping": {
+            "type": "boolean"
+        },
+        "max_length": {
+            "type": "integer",
+            "default": 700,
+            "description": "Maximum length (in bases) of reads to include in cfdna analysis (if filter true in samplesheet)"
+        },
+        "min_mapq_ichor": {
+            "type": "integer",
+            "default": 20,
+            "description": "Minimum MAPQ of reads to include in ichorCNA analysis"
+        },
+        "ichor_bin_size": {
+            "type": "integer",
+            "default": 500000,
+            "description": "Bin size to use for IchorCNA (in bases)"
+        },
+        "rca": {
+            "type": "boolean",
+            "description": "Whether to run cfdna in rca mode (runs tidehunter)"
+        },
+        "report_template": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/templates/report_template.qmd"
+        },
+        "ubam": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/NOFILE",
+            "description": "Placeholder for incomplete ubam, to use basecalling resume, specify path to incomplete ubam in samplesheet"
+        },
+        "delly_bin_size": {
+            "type": "integer",
+            "default": 50000,
+            "description": "Bin size to use with Delly CNV calling"
+        },
+        "vep_cache": {
+            "type": "string",
+            "description": "Path to cache used by ensembl VEP"
+        },
+        "vep_version": {
+            "type": "integer",
+            "default": 115,
+            "description": "Version of Emsembl to use"
+        },
+        "filtervep_expression": {
+            "type": "string",
+            "default": "IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE",
+            "description": "Expression accepted by filtervep for filtering snp"
+        },
+        "ref_cache": {
             "type": "string"
+        },
+        "genome": {
+            "type": "string",
+            "default": "GRCh38"
         }
-    },
-    "required": ["clin_database"]
+    }
 }

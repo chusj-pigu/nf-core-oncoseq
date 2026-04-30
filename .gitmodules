@@ -66,3 +66,43 @@
 	path = modules/local/subchrom
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = subchrom
+[submodule "modules/local/figeno"]
+	path = modules/local/figeno
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = figeno
+[submodule "modules/local/chopper"]
+	path = modules/local/chopper
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = chopper
+[submodule "modules/local/ichorcna"]
+	path = modules/local/ichorcna
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = ichorcna
+[submodule "modules/local/tidehunter"]
+	path = modules/local/tidehunter
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = tidehunter
+[submodule "modules/local/sturgeon"]
+	path = modules/local/sturgeon
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = sturgeon
+[submodule "modules/local/modkit"]
+	path = modules/local/modkit
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = modkit
+[submodule "modules/local/magick"]
+	path = modules/local/magick
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = magick
+[submodule "modules/local/bedtools"]
+	path = modules/local/bedtools
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = bedtools
+[submodule "modules/local/delly"]
+	path = modules/local/delly
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = delly
+[submodule "modules/local/classy"]
+	path = modules/local/classy
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = classy
