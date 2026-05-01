@@ -11,6 +11,7 @@ include { MAPPING              } from '../subworkflows/local/mapping/mapping'
 
 // Tumor Classifiers
 include { CLASSY                } from '../subworkflows/local/methylation_analysis/classy.nf'
+include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools/main.nf'
 
 // Variant calling subworkflows
 include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
@@ -83,6 +84,27 @@ workflow LOCAL_REALTIME {
 
         ONTIME_TIME_RANGE(ch_bam)
 
+        SAMTOOLS_COUNT_READS(MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam)})
+
+        ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
+            .map { meta, txt ->
+                def count = txt.text.trim().toInteger()
+                tuple(meta, count)
+            }
+            .branch { meta, count ->
+                pos:  count > 0
+                    return meta
+                none: true
+            }
+
+        ch_bam_methylation_counts.none
+            .subscribe { meta, count ->
+                log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
+            }
+        ch_classy_in = ch_bam_methylation_counts.pos
+            .join(MAPPING.out.bam)
+            .view()
+
     } else if (params.skip_mapping) {
 
         MAPPING(
@@ -99,7 +121,28 @@ workflow LOCAL_REALTIME {
 
         ONTIME_TIME_RANGE(SAMTOOLS_TIME_FASTQ.out.fq)
 
+        SAMTOOLS_COUNT_READS(MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam)})
+
+        ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
+            .map { meta, txt ->
+                def count = txt.text.trim().toInteger()
+                tuple(meta, count)
+            }
+            .branch { meta, count ->
+                pos:  count > 0
+                    return meta
+                none: true
+            }
+
+        ch_bam_methylation_counts.none
+            .subscribe { meta, count ->
+                log.warn "Tumor classification will be skipped for ${meta.id} — no methylation tags found in bam"
+            }
+        ch_classy_in = ch_bam_methylation_counts.pos
+            .join(MAPPING.out.bam)
+
     } else {
+
         if (params.demux) {
 
             // Perform multiplex basecalling with demultiplexing
@@ -141,17 +184,26 @@ workflow LOCAL_REALTIME {
                 tuple(meta,bam) }
 
         ONTIME_TIME_RANGE(ch_bam)
+
+        ch_classy_in = MAPPING.out.bam
     }
 
     if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
-        // Run Marlin on leukemia samples only:
-        ch_classy_in = MAPPING.out.bam
+        if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
 
-        CLASSY(
-            ch_classy_in,
-            ref
-        )
+            CLASSY(
+                ch_classy_in,
+                ref
+            )
+
+            CLASSIFIER_REPORT(
+                CLASSY.out.plot,
+                CLASSY.out.pred
+            )
+
+            ch_sections = CLASSIFIER_REPORT.out.sections
+        }
 
         CNV_CALLING(
             MAPPING.out.bam,
@@ -189,13 +241,6 @@ workflow LOCAL_REALTIME {
 
         ch_versions = ch_versions
             .mix(CLASSY.out.versions)
-
-        CLASSIFIER_REPORT(
-            CLASSY.out.plot,
-            CLASSY.out.pred
-        )
-
-        ch_sections = CLASSIFIER_REPORT.out.sections
 
     } else if (params.realtime >=6 & params.realtime < 72 ) {
 

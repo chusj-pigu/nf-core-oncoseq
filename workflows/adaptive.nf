@@ -25,6 +25,7 @@ include { VARIANT_PROCESS                       } from  '../subworkflows/local/v
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
 // Tumor Classifiers
+include { SAMTOOLS_COUNT_READS  } from '../modules/local/samtools/main.nf'
 include { CLASSY                } from '../subworkflows/local/methylation_analysis/classy.nf'
 
 // Time series evaluation subworkflows
@@ -81,6 +82,26 @@ workflow ADAPTIVE {
             ref
         )
 
+        SAMTOOLS_COUNT_READS(MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam)})
+
+        ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
+            .map { meta, txt ->
+                def count = txt.text.trim().toInteger()
+                tuple(meta, count)
+            }
+            .branch { meta, count ->
+                pos:  count > 0
+                    return meta
+                none: true
+            }
+
+        ch_bam_methylation_counts.none
+            .subscribe { meta, count ->
+                log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
+            }
+        ch_to_classify = ch_bam_methylation_counts.pos
+            .join(MAPPING.out.bam)
+
     } else if (params.demux) {
 
         // Perform multiplex basecalling with demultiplexing
@@ -99,6 +120,8 @@ workflow ADAPTIVE {
 
         ch_versions = ch_versions
             .mix(BASECALL_MULTIPLEX.out.versions)
+
+        ch_to_classify = MAPPING.out.bam
     } else {
         // Sub-branch 2b: Simplex basecalling (single sample per flow cell)
 
@@ -117,6 +140,8 @@ workflow ADAPTIVE {
             .mix(BASECALL_SIMPLEX.out.versions)
 
         ch_fastq = BASECALL_SIMPLEX.out.fastq
+
+        ch_to_classify = MAPPING.out.bam
 
     }
 
@@ -144,6 +169,15 @@ workflow ADAPTIVE {
                 ch_bam_classy,
                 ref
             )
+            ch_versions = ch_versions
+            .mix(SUBSAMPLE_TIME.out.versions)
+
+            CLASSIFIER_REPORT(
+                CLASSY.out.plot,
+                CLASSY.out.pred
+            )
+
+            ch_classy_section = CLASSIFIER_REPORT.out.sections
         }
 
     } else {
@@ -152,28 +186,37 @@ workflow ADAPTIVE {
         ch_ref_for_calling = ref
         ch_bed = bed
 
-        if (params.m_bases) {
-
         // Downsample to 1h to run methylation classification
 
-        ch_in_subsample_classy = ch_bam_for_calling
-            .map { meta, bam, index ->
-            tuple(meta, bam, index, 0, 1)
-            }
+        if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
 
-        SUBSAMPLE_TIME(
-            ch_in_subsample_classy
-        )
+            ch_in_subsample_classy = ch_to_classify
+                .map { meta, bam, index ->
+                tuple(meta, bam, index, 0, 1)
+                }
 
-        ch_in_classy = SUBSAMPLE_TIME.out.bam
+            SUBSAMPLE_TIME(
+                ch_in_subsample_classy
+            )
 
-        CLASSY(
-            ch_in_classy,
-            ref
-        )
+            ch_in_classy = SUBSAMPLE_TIME.out.bam
 
-        ch_versions = ch_versions
-            .mix(SUBSAMPLE_TIME.out.versions)
+            CLASSY(
+                ch_in_classy,
+                ref
+            )
+
+            ch_versions = ch_versions
+                .mix(SUBSAMPLE_TIME.out.versions)
+
+            CLASSIFIER_REPORT(
+                CLASSY.out.plot,
+                CLASSY.out.pred
+            )
+
+            ch_classy_section = CLASSIFIER_REPORT.out.sections
+        } else {
+            ch_classy_section = channel.empty()
         }
     }
 
@@ -334,18 +377,6 @@ workflow ADAPTIVE {
         VARIANT_PROCESS.out.snp_table
     )
 
-    if (params.m_bases) {
-
-        CLASSIFIER_REPORT(
-            CLASSY.out.plot,
-            CLASSY.out.pred
-        )
-
-        ch_classy_section = CLASSIFIER_REPORT.out.sections
-    } else {
-        ch_classy_section = channel.empty()
-    }
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COLLECT SECTIONS
@@ -355,7 +386,7 @@ workflow ADAPTIVE {
     // Collect sections from all analysis steps
     ch_sections = ADAPTIVE_REPORT.out.sections
         .mix(FIGENO_REPORT.out.sections)
-        .mix(CLASSIFIER_REPORT.out.sections)
+        .mix(ch_classy_section)
 
     // channel id containing only meta
     ch_id = MAPPING.out.bam
@@ -373,3 +404,4 @@ workflow ADAPTIVE {
         ch_title
     )
 }
+
