@@ -103,7 +103,6 @@ workflow CFDNA {
                 log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
             }
         ch_to_classify = ch_bam_methylation_counts.pos
-            .view()
 
     } else {
 

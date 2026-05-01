@@ -103,7 +103,6 @@ workflow LOCAL_REALTIME {
             }
         ch_classy_in = ch_bam_methylation_counts.pos
             .join(MAPPING.out.bam)
-            .view()
 
     } else if (params.skip_mapping) {
 
