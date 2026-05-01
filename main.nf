@@ -225,6 +225,10 @@ workflow {
 
     } else {
 
+        if (!params.m_bases) {
+            log.warn("Tumor classification will be skipped — parameter --m_bases not set")
+        }
+
         ch_model_dir = params.ref_source ? channel.fromPath("${params.ref_source}", checkIfExists:true) : channelfromPath("${launchDir}")
         def model_resolved = params.ref_source  ? selectLatestModel(params.basecall_model,file("${params.ref_source}/dorado_models")) : null
         def modif_resolved = params.m_bases && model_resolved ?
