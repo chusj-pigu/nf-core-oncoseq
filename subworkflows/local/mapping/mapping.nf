@@ -92,7 +92,8 @@ workflow MAPPING {
                     if (bams.size() == 1) {
                         def bam_single = bams
                         def bai = dir.listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }
-                        return [tuple(meta, 'single', bams.flatten(), bai.flatten())]
+                        def type = bai.size() > 0 ? 'single' : 'to_index'
+                        return [tuple(meta, type, bams.flatten(), bai.flatten())]
                     } else {
                         // Case 2: Multiple BAMs → split into chunks of 20 for merging
                         def counter = 0
