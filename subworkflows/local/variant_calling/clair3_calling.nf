@@ -12,6 +12,7 @@ include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL  } from '../../../modules/local
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_RAW    } from '../../../modules/local/bcftools/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_VEP as ENSEMBLVEP_HS1        } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_FILTERVEP            } from '../../../modules/nf-core/ensemblvep/filtervep/main.nf'
 include { paramsSummaryMap                } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc            } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -85,69 +86,74 @@ workflow CLAIR3_CALLING {
         ch_clair3_out = CLAIR3_CALL.out.vcf
     }
 
-    // Branch ref channel to create database channel
-    ch_databases = ch_ref_type.branch {
-        hg38: { meta, refid -> refid.matches('hg38|GRCh38') }
-        hg19: { meta, refid -> refid.matches('hg19|GRCh37') }
-        other: true
-            return 'Error'
-    }
+    ch_vep = ch_clair3_out
+        .join(ch_ref_type)
+        .branch { meta, vcf, genome ->
+            hg38: genome == "hg38"
+            return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep'),vcf,[])
+            hg19: genome == "hg19"
+            return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep'),vcf,[])
+            hs1: genome == "hs1"
+                return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep'),vcf,[])
+            }
 
-    ch_vep_hg38 = ch_clair3_out
-        .join(ch_databases.hg38)
-        .map { meta, vcf, _refid ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep')
-            tuple(new_meta,vcf, [])}
+    ch_fasta = ch_clair3_out
+        .join(ref)
+        .branch { meta, _vcf, genome, ref_fasta, _ref_index ->
+            hg38: genome == "hg38"
+            return tuple(meta,ref_fasta)
+            hg19: genome == "hg19"
+            return tuple(meta,ref_fasta)
+            hs1: genome == "hs1"
+                return tuple(meta,ref_fasta)
+            }
 
-    ch_vep_hg19 = ch_clair3_out
-        .join(ch_databases.hg19)
-        .map { meta, vcf, _refid ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep')
-            tuple(new_meta,vcf, [])}
-
-    ch_fasta_hg38 = ref
-        .filter { _meta, refid, _ref_fasta, _ref_index ->
-            refid.matches('hg38|GRCh38') }
-        .map { meta, _refid, ref_fasta, _ref_index ->
-            tuple(meta, ref_fasta)}
-
-    ch_fasta_hg19 = ref
-        .filter { _meta, refid, _ref_fasta, _ref_index ->
-            refid.matches('hg19|GRCh37') }
-        .map { meta, _refid, ref_fasta, _ref_index ->
-            tuple(meta, ref_fasta)}
+    def vep_cache_resolved = vep_cache ? vep_cache : []
 
     ENSEMBLVEP_HG38(
-        ch_vep_hg38,
+        ch_vep.hg38,
         "GRCh38",
         "homo_sapiens",
         params.vep_version,
-        vep_cache,
-        ch_fasta_hg38,
+        vep_cache_resolved,
+        ch_fasta.hg38,
         []
     )
 
     ENSEMBLVEP_HG19(
-        ch_vep_hg19,
+        ch_vep.hg19,
         "GRCh37",
         "homo_sapiens",
         params.vep_version,
-        vep_cache,
-        ch_fasta_hg19,
+        vep_cache_resolved,
+        ch_fasta.hg19,
+        []
+    )
+
+    ENSEMBLVEP_HS1(
+        ch_vep.hs1,
+        "CHM13",
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache_resolved,
+        ch_fasta.hs1,
         []
     )
 
     ch_vep_to_filter = ENSEMBLVEP_HG38.out.vcf
         .mix(ENSEMBLVEP_HG19.out.vcf)
+        .mix(ENSEMBLVEP_HS1.out.vcf)
 
     ENSEMBLVEP_FILTERVEP(
         ch_vep_to_filter,
         []
     )
 
-    ch_databases_hg38 = ch_databases.hg38
+    ch_databases_hg38 = ch_ref_type
+        .filter{meta, refid -> refid == "hg38"}
         .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
-    ch_databases_hg19 = ch_databases.hg19
+    ch_databases_hg19 = ch_ref_type
+        .filter{meta, refid -> refid == "h19"}
         .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
 
     ch_databases_ref = ch_databases_hg38

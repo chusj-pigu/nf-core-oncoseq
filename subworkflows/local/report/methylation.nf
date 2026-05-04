@@ -69,13 +69,13 @@ workflow CLASSIFIER_REPORT {
 */
 
     ch_methylation_text = ch_methylation_plot
-        .map { meta, _plot, _type ->
-            tuple(meta, "Tumor classifier predictions based on DNA methylation profiles. If no predictions pass the score cutoff, the highest scoring prediction is shown regardless of cutoff.") }
-        .distinct()
-        .map { meta, text ->
+        ch_methylation_text = ch_methylation_plot
+        .map { meta, _plot, _type -> meta }   // extract only meta
+        .unique { it.id }                      // deduplicate by sample id
+        .map { meta ->
             def section = "Methylation"
             def process = "Methylation-text-${meta.id}"
-            tuple(meta, text, section, process)
+            tuple(meta, "Tumor classifier predictions based on DNA methylation profiles. Top 5 scoring predictions are shown.", section, process)
         }
 
     QUARTO_TEXT(

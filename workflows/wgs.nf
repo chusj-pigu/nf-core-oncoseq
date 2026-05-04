@@ -21,6 +21,7 @@ include { modifyMetaId                         } from '../subworkflows/local/uti
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
 
 // Tumor classification
+include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools/main.nf'
 include { CLASSY                               } from '../subworkflows/local/methylation_analysis/classy.nf'
 include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_BAM } from '../subworkflows/local/read_processing/subsample_time.nf'
 
@@ -51,7 +52,7 @@ workflow WGS {
 
     ch_versions = channel.empty()
 
-    if (params.skip_mapping) {
+    if (params.skip_mapping || params.skip_basecalling) {
 
         MAPPING (
             samplesheet,
@@ -60,14 +61,25 @@ workflow WGS {
 
         ch_seqkit = MAPPING.out.seqkit
 
-    } else if (params.skip_basecalling) {
+        SAMTOOLS_COUNT_READS(MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam)})
 
-        MAPPING (
-            samplesheet,
-            ref
-        )
+        ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
+            .map { meta, txt ->
+                def count = txt.text.trim().toInteger()
+                tuple(meta, count)
+            }
+            .branch { meta, count ->
+                pos:  count > 0
+                    return meta
+                none: true
+            }
 
-        ch_seqkit = MAPPING.out.seqkit
+        ch_bam_methylation_counts.none
+            .subscribe { meta, count ->
+                log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
+            }
+        ch_to_classify = ch_bam_methylation_counts.pos
+            .join(MAPPING.out.bam)
 
     } else {
 
@@ -104,12 +116,13 @@ workflow WGS {
             ch_seqkit   = BASECALL_SIMPLEX.out.stats_pass
             ch_versions = BASECALL_SIMPLEX.out.versions
         }
+        ch_to_classify = MAPPING.out.bam
     }
 
-    if (params.m_bases) {
+    if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
         // Downsample to 1h to run methylation classification
 
-        ch_in_subsample = MAPPING.out.bam
+        ch_in_subsample = ch_to_classify
             .map { meta, bam, index ->
             tuple(meta, bam, index, 0, 1)
             }

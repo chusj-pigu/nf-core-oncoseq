@@ -34,9 +34,6 @@ workflow PIPELINE_INITIALISATION {
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
     input_sheet             //  string: Path to input samplesheet
-    ubam_samplesheet  // string: Path to ubam samplesheet
-    demux_samplesheet // string: Path to demux samplesheet
-    adaptive_samplesheet // string: Path to adaptive samplesheet ( not null if different for samples)
     input_bed                 // string: path to input bed file (not null if the same for all sample)
     input_padding               // Padding around ROI (parameter padding)
     list_low_fidelity                // List of low fidelity genes to discard for coverage calculations (parameter low_fidelity)
@@ -248,9 +245,12 @@ workflow PIPELINE_INITIALISATION {
             // Resolve genome: sample-level takes priority over global param
             def rawGenome = sample_genome ?: genome_c
             if (!rawGenome) error "ERROR: No genome provided. Set params.genome or provide genome in samplesheet."
-            def genome = genomeMap[rawGenome] ?: { error "ERROR: Unrecognized genome '${rawGenome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
+            def genome  = genomeMap[rawGenome] ?: { error "ERROR: Unrecognized genome '${rawGenome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
+            def aliases = genomeMap.findAll { k, v -> v == genome }.keySet()
 
-            def aliases  = genomeMap.findAll { k, v -> v == genome }.keySet()
+            // Case-insensitive FASTA/FAI finders
+            def findFa  = { files, aliasList -> files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && faExts.any  { ext -> f.name.toLowerCase().endsWith(ext) } } }
+            def findFai = { files, aliasList -> files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && faiExts.any { ext -> f.name.toLowerCase().endsWith(ext) } } }
 
             def faFinal  = null
             def faiFinal = null
@@ -273,8 +273,8 @@ workflow PIPELINE_INITIALISATION {
                 // --- Case 1b: ref_path is a directory ---
                 } else if (refFile.isDirectory()) {
                     def allFiles = refFile.listFiles() as List
-                    def faFile  = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faExts.any  { ext -> f.name.endsWith(ext) } }
-                    def faiFile = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faiExts.any { ext -> f.name.endsWith(ext) } }
+                    def faFile   = findFa(allFiles, aliases)
+                    def faiFile  = findFai(allFiles, aliases)
 
                     faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
                     faiFinal = faiFile ?: null
@@ -304,8 +304,8 @@ workflow PIPELINE_INITIALISATION {
                 // --- Case 2b: ref_cache is a directory ---
                 } else if (refCacheFile.isDirectory()) {
                     def allFiles = refCacheFile.listFiles() as List
-                    def faFile  = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faExts.any  { ext -> f.name.endsWith(ext) } }
-                    def faiFile = allFiles.find { f -> aliases.any { alias -> f.name.contains(alias) } && faiExts.any { ext -> f.name.endsWith(ext) } }
+                    def faFile   = findFa(allFiles, aliases)
+                    def faiFile  = findFai(allFiles, aliases)
 
                     faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
                     faiFinal = faiFile ?: null

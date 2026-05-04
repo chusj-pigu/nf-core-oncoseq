@@ -12,6 +12,7 @@ include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/i
 include { CLASSY                 } from '../subworkflows/local/methylation_analysis/classy.nf'
 include { SUBCHROM_CALL          } from '../subworkflows/local/variant_calling/subchrom_call.nf'
 include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_BAM } from '../subworkflows/local/read_processing/subsample_time.nf'
+include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools/main.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
@@ -51,13 +52,57 @@ workflow CFDNA {
             demux
         )
 
-        ch_fastq = BASECALL_MULTIPLEX.out.fastq
-
         ch_versions = BASECALL_MULTIPLEX.out.versions
+
+        READS_FILTER (
+            cfdna_samplesheet,
+            BASECALL_MULTIPLEX.out.fastq,
+            max_len,
+            minqs
+        )
+
+        MAPPING(
+            READS_FILTER.out.reads,
+            ref
+        )
+
+        ch_to_classify = MAPPING.out.bam
+            .map { meta, _bam, _bai -> meta }
 
     } else if (params.skip_basecalling || params.skip_mapping) {
 
-        ch_fastq = samplesheet
+        READS_FILTER (
+            cfdna_samplesheet,
+            samplesheet,
+            max_len,
+            minqs
+        )
+
+        ch_fastq_processed = READS_FILTER.out.reads
+
+        MAPPING(
+            ch_fastq_processed,
+            ref
+        )
+
+        SAMTOOLS_COUNT_READS(MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam)})
+
+        ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
+            .map { meta, txt ->
+                def count = txt.text.trim().toInteger()
+                tuple(meta, count)
+            }
+            .branch { meta, count ->
+                pos:  count > 0
+                    return meta
+                none: true
+            }
+
+        ch_bam_methylation_counts.none
+            .subscribe { meta, count ->
+                log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
+            }
+        ch_to_classify = ch_bam_methylation_counts.pos
 
     } else {
 
@@ -69,14 +114,6 @@ workflow CFDNA {
 
         ch_versions = BASECALL_SIMPLEX.out.versions
 
-    }
-
-    if (params.rca) {
-        TIDEHUNTER_CONCENSUS(ch_fastq)
-
-        ch_fastq_processed = TIDEHUNTER_CONCENSUS.out.fastq
-
-    } else {
         READS_FILTER (
             cfdna_samplesheet,
             ch_fastq,
@@ -90,6 +127,18 @@ workflow CFDNA {
             ch_fastq_processed,
             ref
         )
+
+        ch_to_classify = MAPPING.out.bam
+            .map { meta, _bam, _bai -> meta }
+
+    }
+
+    if (params.rca) {
+        TIDEHUNTER_CONCENSUS(ch_fastq)
+
+        ch_fastq_processed = TIDEHUNTER_CONCENSUS.out.fastq
+
+    } else {
 
         // Run snp calling only for higher coverage samples
         ch_coverage = MAPPING.out.coverage
@@ -154,8 +203,9 @@ workflow CFDNA {
             ref
         )
 
-        if (params.m_bases) {
+        if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
             ch_in_subsample = ch_high_cov_bam
+                .join(ch_to_classify)
                 .map { meta, bam, index ->
                 tuple(meta, bam, index, 0, 8)}          // Subsample to first 8h of sequencing to avoid slowing down classification
 
@@ -165,6 +215,7 @@ workflow CFDNA {
 
             ch_in_classy = SUBSAMPLE_TIME_BAM.out.bam
                 .mix(ch_coverage.low.join(MAPPING.out.bam))
+                .join(ch_to_classify)
 
             CLASSY(
                 ch_in_classy,
@@ -177,6 +228,7 @@ workflow CFDNA {
             )
 
             ch_classy_section = CLASSIFIER_REPORT.out.sections
+                .mix(CLASSY.out.versions)
         } else {
             ch_classy_section = channel.empty()
         }
@@ -252,7 +304,6 @@ workflow CFDNA {
 
         ch_versions = ch_versions
             .mix(MAPPING.out.versions)
-            .mix(CLASSY.out.versions)
             .mix(CNV_CALLING.out.versions)
             .mix(ICHORCNA_CALLING.out.versions)
 
@@ -276,7 +327,7 @@ workflow CFDNA {
 
         // Collect sections from all analysis steps
         ch_sections = CFNDA_REPORT.out.sections
-            .mix(CLASSIFIER_REPORT.out.sections)
+            .mix(ch_classy_section)
             .mix(FIGENO_REPORT.out.sections)
 
          // channel id containing only meta

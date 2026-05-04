@@ -17,7 +17,15 @@
 
 ## Introduction
 
-**nf-core/oncoseq** is a bioinformatics pipeline that calls variants of interests for Oncology research from raw data to vcf files and digestible reports.
+**nf-core/oncoseq** is a bioinformatics pipeline that calls variants of interest for Oncology research, from raw sequencing data to VCF files and digestible reports.
+
+> [!NOTE]
+> This pipeline is currently designed for **human genomes only**, supporting the following reference assemblies:
+> | Genome | Aliases |
+> |--------|---------|
+> | hg38 | GRCh38 |
+> | hg19 | GRCh37 |
+> | hs1  | CHM13  |
 
 ![nf-core-oncoseq summary of full workflow](assets/nf-core-oncoseq_schema.jpg)
 
@@ -25,14 +33,14 @@
 
 ## Pipeline Overview
 
-The general steps are as followed:
+The general steps are as follows:
 
 1. **Basecalling** – [Dorado](https://github.com/nanoporetech/dorado)
    *(Optional: skip using `--skip_basecalling` if FASTQ input is provided)*
-   *(Optional: Demultiplexing is done if kit is included in samplesheet and demux_samplesheet is provided)*
+   *(Optional: Demultiplexing is done if kit is included in samplesheet and `--demux_samplesheet` is provided)*
 2. **Read QC** – [Seqkit](https://bioinf.shenwei.me/seqkit/)
 3. **Alignment** – [minimap2](https://lh3.github.io/minimap2/minimap2.html)
-   *(Optional: skip using `--skip_mapping` if bam input is provided)*
+   *(Optional: skip using `--skip_mapping` if BAM input is provided)*
 4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [Sturgeon](https://github.com/UMCUGenetics/sturgeon), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan)
 5. **Alignment QC** – [Cramino](https://github.com/wdecoster/cramino)
 6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly)
@@ -41,6 +49,9 @@ The general steps are as followed:
 9. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/) and [Ensembl VEP](https://grch37.ensembl.org/info/docs/tools/vep/index.html)
 10. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/) (`--adaptive` and `--wgs` only)
 11. **Reporting** – [Quarto](https://quarto.org/) report summarizing coverage, variants, and methylation-based tumor classification
+
+> [!WARNING]
+> [QDNAseq](https://www.bioconductor.org/packages/QDNAseq) and [SubChrom](https://github.com/Shaohua-Lei/SubChrom) do not support the CHM13/hs1 reference genome and will be automatically skipped when `--genome hs1` is used.
 
 ---
 
@@ -108,7 +119,7 @@ Most input can be provided as command line parameters if they are common, but th
 |--------|----------|------|---------------|-------------|
 | `sample` | ✅ | `string` | | Sample identifier |
 | `project` | | `string` | | Project ID for multiplexed samples |
-| `input` | ✅ | `path` | | Path to pod5, fastq, or bam files |
+| `input` | ✅ | `path` | | Path to pod5, fastq, or bam files. If bam files are provided, it's assumed that they are sorted by genomic coordinate. |
 | `genome` | | `string` | `--genome` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Samplesheet takes priority over `--genome`. Aliases are normalized to their canonical form. |
 | `ref_path` | | `path` | `--ref_cache` | Path to a reference FASTA file (`.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`) or a directory containing one. Samplesheet takes priority over `--ref_cache`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. |
 | `kit` | | `string` | | Barcoding kit for demultiplexing (e.g. `SQK-NBD114-24`). Required alongside `project` and `barcode` when using `--demux`. |

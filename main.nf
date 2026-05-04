@@ -206,9 +206,6 @@ workflow {
         args,
         params.outdir,
         params.input,
-        params.ubam_samplesheet,
-        params.demux_samplesheet,
-        params.adaptive_samplesheet,
         params.bed,
         params.padding,
         params.low_fidelity
@@ -225,10 +222,14 @@ workflow {
 
     } else {
 
-        ch_model_dir = params.ref_source ? channel.fromPath("${params.ref_source}", checkIfExists:true) : channelfromPath("${launchDir}")
-        def model_resolved = params.ref_source  ? selectLatestModel(params.basecall_model,file("${params.ref_source}/dorado_models")) : null
+        if (!params.m_bases) {
+            log.warn("Tumor classification will be skipped — parameter --m_bases not set")
+        }
+
+        ch_model_dir = params.ref_cache ? channel.fromPath("${params.ref_cache}", checkIfExists:true) : channelfromPath("${launchDir}")
+        def model_resolved = params.ref_cache  ? selectLatestModel(params.basecall_model,file("${params.ref_cache}/dorado_models")) : null
         def modif_resolved = params.m_bases && model_resolved ?
-            selectLatestModif(file("${params.ref_source}/dorado_models"), model_resolved, params.m_bases) :
+            selectLatestModif(file("${params.ref_cache}/dorado_models"), model_resolved, params.m_bases) :
             null
         ch_modif = channel.fromPath("${projectDir}/assets/NOMOD")
 
