@@ -206,10 +206,6 @@
             "description": "Bin size to use for CNV calling with QDNAseq (Kbp)",
             "default": 500
         },
-        "ubam_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet pointing to the ubam to restart basecalling from"
-        },
         "bed": {
             "type": "string",
             "description": "Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)",
@@ -230,10 +226,6 @@
         "batch": {
             "type": "string",
             "description": "Batch size for basecalling"
-        },
-        "demux_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet for demultiplexing, first column must be barcode and second column sample"
         },
         "igenomes_base": {
             "type": "string",
@@ -265,10 +257,6 @@
             "type": "string",
             "description": "ClairS_TO model to use for SNP calling",
             "default": "ont_r10_dorado_sup_5khz_ssrs"
-        },
-        "adaptive_samplesheet": {
-            "type": "string",
-            "description": "Samplesheet to specify which bed file was used for which sample in adaptive mode"
         },
         "low_fidelity": {
             "type": "string",
@@ -362,15 +350,6 @@
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/templates/report_template.qmd"
         },
-        "ref": {
-            "type": "string",
-            "description": "Path to reference genome (index must be in same directory), use if same reference is to be used for all samples"
-        },
-        "ref_id": {
-            "type": "string",
-            "default": "hg38",
-            "description": "Reference ID, either hg38/GRCh38 or hg19/GRCh37"
-        },
         "ubam": {
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/NOFILE",
@@ -392,8 +371,15 @@
         },
         "filtervep_expression": {
             "type": "string",
-            "default": "IMPACT != LOW and (gnomADe_AF <= 0.01 or not gnomADe_AF) and DP >= 20 and INFO is PASS and not CLIN_SIG matches \\'BENIGN\\",
+            "default": "IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE",
             "description": "Expression accepted by filtervep for filtering snp"
+        },
+        "ref_cache": {
+            "type": "string"
+        },
+        "genome": {
+            "type": "string",
+            "default": "GRCh38"
         }
     }
 }

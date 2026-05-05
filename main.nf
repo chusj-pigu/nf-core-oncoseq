@@ -27,7 +27,6 @@ include { selectLatestModif       } from './subworkflows/local/utils_nfcore_onco
 include { selectModelDownload     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { DORADO_DOWNLOAD_LIST    } from './modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from './modules/local/dorado/main.nf'
-include { STAGE_REFERENCE_FILES as STAGE_CLINICAL_REFERENCE_FILES } from './modules/local/reference_cache/main.nf'
 
 def resolveIndexedVcfFiles(vcfSpec) {
     def resolved = file(vcfSpec, checkIfExists: true)
@@ -196,12 +195,6 @@ workflow NFCORE_ONCOSEQ_WGS {
 workflow {
 
     main:
-    if (!params.reference_cache_dir) {
-        throw new IllegalArgumentException(
-            'Please provide --reference_cache_dir to stage reference assets ' +
-                'and Dorado models.'
-        )
-    }
 
     //
     // SUBWORKFLOW: Run initialisation tasks
@@ -213,9 +206,6 @@ workflow {
         args,
         params.outdir,
         params.input,
-        params.ubam_samplesheet,
-        params.demux_samplesheet,
-        params.adaptive_samplesheet,
         params.bed,
         params.padding,
         params.low_fidelity
@@ -232,10 +222,14 @@ workflow {
 
     } else {
 
-        ch_model_dir = channel.fromPath("${params.reference_cache_dir}")
-        def model_resolved = selectLatestModel(params.basecall_model,file("${params.reference_cache_dir}/dorado_models"))
+        if (!params.m_bases) {
+            log.warn("Tumor classification will be skipped — parameter --m_bases not set")
+        }
+
+        ch_model_dir = params.ref_cache ? channel.fromPath("${params.ref_cache}", checkIfExists:true) : channelfromPath("${launchDir}")
+        def model_resolved = params.ref_cache  ? selectLatestModel(params.basecall_model,file("${params.ref_cache}/dorado_models")) : null
         def modif_resolved = params.m_bases && model_resolved ?
-            selectLatestModif(file("${params.reference_cache_dir}/dorado_models"), model_resolved, params.m_bases) :
+            selectLatestModif(file("${params.ref_cache}/dorado_models"), model_resolved, params.m_bases) :
             null
         ch_modif = channel.fromPath("${projectDir}/assets/NOMOD")
 
@@ -331,8 +325,11 @@ workflow {
     ch_clairs_model = channel.of(params.clairsto_model)
 
     // vep cache
-    ch_vep_cache = Channel.fromPath(params.vep_cache, checkIfExists: true).collect()
-
+    ch_vep_cache = params.vep_cache
+        ? channel.fromPath(params.vep_cache, checkIfExists: true).collect()
+        : params.ref_cache && file(params.ref_cache).isDirectory()
+            ? channel.fromPath("${params.ref_cache}/vep", checkIfExists: true).collect()
+            : null
     // channel for sv gene targets
     ch_sv_targets = channel.fromPath(params.sv_targets)
 
