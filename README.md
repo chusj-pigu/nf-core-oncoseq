@@ -9,7 +9,6 @@
 [![nf-test](https://img.shields.io/badge/unit_tests-nf--test-337ab7.svg)](https://www.nf-test.com)
 
 [![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A524.04.2-23aa62.svg)](https://www.nextflow.io/)
-[![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)
 [![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
 [![run with singularity](https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000)](https://sylabs.io/docs/)
 [![Launch on Seqera Platform](https://img.shields.io/badge/Launch%20%F0%9F%9A%80-Seqera%20Platform-%234256e7)](https://cloud.seqera.io/launch?pipeline=https://github.com/nf-core/oncoseq)
@@ -110,33 +109,22 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
-| sample | project | input | ref | ref_path | kit | bed | padding | low_fidelity | purity | filter |
-|--------|---------|-------|-----|----------|-----|-----|---------|--------------|--------|--------|
-| sample1 | project1 | /path/to/pod5/ | hg38 | /path/to/ref/ | SQK-NBD114-24 | /path/to/bed.bed | 20000 | /path/to/low_fidelity.txt | 0.5 | yes |
+```csv
+sample,input,ref,ref_path
+sample1,/path/to/pod5,hg38,path/to/hg38.{fa,fa.fai}
+```
 
-**Column descriptions:**
+Each row represents the pod5 directory for one sample, and the reference to map it to.
 
-- `sample` *(required)*: Sample identifier
-- `project` *(optional)*: Project ID for multiplexed samples
-- `input` *(required)*: Path to pod5, fastq, or bam files
-- `ref` *(optional)*: Reference genome ID (hg38/hg19) if not provided as parameter
-- `ref_path` *(optional)*: Path to reference genome directory if not provided as parameter
-- `kit` *(optional)*: Barcoding kit for demultiplexing
-- `bed` *(optional)*: BED file for adaptive sampling regions
-- `padding` *(optional)*: Padding around BED regions (bp)
-- `low_fidelity` *(optional)*: Text file with low-fidelity genes to exclude
-- `purity` *(optional)*: Tumor purity estimate (0-1) for cf-DNA analysis
-- `filter` *(optional)*: Whether to filter reads by length (`yes`/`no`) for cf-DNA
-
-Each row represents one sample with its input data and analysis parameters.
 
 Now, you can run the pipeline using:
 
 <!-- TODO nf-core: update the following command to include all required parameters for a minimal example -->
 
 ```bash
-nextflow run nf-core/oncoseq \
-   -profile narval \
+nextflow run chusj-pigu/nf-core-oncoseq -r main \
+   -profile <docker/singularity/apptainer> \
+   <--adaptive/wgs/cfdna>
    --input samplesheet.csv \
    --outdir results \
    --reference_cache_dir /path/to/reference/cache \
@@ -146,7 +134,9 @@ nextflow run nf-core/oncoseq \
    [--skip_mapping]
 ```
 
-By default, the pipeline will run in adaptive mode starting from basecalling, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
+By default, the pipeline will run in adaptive mode, but the pipeline can also be run in WGS or cf-DNA mode using `--wgs` or `--cfdna` parameters respectively. Please see the pipeline output section to see which outputs are included with each mode. Please note that `--cfdna` mode is still in development.
+
+If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files in input.
 
 If your input is already basecalled, use the parameter `--skip_basecalling` and provide the path to fastq files or folder containing fastq files in input. If your input is already mapped with minimap2, use the parameter `--skip_mapping` and provide the path to bam files or folder containing bam files as input.
 
@@ -169,51 +159,47 @@ For more details and further functionality, please refer to the [usage documenta
 |------------------------|----------|---------|-----------------------------------------------------------------------------|
 | `--input`              | `path`   | _None_  | Path to input samplesheet (**required**).                                   |
 | `--outdir`             | `path`   | _None_  | Directory where outputs will be published (**required**).                   |
-| `--reference_cache_dir`| `path`   | workspace | Directory for staging reference assets and Dorado models.                   |
-| `--basecall_model`     | `string` | _None_  | Dorado basecalling model name (e.g., `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
-| `--m_bases`            | `string` | _None_  | Basecalling modification model (e.g., `5mC_5hmC`, `5mC`).                   |
-| `--ref`                | `path`   | _None_  | Path to reference genome (must include `.fai` index). Required if not in samplesheet. |
-| `--ref_id`             | `string` | hg38    | Reference genome ID: `hg38` (GRCh38) or `hg19` (GRCh37).                    |
-| `--skip_basecalling`   | `bool`   | `false` | Skip basecalling; input is FASTQ files.                                     |
-| `--skip_mapping`       | `bool`   | `false` | Skip basecalling and mapping; input is BAM files.                           |
-| `--demux`              | `bool`   | `false` | Enable demultiplexing via `--demux_samplesheet` (requires kit column).       |
-| `--demux_samplesheet`  | `path`   | _None_  | Samplesheet with demux info: barcode, sample name (requires `--demux`).     |
+| `--basecall_model`     | `string` | _None_  | Dorado basecalling model to use (**required** if not using `--basecall_model_path`). |
+| `--m_bases`            | `string` | _None_  | Basecalling modification model name.                                        |
+| `--basecall_model_path`| `path`   | _None_  | Path to local copy of Dorado model (**required** if no network connection). |
+| `--m_bases_path`       | `path`   | _None_  | Path to local copy of Dorado modification basecalling model.                |
+| `--ubam_samplesheet`   | `path`   | _None_  | Path to samplesheet for resuming basecalling.                               |
+| `--demux`              | `bool`   | `false` | Enable demultiplexing after basecalling.                                    |
+| `--demux_samplesheet`  | `path`   | _None_  | Path to barcode samplesheet for demultiplexing.                             |
+| `--skip_basecalling`   | `bool`   | `false` | Skip basecalling (use FASTQ files as input).                                |
+| `--clin_database`      | `path`   | _None_  | Path to clinical database for annotating VCF files (**required**).          |
 
 ---
 
-### Pipeline Modes
-
-Choose exactly one mode:
+### Modes
 
 | Parameter        | Type   | Default | Description                                                   |
 |------------------|--------|---------|---------------------------------------------------------------|
-| `--adaptive`     | `bool` | `false` | Adaptive sampling mode (requires `--bed`, `--padding`).        |
-| `--wgs`          | `bool` | `false` | Whole Genome Sequencing mode.                                 |
-| `--cfdna`        | `bool` | `false` | cf-DNA sequencing mode (in development).                      |
-| `--realtime`     | `int`  | _None_  | Real-time mode for ongoing sequencing (hours). Adaptive only. |
-| `--time_series`  | `bool` | `false` | Enable time series analysis with `--time_points`.             |
+| `--adaptive`     | `bool` | `false` | Enable adaptive sampling mode.                                |
+| `--wgs`          | `bool` | `false` | Whole Genome Sequencing (WGS) mode.                           |
+| `--cfdna`        | `bool` | `false` | cf-DNA mode (in development).                                 |
 
 ---
 
-### Adaptive Sampling Parameters
+### Adaptive Mode Parameters
 
 | Parameter               | Type   | Default | Description                                                                 |
 |--------------------------|--------|---------|-----------------------------------------------------------------------------|
-| `--bed`                  | `path` | _None_  | BED file with target regions (**required** for `--adaptive`).               |
-| `--adaptive_samplesheet` | `path` | _None_  | Samplesheet specifying per-sample BED files (overrides `--bed`).            |
-| `--padding`              | `int`  | `20000` | Padding (bp) around target regions (**required** for `--adaptive`).         |
-| `--low_fidelity`         | `path` | default | Path to text file listing low-fidelity genes to exclude from coverage.     |
+| `--bed`                  | `path` | _None_  | Path to BED file for adaptive sampling (**required** if not using `--adaptive_samplesheet`). |
+| `--low_fidelity`         | `path` | _None_  | List of low-fidelity genes for adaptive sampling.                           |
+| `--padding`              | `int`  | _None_  | Padding (in bp) around target regions (**required** if not using `--adaptive_samplesheet`). |
+| `--adaptive_samplesheet` | `path` | _None_  | Path to adaptive samplesheet.                                               |
 
 ---
 
-### Basecalling and Mapping Options
+### Basecalling Options
 
 | Parameter         | Type     | Default | Description                                                                 |
 |-------------------|----------|---------|-----------------------------------------------------------------------------|
-| `--minqs`         | `int`    | `10`    | Minimum Phred quality score for read filtering.                             |
-| `--device`        | `string` | _None_  | GPU devices for Dorado (e.g., `cuda:0,1`). Auto-detects if not specified.  |
-| `--batch`         | `int`    | _None_  | Batch size for basecalling (auto-tuned if not specified).                  |
-| `--mapping_small` | `bool`   | `true`  | Use reduced resources for mapping (recommended for adaptive/cfDNA).        |
+| `--minqs`         | `int`    | `10`    | Minimum Phred quality score for filtering reads.                            |
+| `--device`        | `string` | _None_  | GPUs to use for basecalling (e.g. `cuda:0,1`).                              |
+| `--batch`         | `int`    | _None_  | Batch size for basecalling.                                                 |
+| `--mapping_small` | `bool`   | `true`  | Use reduced compute resources for mapping (recommended for adaptive/cfDNA). |
 
 ---
 
@@ -221,63 +207,11 @@ Choose exactly one mode:
 
 | Parameter          | Type     | Default                            | Description                                                                 |
 |--------------------|----------|------------------------------------|-----------------------------------------------------------------------------|
-| `--clairsto_model` | `string` | `ont_r10_dorado_sup_5khz_ssrs`     | ClairS-TO model for somatic SNV/indel calling.                              |
-| `--qdnaseq_binsize`| `int`    | `500`                              | Bin size (kb) for QDNAseq CNV calling.                                      |
-| `--subchrom_binsize`| `int`   | `500`                              | Bin size (kb) for SubChrom CNV calling.                                     |
-| `--delly_bin_size` | `int`    | `50000`                            | Bin size (bp) for Delly CNV calling.                                        |
-| `--sv_targets`     | `path`   | `NOCSV`                            | CSV file for SV visualization: columns `GENE`, `pos` (Figeno output).       |
-| `--sv_exclude`     | `path`   | default                            | Path to text file listing genes to exclude from SV analysis.                |
-
----
-
-### VEP Annotation Options
-
-| Parameter              | Type     | Default | Description                                                                 |
-|------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `--vep_cache`          | `path`   | _None_  | Path to VEP cache directory (**required** for annotation).                  |
-| `--vep_version`        | `int`    | `115`   | Ensembl VEP version matching your cache.                                    |
-| `--filtervep_expression` | `string` | (see schema) | FilterVEP expression for SNV filtering (impacts, frequencies, etc.). |
-
----
-
-### cf-DNA Mode Parameters
-
-| Parameter               | Type     | Default | Description                                                                 |
-|------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `--max_length`         | `int`    | `700`   | Maximum read length (bp) for cf-DNA filtering (removes longer reads).       |
-| `--ichor_bin_size`     | `int`    | `500000` | Bin size (bp) for IchorCNA CNV calling.                                     |
-| `--min_mapq_ichor`     | `int`    | `20`    | Minimum MAPQ threshold for IchorCNA.                                        |
-| `--rca`                | `bool`   | `false` | Enable rolling circle amplification mode (runs TideHunter).                 |
-
----
-
-### Time Series Analysis Parameters
-
-| Parameter             | Type     | Default | Description                                                                 |
-|------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `--time_series`       | `bool`   | `false` | Enable time series analysis (downsamples via Ontime).                      |
-| `--time_points`       | `string` | `1,3,6,12,18,24,48,60,72` | Comma-separated downsampling timepoints (hours).  |
-| `--include_full`      | `bool`   | `true`  | Include full-depth analysis alongside downsampled timepoints.              |
-
----
-
-### Reference Cache and Resource Parameters
-
-| Parameter             | Type     | Default | Description                                                                 |
-|------------------------|----------|---------|-----------------------------------------------------------------------------|
-| `--ubam`              | `path`   | `NOFILE` | Path to incomplete uBAM for basecalling resume.                             |
-| `--ubam_samplesheet`  | `path`   | _None_  | Samplesheet pointing to uBAM files to restart basecalling from.             |
-| `--max_memory`        | `string` | `16G`   | Maximum memory any process can consume.                                     |
-| `--max_cpus`          | `int`    | `4`     | Maximum CPU cores any process can use.                                      |
-| `--max_time`          | `string` | `4h`    | Maximum execution time any process can take.                                |
-| `--huge`              | `bool`   | `false` | Scale resource allocations for very large datasets.                         |
-
+| `--clairsto_model` | `string` | `ont_r10_dorado_sup_5khz_ssrs`     | ClairS-TO model to use.                                                     |
+| `--qdnaseq_binsize`| `int`    | `500`                              | Bin size (kb) for QDNAseq calling.                                          |
+| `--subchrom_binsize`| `int`   | `500`                              | Bin size (kb) for Subchrom calling.                                         |
 
 ## Pipeline output
-
-To see the results of an example test run with a full size dataset refer to the [results](https://nf-co.re/oncoseq/results) tab on the nf-core website pipeline page.
-For more details about the output files and reports, please refer to the
-[output documentation](https://nf-co.re/oncoseq/output).
 
 | File Path             | Description | Condition        |
 | --------------------- | ----------- | ---------------- |
@@ -303,7 +237,7 @@ For more details about the output files and reports, please refer to the
 
 nf-core/oncoseq was originally written by CHUSJ-MPGI.
 
-We thank the following people for their extensive assistance in the development of this pipeline:
+<!-- We thank the following people for their extensive assistance in the development of this pipeline: -->
 
 <!-- TODO nf-core: If applicable, make list of people who have also contributed -->
 
