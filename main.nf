@@ -206,9 +206,6 @@ workflow {
         args,
         params.outdir,
         params.input,
-        params.ubam_samplesheet,
-        params.demux_samplesheet,
-        params.adaptive_samplesheet,
         params.bed,
         params.padding,
         params.low_fidelity

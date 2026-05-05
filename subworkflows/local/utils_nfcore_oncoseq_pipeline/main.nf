@@ -34,9 +34,6 @@ workflow PIPELINE_INITIALISATION {
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
     input_sheet             //  string: Path to input samplesheet
-    ubam_samplesheet  // string: Path to ubam samplesheet
-    demux_samplesheet // string: Path to demux samplesheet
-    adaptive_samplesheet // string: Path to adaptive samplesheet ( not null if different for samples)
     input_bed                 // string: path to input bed file (not null if the same for all sample)
     input_padding               // Padding around ROI (parameter padding)
     list_low_fidelity                // List of low fidelity genes to discard for coverage calculations (parameter low_fidelity)
