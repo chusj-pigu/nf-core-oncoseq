@@ -12,7 +12,7 @@ include { CONVERT_PDF_PNG                      } from '../../../modules/local/ma
 include { QUARTO_TABLE_COLNAMES                } from '../../../modules/local/quarto/main.nf'
 
 
-workflow CFNDA_REPORT {
+workflow CFDNA_REPORT {
 
     take:
     ch_seqkit
@@ -158,7 +158,14 @@ workflow CFNDA_REPORT {
     ch_sections = QUARTO_SECTION_QC.out.quarto_section
         .mix(QUARTO_SECTION_CNV.out.quarto_section)
 
+    ch_versions = QUARTO_TABLE_COLNAMES.out.versions
+        .mix(QUARTO_SECTION_QC.out.versions)
+        //.mix(CONVERT_PDF_PNG.out.versions)
+        .mix(QUARTO_FIGURE_CNV.out.versions)
+        .mix(QUARTO_SECTION_CNV.out.versions)
+
     emit:
     sections = ch_sections
+    versions = ch_versions
 
 }

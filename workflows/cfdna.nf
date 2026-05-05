@@ -16,7 +16,7 @@ include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
-include { CFNDA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
+include { CFDNA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
 include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
 include { FIGENO_REPORT        } from '../subworkflows/local/report/variants.nf'
 
@@ -228,9 +228,15 @@ workflow CFDNA {
             )
 
             ch_classy_section = CLASSIFIER_REPORT.out.sections
+
+            ch_versions = ch_versions
+                .mix(SUBSAMPLE_TIME_BAM.out.versions)
                 .mix(CLASSY.out.versions)
+
         } else {
             ch_classy_section = channel.empty()
+
+            ch_versions = ch_versions
         }
 
         CNV_CALLING (
@@ -295,7 +301,13 @@ workflow CFDNA {
             VARIANT_PROCESS.out.snp_table
         )
 
-        /*
+        CFDNA_REPORT(
+            READS_FILTER.out.stats,
+            MAPPING.out.coverage,
+            ICHORCNA_CALLING.out.ichorcna_plot
+        )
+
+         /*
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             COLLECT VERSIONS
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -306,18 +318,14 @@ workflow CFDNA {
             .mix(MAPPING.out.versions)
             .mix(CNV_CALLING.out.versions)
             .mix(ICHORCNA_CALLING.out.versions)
-
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            COMPILE SECTIONS
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        */
-
-
-        CFNDA_REPORT(
-            READS_FILTER.out.stats,
-            MAPPING.out.coverage,
-            ICHORCNA_CALLING.out.ichorcna_plot
-        )
+            .mix(CLAIR3_CALLING.out.versions)
+            .mix(CLAIRS_TO_CALLING.out.versions)
+            .mix(READS_FILTER.out.versions)
+            .mix(SUBCHROM_CALL.out.versions)
+            .mix(SV_CALLING.out.versions)
+            .mix(VARIANT_PROCESS.out.versions)
+            .mix(FIGENO_REPORT.out.versions)
+            .mix(CFDNA_REPORT.out.versions)
 
         /*
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -326,7 +334,7 @@ workflow CFDNA {
         */
 
         // Collect sections from all analysis steps
-        ch_sections = CFNDA_REPORT.out.sections
+        ch_sections = CFDNA_REPORT.out.sections
             .mix(ch_classy_section)
             .mix(FIGENO_REPORT.out.sections)
 

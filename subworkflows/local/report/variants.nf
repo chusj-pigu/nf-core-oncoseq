@@ -474,8 +474,16 @@ workflow FIGENO_REPORT {
         .mix(QUARTO_DELLY_SECTION.out.quarto_section)
         .mix(QUARTO_SNP_SECTION.out.quarto_section)
 
+    ch_versions = QUARTO_CNV_SECTION.out.versions
+        .mix(QUARTO_FUSION_SECTION.out.versions)
+        .mix(QUARTO_SV_SECTION.out.versions)
+        .mix(QUARTO_TARGETS_SECTION.out.versions)
+        .mix(QUARTO_DELLY_SECTION.out.versions)
+        .mix(QUARTO_SNP_SECTION.out.versions)
+
     emit:
     sections = ch_sections
+    versions = ch_versions
 }
 
 /*
