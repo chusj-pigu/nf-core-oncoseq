@@ -375,11 +375,17 @@
             "description": "Expression accepted by filtervep for filtering snp"
         },
         "ref_cache": {
-            "type": "string"
+            "type": "string",
+            "description": "Path to directory containing reference genome"
         },
         "genome": {
             "type": "string",
-            "default": "GRCh38"
+            "default": "GRCh38",
+            "description": "Human genome assembly identifier"
+        },
+        "clair3_gpu": {
+            "type": "boolean",
+            "description": "Use gpu to run Clair3"
         }
     }
 }
