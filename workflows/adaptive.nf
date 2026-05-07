@@ -155,8 +155,15 @@ workflow ADAPTIVE {
 
         // Use time series outputs for downstream variant calling
         ch_bam_for_calling = SPLIT_BAMS_TIME.out.bam
+            .map { meta, bam, bai ->
+                tuple(id:meta.id, bam, bai)}
         ch_ref_for_calling = SPLIT_BAMS_TIME.out.ref
+            .map { meta, ref_id, ref_fa, ref_index ->
+                tuple(id:meta.id, ref_id, ref_fa, ref_index)}
         ch_bed = SPLIT_BAMS_TIME.out.bed
+            .map { meta,bedfile,padding,low_fidelity ->
+                tuple(id:meta.id,bedfile,padding,low_fidelity)}
+
 
         if (params.m_bases) {
             ch_bam_1h = ch_bam_for_calling
@@ -167,10 +174,10 @@ workflow ADAPTIVE {
 
             CLASSY(
                 ch_bam_classy,
-                ref
+                ch_ref_for_calling
             )
             ch_versions = ch_versions
-            .mix(SUBSAMPLE_TIME.out.versions)
+                .mix(SUBSAMPLE_TIME.out.versions)
 
             CLASSIFIER_REPORT(
                 CLASSY.out.plot,
@@ -183,6 +190,7 @@ workflow ADAPTIVE {
     } else {
         // Standard mode: Use the full BAM directly for variant calling
         ch_bam_for_calling = MAPPING.out.bam
+        ch_bam_full = MAPPING.out.bam
         ch_ref_for_calling = ref
         ch_bed = bed
 
@@ -203,7 +211,7 @@ workflow ADAPTIVE {
 
             CLASSY(
                 ch_in_classy,
-                ref
+                ch_ref_for_calling
             )
 
             ch_versions = ch_versions
@@ -282,7 +290,7 @@ workflow ADAPTIVE {
 
     // Filter variants to visualize :
     VARIANT_PROCESS (
-        MAPPING.out.bam,
+        ch_bam_for_calling,
         SV_CALLING.out.vcf,
         CNV_CALLING.out.qdnaseq_bed,
         CNV_CALLING.out.qdnaseq_segs,
@@ -297,7 +305,7 @@ workflow ADAPTIVE {
             meta, panelbed ->
             tuple(meta, panelbed)
         }
-        .join(ref)
+        .join(ch_ref_for_calling)
         .map {
             meta, panelbed, refid, _ref, _ref_fai ->
             tuple(meta, panelbed, refid, params.subchrom_binsize )
@@ -306,8 +314,8 @@ workflow ADAPTIVE {
     ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
 
     SUBCHROM_CALL (
-        MAPPING.out.bam,
-        ref,
+        ch_bam_full,
+        ch_ref_for_calling,
         CLAIR3_CALLING.out.vcf_snpeff,
         ch_panel_bin
     )
@@ -389,9 +397,9 @@ workflow ADAPTIVE {
         .mix(ch_classy_section)
 
     // channel id containing only meta
-    ch_id = MAPPING.out.bam
-        .map { meta, _bam, _bai ->
-        meta }
+    ch_id = ch_bam_for_calling
+        .map { meta, bam, bai ->
+        meta}
 
     ch_title = ch_id
         .map { meta ->

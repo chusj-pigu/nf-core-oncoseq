@@ -18,7 +18,15 @@
 ## Introduction
 
 **nf-core/oncoseq** is a bioinformatics pipeline that calls variants of interest for Oncology research, from raw sequencing data to VCF files and digestible reports.
+**nf-core/oncoseq** is a bioinformatics pipeline that calls variants of interest for Oncology research, from raw sequencing data to VCF files and digestible reports.
 
+> [!NOTE]
+> This pipeline is currently designed for **human genomes only**, supporting the following reference assemblies:
+> | Genome | Aliases |
+> |--------|---------|
+> | hg38 | GRCh38 |
+> | hg19 | GRCh37 |
+> | hs1  | CHM13  |
 > [!NOTE]
 > This pipeline is currently designed for **human genomes only**, supporting the following reference assemblies:
 > | Genome | Aliases |
@@ -34,18 +42,26 @@
 ## Pipeline Overview
 
 The general steps are as follows:
+The general steps are as follows:
 
 1. **Basecalling** – [Dorado](https://github.com/nanoporetech/dorado)
    *(Optional: skip using `--skip_basecalling` if FASTQ input is provided)*
+   *(Optional: Demultiplexing is done if kit is included in samplesheet and `--demux_samplesheet` is provided)*
    *(Optional: Demultiplexing is done if kit is included in samplesheet and `--demux_samplesheet` is provided)*
 2. **Read QC** – [Seqkit](https://bioinf.shenwei.me/seqkit/)
 3. **Alignment** – [minimap2](https://lh3.github.io/minimap2/minimap2.html)
    *(Optional: skip using `--skip_mapping` if BAM input is provided)*
 4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [Sturgeon](https://github.com/UMCUGenetics/sturgeon), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan)
+   *(Optional: skip using `--skip_mapping` if BAM input is provided)*
+4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [Sturgeon](https://github.com/UMCUGenetics/sturgeon), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan)
 5. **Alignment QC** – [Cramino](https://github.com/wdecoster/cramino)
+6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly)
 6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly)
 7. **Variant calling** – [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3)
 8. **Structural variants** – [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+9. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/) and [Ensembl VEP](https://grch37.ensembl.org/info/docs/tools/vep/index.html)
+10. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/) (`--adaptive` and `--wgs` only)
+11. **Reporting** – [Quarto](https://quarto.org/) report summarizing coverage, variants, and methylation-based tumor classification
 9. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/) and [Ensembl VEP](https://grch37.ensembl.org/info/docs/tools/vep/index.html)
 10. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/) (`--adaptive` and `--wgs` only)
 11. **Reporting** – [Quarto](https://quarto.org/) report summarizing coverage, variants, and methylation-based tumor classification
@@ -54,9 +70,15 @@ The general steps are as follows:
 > [QDNAseq](https://www.bioconductor.org/packages/QDNAseq) and [SubChrom](https://github.com/Shaohua-Lei/SubChrom) do not support the CHM13/hs1 reference genome and will be automatically skipped when `--genome hs1` is used.
 
 ---
+> [!WARNING]
+> [QDNAseq](https://www.bioconductor.org/packages/QDNAseq) and [SubChrom](https://github.com/Shaohua-Lei/SubChrom) do not support the CHM13/hs1 reference genome and will be automatically skipped when `--genome hs1` is used.
+
+---
 
 #### Adaptive specific
+#### Adaptive specific
 
+When `--adaptive` is used, additional steps are included for region-specific coverage:
 When `--adaptive` is used, additional steps are included for region-specific coverage:
 
 1. **Coverage calculation** – [mosdepth](https://github.com/brentp/mosdepth)
@@ -67,16 +89,26 @@ When `--adaptive` is used, additional steps are included for region-specific cov
 #### Time Series Breakdown Analysis
 
 For prospectively run workflows on different timepoints, [Ontime](https://github.com/mbhall88/ontime) is run after the **Alignment** step.
+For prospectively run workflows on different timepoints, [Ontime](https://github.com/mbhall88/ontime) is run after the **Alignment** step.
 
 ---
 
 #### Tumor Classification
+#### Tumor Classification
 
+Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Downsampling (`Ontime`) rules:
 Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Downsampling (`Ontime`) rules:
 
 - `--adaptive` / `--wgs`: downsample to **1h**
 - `--cfdna`: downsample to **8h** (if ≥10×)
+- `--adaptive` / `--wgs`: downsample to **1h**
+- `--cfdna`: downsample to **8h** (if ≥10×)
 
+| Classifier | Best for |
+|---|---|
+| *Marlin* | Leukemia |
+| *Sturgeon*, *CrossNN Caper* | CNS tumors |
+| *CrossNN Pancancer*, *Tucan* | Pan-cancer |
 | Classifier | Best for |
 |---|---|
 | *Marlin* | Leukemia |
@@ -86,12 +118,14 @@ Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Downsampling 
 ---
 
 #### cf-DNA specific
+#### cf-DNA specific
 
 - Filters reads **>700 bp** using *chopper* (if `filter = yes`)
 - CNV/SV calling: *IchorCNA*, *QDNAseq*, *Delly*, *Sniffles2*
 - SNP calling if ≥10×: *ClairS-TO*, *Clair3*
 - SubChrom if ≥15×
 
+To run IchorCNA as part of the cfDNA mode, include `-profile ichor_hg38` or `-profile ichor_hg19` depending on your reference genome.
 To run IchorCNA as part of the cfDNA mode, include `-profile ichor_hg38` or `-profile ichor_hg19` depending on your reference genome.
 
 ![nf-core-oncoseq summary of workflow with `--cfdna`](assets/nf-core-oncoseq_schema_cfdna.jpg)
