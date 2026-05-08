@@ -4,8 +4,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLASSY_MARLIN           } from '../../../modules/local/classy/main.nf'
-include { CLASSY_TUCAN            } from '../../../modules/local/classy/main.nf'
-include { CLASSY_STURGEON_GENERAL } from '../../../modules/local/classy/main.nf'
+//include { CLASSY_TUCAN            } from '../../../modules/local/classy/main.nf'
+//include { CLASSY_STURGEON_GENERAL } from '../../../modules/local/classy/main.nf'
 include { CLASSY_CROSSNN_PANCAN   } from '../../../modules/local/classy/main.nf'
 include { CLASSY_CROSSNN_CAPER    } from '../../../modules/local/classy/main.nf'
 //include { MODKIT                  } from '../../../modules/local/modkit/main.nf'
@@ -50,8 +50,8 @@ workflow CLASSY {
     //     .join(MODKIT.out.bedmethyl)
 
     CLASSY_MARLIN(ch_classy_in)
-    CLASSY_TUCAN(ch_classy_in)
-    CLASSY_STURGEON_GENERAL(ch_classy_in)
+    //CLASSY_TUCAN(ch_classy_in)
+    //CLASSY_STURGEON_GENERAL(ch_classy_in)
     CLASSY_CROSSNN_PANCAN(ch_classy_in)
     CLASSY_CROSSNN_CAPER(ch_classy_in)
 
@@ -60,21 +60,21 @@ workflow CLASSY {
     ch_final_plot = addTypeToChannel(CLASSY_MARLIN.out.svg, "Marlin")
         .mix(addTypeToChannel(CLASSY_CROSSNN_PANCAN.out.svg, "CrossNN PanCancer"))
         .mix(addTypeToChannel(CLASSY_CROSSNN_CAPER.out.svg, "CrossNN Caper"))
-        .mix(addTypeToChannel(CLASSY_STURGEON_GENERAL.out.svg, "Sturgeon General"))
-        .mix(addTypeToChannel(CLASSY_TUCAN.out.svg, "Tucan"))
+        //.mix(addTypeToChannel(CLASSY_STURGEON_GENERAL.out.svg, "Sturgeon General"))
+        //.mix(addTypeToChannel(CLASSY_TUCAN.out.svg, "Tucan"))
 
     ch_final_pred = addTypeToChannel(CLASSY_MARLIN.out.json, "Marlin")
         .mix(addTypeToChannel(CLASSY_CROSSNN_PANCAN.out.json, "CrossNN PanCancer"))
         .mix(addTypeToChannel(CLASSY_CROSSNN_CAPER.out.json, "CrossNN Caper"))
-        .mix(addTypeToChannel(CLASSY_STURGEON_GENERAL.out.json, "Sturgeon General"))
-        .mix(addTypeToChannel(CLASSY_TUCAN.out.json, "Tucan"))
+        //.mix(addTypeToChannel(CLASSY_STURGEON_GENERAL.out.json, "Sturgeon General"))
+        //.mix(addTypeToChannel(CLASSY_TUCAN.out.json, "Tucan"))
 
     // Collect versions from all modules
     ch_versions = CLASSY_MARLIN.out.versions
         .mix(CLASSY_CROSSNN_CAPER.out.versions)
         .mix(CLASSY_CROSSNN_PANCAN.out.versions)
-        .mix(CLASSY_STURGEON_GENERAL.out.versions)
-        .mix(CLASSY_TUCAN.out.versions)
+        //.mix(CLASSY_STURGEON_GENERAL.out.versions)
+        //.mix(CLASSY_TUCAN.out.versions)
 
     emit:
     plot     = ch_final_plot

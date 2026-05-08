@@ -19,7 +19,6 @@
 
 ```bash
 nextflow run nf-core/oncoseq \
-   -profile narval \
    --input samplesheet.csv \
    --outdir results \
    --ref_cache /path/to/reference/cache \
@@ -167,7 +166,6 @@ Now, you can run the pipeline using:
 
 ```bash
 nextflow run nf-core/oncoseq \
-   -profile narval \
    --input samplesheet.csv \
    --outdir results \
    --ref_cache /path/to/reference/cache \
