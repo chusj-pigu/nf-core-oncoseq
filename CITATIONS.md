@@ -26,7 +26,15 @@
 
 > De Coster, W., & Rademakers, R. (2023). NanoPack2: Population-scale evaluation of long-read sequencing data. Bioinformatics, 39(5), btad311. https://doi.org/10.1093/bioinformatics/btad311
 
+- [crossNN](https://gitlab.com/euskirchen-lab/crossNN)
+
+> Yuan, D., Jugas, R., Pokorna, P., Sterba, J., Slaby, O., Schmid, S., Siewert, C., Osberg, B., Capper, D., Halldorsson, S., Vik-Mo, E. O., Zeiner, P. S., Weber, K. J., Harter, P. N., Thomas, C., Albers, A., Rechsteiner, M., Reimann, R., Appelt, A., … Euskirchen, P. (2025). crossNN is an explainable framework for cross-platform DNA methylation-based classification of tumors. Nature Cancer, 6(7), 1283–1294. https://doi.org/10.1038/s43018-025-00976-5
+
 - [Dorado](https://dorado-docs.readthedocs.io/en/latest/)
+
+- [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html)
+
+> McLaren, W., Gil, L., Hunt, S. E., Riat, H. S., Ritchie, G. R. S., Thormann, A., Flicek, P., & Cunningham, F. (2016). The Ensembl Variant Effect Predictor. Genome Biology, 17(1), 122. https://doi.org/10.1186/s13059-016-0974-4
 
 - [figeno](https://figeno.readthedocs.io/en/latest/)
 
@@ -65,10 +73,6 @@
 - [SnpEff](https://pcingola.github.io/SnpEff/)
 
 > Cingolani, P., Patel, V. M., Coon, M., Nguyen, T., Land, S. J., Ruden, D. M., & Lu, X. (2012). Using Drosophila melanogaster as a Model for Genotoxic Chemical Mutational Studies with a New Program, SnpSift. Frontiers in Genetics, 3, 35. https://doi.org/10.3389/fgene.2012.00035
-
-- [Sturgeon](https://pcingola.github.io/SnpEff/)
-
-> Vermeulen, C., Pagès-Gallego, M., Kester, L., Kranendonk, M. E. G., Wesseling, P., Verburg, N., de Witt Hamer, P., Kooi, E. J., Dankmeijer, L., van der Lugt, J., van Baarsen, K., Hoving, E. W., Tops, B. B. J., & de Ridder, J. (2023). Ultra-fast deep-learned CNS tumour classification during surgery. Nature, 622(7984), 842–849. https://doi.org/10.1038/s41586-023-06615-2
 
 - [SubChrom](https://github.com/Shaohua-Lei/SubChrom/)
 

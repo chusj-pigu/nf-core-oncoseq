@@ -58,23 +58,16 @@ The general steps are as follows:
 
 1. **Basecalling** – [Dorado](https://github.com/nanoporetech/dorado)
    *(Optional: skip using `--skip_basecalling` if FASTQ input is provided)*
-   *(Optional: Demultiplexing is done if kit is included in samplesheet and `--demux_samplesheet` is provided)*
-   *(Optional: Demultiplexing is done if kit is included in samplesheet and `--demux_samplesheet` is provided)*
+   *(Optional: Demultiplexing is done if kit and barcode is included in samplesheet*
 2. **Read QC** – [Seqkit](https://bioinf.shenwei.me/seqkit/)
 3. **Alignment** – [minimap2](https://lh3.github.io/minimap2/minimap2.html)
    *(Optional: skip using `--skip_mapping` if BAM input is provided)*
-4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [Sturgeon](https://github.com/UMCUGenetics/sturgeon), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan)
-   *(Optional: skip using `--skip_mapping` if BAM input is provided)*
-4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [Sturgeon](https://github.com/UMCUGenetics/sturgeon), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan)
+4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN)
 5. **Alignment QC** – [Cramino](https://github.com/wdecoster/cramino)
-6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly)
 6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly)
 7. **Variant calling** – [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3)
 8. **Structural variants** – [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
-9. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/) and [Ensembl VEP](https://grch37.ensembl.org/info/docs/tools/vep/index.html)
-10. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/) (`--adaptive` and `--wgs` only)
-11. **Reporting** – [Quarto](https://quarto.org/) report summarizing coverage, variants, and methylation-based tumor classification
-9. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/) and [Ensembl VEP](https://grch37.ensembl.org/info/docs/tools/vep/index.html)
+9. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/) and [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html)
 10. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/) (`--adaptive` and `--wgs` only)
 11. **Reporting** – [Quarto](https://quarto.org/) report summarizing coverage, variants, and methylation-based tumor classification
 
