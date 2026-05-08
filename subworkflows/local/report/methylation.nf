@@ -107,11 +107,11 @@ workflow CLASSIFIER_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
     def cutoffMap = [
+        //'Sturgeon General' : 0.8,
+        //'Tucan'            : 0.7,
         'Marlin'           : 0.8,
         'CrossNN Caper'    : 0.2,
-        'CrossNN PanCancer': 0.15,
-        'Sturgeon General' : 0.8,
-        'Tucan'            : 0.7
+        'CrossNN PanCancer': 0.15
     ]
 
     // Configuration map: type -> [json_path, score_field, cutoff, parser_closure]
@@ -126,16 +126,16 @@ workflow CLASSIFIER_REPORT {
                 call.probability
             ]}
         ],
-        'Tucan': [
-            path  : 'tucan.averaged_scores',
-            score : { call -> call.score },
-            fields: { call -> [
-                call.family.toString(),
-                call.class.toString(),
-                call.name.toString(),
-                call.score
-            ]}
-        ],
+        // 'Tucan': [
+        //     path  : 'tucan.averaged_scores',
+        //     score : { call -> call.score },
+        //     fields: { call -> [
+        //         call.family.toString(),
+        //         call.class.toString(),
+        //         call.name.toString(),
+        //         call.score
+        //     ]}
+        // ],
         'CrossNN PanCancer': [
             path  : 'crossnn.votes',
             score : { call -> call.score },
@@ -146,6 +146,17 @@ workflow CLASSIFIER_REPORT {
                 call.score
             ]}
         ],
+        // 'Sturgeon General': [
+        //     path  : 'sturgeon.scores',
+        //     score : { call -> call.score },
+        //     fields: { call ->
+        //         def parts     = call['class'].toString().split(' - ')
+        //         def family    = parts.size() > 0 ? parts[0].trim() : 'Unknown'
+        //         def group     = parts.size() > 1 ? parts[1].trim() : 'Unknown'
+        //         def className = parts.size() > 2 ? parts[2].trim() : call['class'].toString()
+        //         [ family, group, className, call.score ]
+        //     }
+        // ],
         'CrossNN Caper': [
             path  : 'crossnn.votes',
             score : { call -> call.score },
@@ -155,31 +166,20 @@ workflow CLASSIFIER_REPORT {
                 call['Methylation.Class.Name'].toString().replace(',', '').replace(' ', '_'),
                 call.score
             ]}
-        ],
-        'Sturgeon General': [
-            path  : 'sturgeon.scores',
-            score : { call -> call.score },
-            fields: { call ->
-                def parts     = call['class'].toString().split(' - ')
-                def family    = parts.size() > 0 ? parts[0].trim() : 'Unknown'
-                def group     = parts.size() > 1 ? parts[1].trim() : 'Unknown'
-                def className = parts.size() > 2 ? parts[2].trim() : call['class'].toString()
-                [ family, group, className, call.score ]
-            }
         ]
     ]
 
     ch_marlin_call           = makeCallChannel(ch_methylation_call, 'Marlin', modelConfig, cutoffMap)
-    ch_crossnn_call_tucan    = makeCallChannel(ch_methylation_call, 'Tucan', modelConfig, cutoffMap)
+    //ch_crossnn_call_tucan    = makeCallChannel(ch_methylation_call, 'Tucan', modelConfig, cutoffMap)
     ch_crossnn_call_pancancer = makeCallChannel(ch_methylation_call, 'CrossNN PanCancer', modelConfig, cutoffMap)
     ch_crossnn_call_caper    = makeCallChannel(ch_methylation_call, 'CrossNN Caper', modelConfig, cutoffMap)
-    ch_sturgeon_call         = makeCallChannel(ch_methylation_call, 'Sturgeon General', modelConfig, cutoffMap)
+    //ch_sturgeon_call         = makeCallChannel(ch_methylation_call, 'Sturgeon General', modelConfig, cutoffMap)
 
     ch_tables = ch_marlin_call
-        .mix(ch_crossnn_call_tucan)
+        //.mix(ch_crossnn_call_tucan)
         .mix(ch_crossnn_call_pancancer)
         .mix(ch_crossnn_call_caper)
-        .mix(ch_sturgeon_call)
+        //.mix(ch_sturgeon_call)
         .map { table ->
             def sample = table.name.split('_score_')[0].replace('.tsv', '')
             def type = table.name.split('_score_')[1].replace('.tsv', '').replace('-', ' ')
