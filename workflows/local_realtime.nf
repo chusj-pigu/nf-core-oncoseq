@@ -17,7 +17,6 @@ include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools
 include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
 include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
-include { SUBCHROM_CALL                         } from  '../subworkflows/local/variant_calling/subchrom_call.nf'
 
 // Variant processing and visualization subworkflow
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
@@ -26,7 +25,6 @@ include { VARIANT_PROCESS                       } from  '../subworkflows/local/v
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
 //
-include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
 include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
@@ -204,8 +202,13 @@ workflow LOCAL_REALTIME {
             ch_sections = CLASSIFIER_REPORT.out.sections
         }
 
+        // Placeholder vcf for subcrhom as it's not run at this timepoint
+
+        ch_vcf_subchrom = channel.empty()
+
         CNV_CALLING(
             MAPPING.out.bam,
+            ch_vcf_subchrom,
             ref
         )
 
@@ -243,8 +246,13 @@ workflow LOCAL_REALTIME {
 
     } else if (params.realtime >=6 & params.realtime < 72 ) {
 
+        // Placeholder vcf for subcrhom as it's not run at this timepoint
+
+        ch_vcf_subchrom = channel.empty()
+
         CNV_CALLING(
             MAPPING.out.bam,
+            ch_vcf_subchrom,
             ref
         )
 
@@ -287,10 +295,6 @@ workflow LOCAL_REALTIME {
             .mix(CLAIR3_CALLING.out.versions)
 
     } else if (params.realtime == 72) {
-        CNV_CALLING(
-            MAPPING.out.bam,
-            ref
-        )
 
         SV_UNPHASED(
             MAPPING.out.bam,
@@ -311,6 +315,12 @@ workflow LOCAL_REALTIME {
             vep_cache
         )
 
+        CNV_CALLING(
+            MAPPING.out.bam,
+            CLAIR3_CALLING.out.vcf_snpeff,
+            ref
+        )
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
@@ -323,34 +333,12 @@ workflow LOCAL_REALTIME {
             CLAIR3_CALLING.out.vcf_vep
         )
 
-        ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
-            .map {
-                meta, panelbed ->
-                tuple(meta, panelbed)
-            }
-            .join(ref)
-            .map {
-                meta, panelbed, refid, _ref, _ref_fai ->
-                tuple(meta, panelbed, refid, params.subchrom_binsize )
-            }
+        ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
 
-        ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
-
-        SUBCHROM_CALL (
-            MAPPING.out.bam,
-            ref,
-            CLAIR3_CALLING.out.vcf_snpeff,
-            ch_panel_bin
-        )
-
-        ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
-            //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
-
-        ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
-            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+        ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
         ch_versions = ch_versions
-            .mix(SUBCHROM_CALL.out.versions)
+            .mix(CLAIR3_CALLING.out.versions)
     }
 
 /*

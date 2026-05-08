@@ -6,6 +6,8 @@
 include { QDNASEQ_CALL                         } from '../../../modules/local/qdnaseq/main.nf'
 include { DELLY_CNV                            } from '../../../modules/local/delly/main.nf'
 include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_CNV } from '../../../modules/local/bcftools/main.nf'
+include { SUBCHROM_CALL_WGS     } from '../../../modules/local/subchrom/main.nf'
+include { modifyMetaId          } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 
 /*
@@ -18,6 +20,7 @@ workflow CNV_CALLING {
 
     take:
     bam        // channel: from mapping workflow, includes index
+    vcf         // snp vcf from Clair3
     ref         // reference channel with index
     main:
 
@@ -40,17 +43,34 @@ workflow CNV_CALLING {
     DELLY_CNV(ch_in_delly)
     BCFTOOLS_QUERY_CNV(DELLY_CNV.out.bcf)
 
+    ch_ref_subchrom = ref
+        .map { meta, ref_id, ref_fasta, _ref_fai ->
+            tuple(meta, ref_id, ref_fasta) }
+
+    ch_in_subchrom_wgs = vcf
+        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('_germline_snp_snpeff') }       // Only keep the snp file created by clair3 annotated with SnpEff
+        .map { meta, vcf_file, _vcf_tbi ->
+            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')       // Restore meta to be sample id only to join with ref
+                tuple(meta_restore, vcf_file)
+                }
+        .join(ch_ref_subchrom)
+
+    SUBCHROM_CALL_WGS(ch_in_subchrom_wgs)
+
     ch_versions = QDNASEQ_CALL.out.versions
         .mix(DELLY_CNV.out.versions)
         .mix(BCFTOOLS_QUERY_CNV.out.versions)
+        .mix(SUBCHROM_CALL_WGS.out.versions)
 
     emit:
-    qdnaseq_plot        = QDNASEQ_CALL.out.cov_png             // TODO: Quarto report
-    qdnaseq_bed         = QDNASEQ_CALL.out.calls_bed
-    qdnaseq_segs        = QDNASEQ_CALL.out.segs_bed
-    delly_segs          = BCFTOOLS_QUERY_CNV.out.bed
-    delly_cov           = DELLY_CNV.out.cov
-    versions            = ch_versions
+    qdnaseq_plot           = QDNASEQ_CALL.out.cov_png
+    qdnaseq_bed            = QDNASEQ_CALL.out.calls_bed
+    qdnaseq_segs           = QDNASEQ_CALL.out.segs_bed
+    delly_segs             = BCFTOOLS_QUERY_CNV.out.bed
+    delly_cov              = DELLY_CNV.out.cov
+    subchrom_plot_wgs      = SUBCHROM_CALL_WGS.out.cnv_png
+    subchrom_gene_plot_wgs = SUBCHROM_CALL_WGS.out.focal_png
+    versions               = ch_versions
 
 }
 

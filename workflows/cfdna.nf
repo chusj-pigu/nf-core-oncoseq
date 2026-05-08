@@ -10,7 +10,6 @@ include { CLAIR3_CALLING         } from '../subworkflows/local/variant_calling/c
 include { VARIANT_PROCESS        } from  '../subworkflows/local/variant_calling/variant_process.nf'
 include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/ichor_calling.nf'
 include { CLASSY                 } from '../subworkflows/local/methylation_analysis/classy.nf'
-include { SUBCHROM_CALL          } from '../subworkflows/local/variant_calling/subchrom_call.nf'
 include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_BAM } from '../subworkflows/local/read_processing/subsample_time.nf'
 include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools/main.nf'
 
@@ -133,6 +132,8 @@ workflow CFDNA {
 
     }
 
+    ch_vcf_subchrom = channel.empty()
+
     if (params.rca) {
         TIDEHUNTER_CONCENSUS(ch_fastq)
 
@@ -158,22 +159,6 @@ workflow CFDNA {
         ch_high_cov_bam = ch_coverage.high
             .join(MAPPING.out.bam)
 
-        // Run Subchrom only for 15X samples
-
-        ch_subchrom_meta = MAPPING.out.coverage
-            .map { meta, table ->
-                def lines = table.readLines()
-                def cov = lines[5].tokenize('\t')[1].toDouble()
-                tuple(meta, cov)
-            }
-            .branch { meta, cov ->
-                higher: cov >= 15
-                    return meta
-            }
-
-        ch_subchrom_bam = ch_subchrom_meta.higher
-            .join(MAPPING.out.bam)
-
         CLAIR3_CALLING (
             ch_high_cov_bam,
             ref,
@@ -190,13 +175,8 @@ workflow CFDNA {
             vep_cache
         )
 
-
-        SUBCHROM_CALL (
-            ch_subchrom_bam,
-            ref,
-            CLAIR3_CALLING.out.vcf_snpeff,
-            bed
-        )
+        ch_vcf_subchrom = ch_vcf_subchrom
+            .mix(CLAIR3_CALLING.out.vcf_snpeff)
 
         SV_CALLING(
             MAPPING.out.bam,
@@ -241,6 +221,7 @@ workflow CFDNA {
 
         CNV_CALLING (
             MAPPING.out.bam,
+            ch_vcf_subchrom,
             ref
         )
 
@@ -284,8 +265,8 @@ workflow CFDNA {
             ch_snp_to_process
         )
 
-        ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
-        ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
+        ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
+        ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
         FIGENO_REPORT(
             VARIANT_PROCESS.out.circos_plot,
@@ -321,7 +302,6 @@ workflow CFDNA {
             .mix(CLAIR3_CALLING.out.versions)
             .mix(CLAIRS_TO_CALLING.out.versions)
             .mix(READS_FILTER.out.versions)
-            .mix(SUBCHROM_CALL.out.versions)
             .mix(SV_CALLING.out.versions)
             .mix(VARIANT_PROCESS.out.versions)
             .mix(FIGENO_REPORT.out.versions)

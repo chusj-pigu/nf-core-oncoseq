@@ -14,7 +14,6 @@ include { PHASING_VARIANTS as PHASING_SOMATIC  } from  '../subworkflows/local/va
 include { PHASING_VARIANTS as PHASING_GERMLINE } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING                           } from '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                          } from '../subworkflows/local/variant_calling/cnv_calling.nf'
-include { SUBCHROM_CALL                        } from '../subworkflows/local/variant_calling/subchrom_call.nf'
 include { modifyMetaId                         } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
 // Variant processing and visualization subworkflow
@@ -189,14 +188,8 @@ workflow WGS {
 
         CNV_CALLING (
             MAPPING.out.bam,
-            ref
-        )
-
-        SUBCHROM_CALL (
-            MAPPING.out.bam,
-            ref,
             CLAIR3_CALLING.out.vcf_snpeff,
-            bed
+            ref
         )
 
         ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
@@ -223,7 +216,6 @@ workflow WGS {
         .mix(SV_CALLING.out.versions)
         .mix(CNV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
-        .mix(SUBCHROM_CALL.out.versions)
 
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COMPILE SECTIONS
@@ -236,11 +228,9 @@ workflow WGS {
             minqs
         )
 
-        ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
-            //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+        ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
 
-        ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
-            //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)s
+        ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
         ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
             .map { value ->

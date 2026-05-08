@@ -16,7 +16,6 @@ include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/v
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING                            } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
-include { SUBCHROM_CALL                         } from  '../subworkflows/local/variant_calling/subchrom_call.nf'
 
 // Variant processing and visualization subworkflow
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
@@ -41,8 +40,6 @@ include { CLASSIFIER_REPORT } from '../subworkflows/local/report/methylation.nf'
 // Utility functions
 include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
 
-//
-include { SUBCHROM_PANEL_BIN    } from '../modules/local/subchrom/main.nf'
 include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
 
 //
@@ -282,6 +279,7 @@ workflow ADAPTIVE {
     // Copy number variant calling
     CNV_CALLING(
         ch_bam_for_calling,
+        CLAIR3_CALLING.out.vcf_snpeff,
         ch_ref_for_calling
     )
 
@@ -300,26 +298,6 @@ workflow ADAPTIVE {
         ch_snp_to_process
     )
 
-    ch_subchrom_panelbin_in = COVERAGE_SEPARATE.out.split_bed
-        .map {
-            meta, panelbed ->
-            tuple(meta, panelbed)
-        }
-        .join(ch_ref_for_calling)
-        .map {
-            meta, panelbed, refid, _ref, _ref_fai ->
-            tuple(meta, panelbed, refid, params.subchrom_binsize )
-        }
-
-    ch_panel_bin = SUBCHROM_PANEL_BIN(ch_subchrom_panelbin_in).subchrom_panelbin_bed
-
-    SUBCHROM_CALL (
-        ch_bam_full,
-        ch_ref_for_calling,
-        CLAIR3_CALLING.out.vcf_snpeff,
-        ch_panel_bin
-    )
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COLLECT VERSIONS
@@ -336,7 +314,6 @@ workflow ADAPTIVE {
         .mix(SV_CALLING.out.versions)
         .mix(CNV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
-        .mix(SUBCHROM_CALL.out.versions)
 
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     COMPILE SECTIONS
@@ -348,11 +325,9 @@ workflow ADAPTIVE {
         COVERAGE_SEPARATE.out.coverage_plot
     )
 
-    ch_subchrom_plot = SUBCHROM_CALL.out.subchrom_plot_wgs
-        //.mix(SUBCHROM_CALL.out.subchrom_plot_panel)
+    ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
 
-    ch_subchrom_focal = SUBCHROM_CALL.out.subchrom_gene_plot_wgs
-        //.mix(SUBCHROM_CALL.out.subchrom_gene_plot_panel)
+    ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
     ch_binsize_qdnaseq = channel.of(params.qdnaseq_binsize)
         .map { value ->
