@@ -148,9 +148,9 @@ process ENSEMBL_VEP_TABLE {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
         awk -F'\t' '
-        BEGIN { 
+        BEGIN {
             OFS=","
-            print "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
+            print "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,SIFT,PolyPhen,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
         }
         {
             split(\$7, transcripts, ",")
@@ -161,7 +161,7 @@ process ENSEMBL_VEP_TABLE {
                 if (ad_alt > 5 && \$8 > 20 && \$6 == "PASS") {
                     print \$1,\$2,\$3,\$4,\$5, \
                     f[4],f[2],f[3],f[72],f[7],f[27], \
-                    f[11],f[12],f[18],f[49], \
+                    f[11],f[12],f[18],f[37],f[38],f[49], \
                     \$8,ad_alt
                 }
             }
