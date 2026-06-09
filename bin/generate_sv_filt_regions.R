@@ -271,8 +271,17 @@ if (nrow(missing_rows) > 0) {
 
 # Define SV blacklist suffixes
 
+# Define SV blacklist suffixes
+
 unwanted_calls <- readLines(blacklist)
-unwanted_pattern <- "(^|_|-)LOC|(^|_|-)LINC"
+
+unwanted_pattern <- "^(LOC|LINC)\\d+$"
+
+# Match PURE LOC/LINC-only entries after the sample_id prefix (to REMOVE)
+pure_loc_linc <- paste0("^", sample_id, "_(LOC|LINC)\\d+$")
+
+# Strip LOC/LINC part from combined entries, but keep the sample_id prefix intact
+loc_linc_part <- paste0("(?<=", sample_id, "_)(LOC|LINC)\\d+[_-]|[_-](LOC|LINC)\\d+$")
 
 # -----------------------------
 # Save to output
@@ -282,8 +291,9 @@ safe_write_figeno <- function(df, file) {
     
     if ("GENE" %in% colnames(df)) {
       df <- df %>%
-        filter(!str_detect(GENE, unwanted_pattern)) %>%
-        filter(!GENE %in% paste(sample_id, unwanted_calls, sep = "_"))
+        filter(!GENE %in% paste(sample_id, unwanted_calls, sep = "_")) %>%
+        filter(!str_detect(GENE, pure_loc_linc)) %>%                      # remove pure LOC/LINC rows
+        mutate(GENE = str_remove(GENE, loc_linc_part))
     } else if ("FUSION" %in% colnames(df)) {
       df <- df %>%
         filter(!str_detect(FUSION, unwanted_pattern)) %>%
@@ -313,7 +323,7 @@ safe_write_tables <- function(df, file) {
         filter(!str_detect(FUSION, unwanted_pattern)) %>%
         filter(!FUSION %in% unwanted_calls)
     }
-
+    
     write_tsv(df, file, col_names = FALSE, quote = "none")
   } else {
     write_tsv(df, file, col_names = FALSE, quote = "none")
