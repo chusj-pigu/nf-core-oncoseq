@@ -140,17 +140,9 @@ workflow PIPELINE_INITIALISATION {
             }
             .set { ch_cfdna }
 
-        // Make channel with empty bed file for clair3 calling
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .combine(ch_bed)
-            .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, bed, padding, lf, _purity, _filter, bed_c ->
-                tuple(meta, bed_c)
-            }
-            .set { ch_adaptive }
-
-    } else if (params.adaptive) {
+    }
+    
+    if (params.bed != "${projectDir}/assets/NO_BED") {
 
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))

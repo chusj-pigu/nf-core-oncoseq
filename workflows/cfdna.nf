@@ -12,12 +12,14 @@ include { ICHORCNA_CALLING       } from '../subworkflows/local/variant_calling/i
 include { CLASSY                 } from '../subworkflows/local/methylation_analysis/classy.nf'
 include { SUBSAMPLE_TIME as SUBSAMPLE_TIME_BAM } from '../subworkflows/local/read_processing/subsample_time.nf'
 include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools/main.nf'
+include { COVERAGE_SEPARATE                    } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
 include { CFDNA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
 include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
 include { FIGENO_REPORT        } from '../subworkflows/local/report/variants.nf'
+include { ADAPTIVE_REPORT      } from '../subworkflows/local/report/adaptive.nf'
 
 workflow CFDNA {
 
@@ -43,6 +45,7 @@ workflow CFDNA {
     //
 
     ch_versions = channel.empty()
+    ch_sections = channel.empty()
 
     if (params.demux) {
 
@@ -207,16 +210,33 @@ workflow CFDNA {
                 CLASSY.out.pred
             )
 
-            ch_classy_section = CLASSIFIER_REPORT.out.sections
+            ch_sections = CLASSIFIER_REPORT.out.sections
 
             ch_versions = ch_versions
                 .mix(SUBSAMPLE_TIME_BAM.out.versions)
                 .mix(CLASSY.out.versions)
 
-        } else {
-            ch_classy_section = channel.empty()
+        }
 
-            ch_versions = ch_versions
+        if (params.bed != "${projectDir}/assets/NO_BED") {
+
+            // Analyze coverage separation between target and background regions
+            COVERAGE_SEPARATE(
+                MAPPING.out.bam,
+                bed,
+                ref
+            )
+            ADAPTIVE_REPORT(
+                COVERAGE_SEPARATE.out.coverage_tbl,
+                COVERAGE_SEPARATE.out.coverage_plot
+            )
+
+            ch_sections = ch_sections
+                .mix(ADAPTIVE_REPORT.out.sections)
+
+             ch_versions = ch_versions
+                .mix(COVERAGE_SEPARATE.out.versions)
+
         }
 
         CNV_CALLING (
@@ -314,8 +334,8 @@ workflow CFDNA {
         */
 
         // Collect sections from all analysis steps
-        ch_sections = CFDNA_REPORT.out.sections
-            .mix(ch_classy_section)
+        ch_sections = ch_sections
+            .mix(CFDNA_REPORT.out.sections)
             .mix(FIGENO_REPORT.out.sections)
 
          // channel id containing only meta
