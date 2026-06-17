@@ -106,3 +106,7 @@
 	path = modules/local/classy
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = classy
+[submodule "modules/local/severus"]
+	path = modules/local/severus
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = severus
