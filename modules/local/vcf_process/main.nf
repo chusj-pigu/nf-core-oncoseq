@@ -11,7 +11,9 @@ process SV_PROCESS {
 
     input:
     tuple val(meta),
-        path(filt_vcf),
+        path(sniffles_vcf),
+        path(severus_vcf),
+        path(bed),
         path(gene_list),
         path(blacklist)
 
@@ -20,55 +22,54 @@ process SV_PROCESS {
         path("*filt.tsv"),
         emit: filt_tsv
     tuple val(meta),
-        path("*ids.txt"),
-        emit: filt_ids
-    tuple val(meta),
         path("*region_fusions.txt"),
         emit: fusion_txt,
         optional:true
     tuple val(meta),
-        path("*region_indel.txt"),
-        emit: indel_txt,
+        path("*region_other.txt"),
+        emit: other_txt,
         optional:true
     tuple val(meta),
         path("*table_fusions.tsv"),
         emit: fusion_tsv,
         optional:true
     tuple val(meta),
-        path("*table_indel.tsv"),
-        emit: indel_tsv,
+        path("*table_other.tsv"),
+        emit: other_tsv,
         optional:true
     tuple val(meta),
         path("*targets_nohit.txt"),
         emit: targets,
         optional:true
+    tuple val(meta),
+        path("*table_figeno.tsv"),
+        emit: figeno_table,
+        optional:true
     path "versions.yml",
         emit: versions
 
     script:
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix_sniffles = task.ext.prefix ?: "${meta.id}_sniffles"
+    def prefix_severus = task.ext.prefix ?: "${meta.id}_severus"
     """
     # Process only high and moderate effect mutations
-    grep -E \\
-        'HIGH|MODERATE' \\
-        "${filt_vcf}" > \\
-        "${prefix}_filt.tsv" || :
+    grep -v '^##' \\
+        "${sniffles_vcf}" > \\
+        "${prefix_sniffles}_filt.tsv" || :
 
-    # Save their IDs for filtering (Sniffles2.* patterns)
-    grep -oE \
-        'Sniffles2\\.[A-Z]+\\.[A-Za-z0-9_]+' \\
-        "${prefix}_filt.tsv" > \\
-        "${prefix}_filt_ids.txt" || :
+    grep -v '^##' \\
+        "${severus_vcf}" > \\
+        "${prefix_severus}_filt.tsv" || :
 
     # Ensure placeholders exist if empty
-    [ -f "${prefix}_filt.tsv" ] || touch "${prefix}_filt.tsv"
-    [ -f "${prefix}_filt_ids.txt" ] || touch "${prefix}_filt_ids.txt"
+    [ -f "${prefix_sniffles}_filt.tsv" ] || touch "${prefix_sniffles}_filt.tsv"
+    [ -f "${prefix_severus}_filt.tsv" ] || touch "${prefix_severus}_filt.tsv"
 
     # Transform into figeno region input file
     generate_sv_filt_regions.R \\
-        --input "${prefix}_filt.tsv" \\
         --target ${gene_list} \\
-        --exclude ${blacklist}
+        --exclude ${blacklist} \\
+        --panel ${bed}
 
 
     cat <<-END_VERSIONS > versions.yml
