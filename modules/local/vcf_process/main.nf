@@ -135,7 +135,8 @@ process ENSEMBL_VEP_TABLE {
 
     input:
     tuple val(meta),
-        path(bed)
+        path(bed),
+        path(list_exclude)
 
     output:
     tuple val(meta),
@@ -167,6 +168,6 @@ process ENSEMBL_VEP_TABLE {
                     \$8,ad_alt
                 }
             }
-        }' ${bed} > ${prefix}_filt.csv
+        }' ${bed} | grep -vF -f ${list_exclude} > ${prefix}_filt.csv
     """
 }

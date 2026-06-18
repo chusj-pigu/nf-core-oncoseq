@@ -324,6 +324,11 @@
             "default": "/workspaces/nf-core-oncoseq/assets/sv_exclude.txt",
             "description": "List of genes to exclude from SV analysis"
         },
+        "snp_exclude": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/snp_exclude.txt",
+            "description": "List of genes to exclude from SNP reporting"
+        },
         "skip_mapping": {
             "type": "boolean"
         },

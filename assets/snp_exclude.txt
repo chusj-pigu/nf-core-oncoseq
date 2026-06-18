@@ -1,0 +1,6 @@
+|DUX4|
+|HLA-A|
+|HLA-B|
+|HLA-C|
+|NUT2MA|
+|DMBT1|
