@@ -4,11 +4,10 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { CLASSY_MARLIN           } from '../../../modules/local/classy/main.nf'
-//include { CLASSY_TUCAN            } from '../../../modules/local/classy/main.nf'
-//include { CLASSY_STURGEON_GENERAL } from '../../../modules/local/classy/main.nf'
+include { CLASSY_TUCAN            } from '../../../modules/local/classy/main.nf'
+include { CLASSY_STURGEON_GENERAL } from '../../../modules/local/classy/main.nf'
 include { CLASSY_CROSSNN_PANCAN   } from '../../../modules/local/classy/main.nf'
 include { CLASSY_CROSSNN_CAPER    } from '../../../modules/local/classy/main.nf'
-//include { MODKIT                  } from '../../../modules/local/modkit/main.nf'
 
 def addTypeToChannel(ch, type) {
     ch = ch.map { meta, data -> tuple(meta, data, type) }
