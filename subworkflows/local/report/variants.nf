@@ -18,9 +18,9 @@ include { QUARTO_FIGURE as QUARTO_FIGURE_FUSION         } from '../../../modules
 include { QUARTO_FIGURE as QUARTO_FIGURE_CNLOH          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_FOCAL          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_TARGETS        } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_TABLE_COLNAMES as QUARTO_FUSION_TABLES } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_TABLE_COLNAMES as QUARTO_SV_TABLES     } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_TABLE          as QUARTO_SNP_TABLES    } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TABLE_TABS as QUARTO_FUSION_TABLES     } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TABLE_TABS as QUARTO_SV_TABLES         } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TABLE_TABS as QUARTO_SNP_TABLES        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_SV                 } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_FUSION             } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_SNP                } from '../../../modules/local/quarto/main.nf'
@@ -210,21 +210,26 @@ workflow FIGENO_REPORT {
     // If table is empty, skip quarto table
 
     ch_sv_tables = ch_sv_tables
-        .branch { meta, table ->
+        .map { meta, table ->
+            def type = table.name.contains('sniffles') ? 'sniffles' : 'severus'
+            tuple(meta, table, type) }
+        .branch { meta, table, type ->
             pos: table.size() > 0
             empty: true }
 
     ch_sv_table_in = ch_sv_tables.pos
+        .groupTuple()
         .combine(ch_sv)
-        .map { meta, table, type ->
-            def type_lower = type.toLowerCase()
-            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
-            def caption = "Summary of ${type_lower} detected"
-            def col_names = "CHR, GENE, TYPE, SUPPORT, START, END, LEN"
-            def section = type_lower
-            def process = "${type_lower}-stats-${meta.id}"
-            tuple(new_meta, table, caption, col_names, section, process)
-        }
+        .map { meta, tables, type, variant ->
+            def variant_lower = variant.toLowerCase()
+            def tab = type
+            def caption = type.collect { types ->
+                "Summary of ${variant_lower} detected by ${types}"
+            }
+            def col_names = "CHR, GENE, TYPE, START, END, LEN, SUPPORT"
+            def section = variant_lower
+            def process = "${variant_lower}-stats-${meta.id}"
+            tuple(meta, section, process, tables, tab, caption, col_names)}
 
     QUARTO_SV_TABLES(ch_sv_table_in)
 
@@ -236,7 +241,7 @@ workflow FIGENO_REPORT {
             table.readLines().each { line ->
                 def cols = line.split('\t')
                 def gene = cols[1]
-                def support = cols[3]
+                def support = cols[6]
                 def type = cols[2]
                 def new_meta = meta.id + '_' + gene
                 tuples << tuple(new_meta, support, type)
@@ -263,13 +268,16 @@ workflow FIGENO_REPORT {
     // Empty table :
     ch_empty = ch_sv_tables.empty
         .combine(ch_sv)
-        .map { meta, table, type ->
-            def type_lower = type.toLowerCase()
-            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
-            def text = "No Structural variants remaining after applying filters"  // Placeholder text for empty table
-            def section = type_lower
-            def process = "${type_lower}-empty-${meta.id}"
-            tuple(new_meta, text, section, process)
+        .groupTuple()
+        .map { meta, _tables, types, variants ->
+            def variant_uniqe = variants[0]
+            def variant_lower = variant_uniqe.toLowerCase()
+            def types_empty = types.size() > 1 ? "${types[0]} or ${types[1]}" : "${types[0]}"
+            def text = "No Structural variants called by ${types_empty} remaining after applying filters"  // Placeholder text for empty table
+            def section = variant_lower
+            def type_multi = types_empty.replace(' ', '-')
+            def process = "${variant_lower}-${type_multi}-empty-${meta.id}"
+            tuple(meta, text, section, process)
         }
 
     QUARTO_TEXT_SV(
@@ -284,7 +292,7 @@ workflow FIGENO_REPORT {
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths,
-                'Other structural variants called by Sniffles2 with > 4 reads support and at least one annotation of high or moderate impact by SnpEff']
+                'Other structural variants with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel']
         }
 
     QUARTO_SV_SECTION(
@@ -298,21 +306,26 @@ workflow FIGENO_REPORT {
 */
 
     ch_fusion_tables = ch_fusion_tables
-        .branch { meta, table ->
+        .map { meta, table ->
+            def type = table.name.contains('sniffles') ? 'sniffles' : 'severus'
+            tuple(meta, table, type)}
+        .branch { meta, table, type ->
             pos: table.size() > 0
             empty: true }
 
     ch_fusion_table_in = ch_fusion_tables.pos
+        .groupTuple()
         .combine(ch_fusion)
-        .map { meta, table, type ->
-            def type_lower = type.toLowerCase()
-            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
-            def caption = "Summary of ${type_lower} detected"
+        .map { meta, tables, type, variant ->
+            def variant_lower = variant.toLowerCase()
+            def tab = type
+            def caption = type.collect { types ->
+                "Summary of ${variant_lower} detected by ${types}"
+            }
             def col_names = "FUSION, CHR1, BREAKPOINT1, CHR2, BREAKPOINT2, TYPE, DIRECTION, SUPPORT"
-            def section = type_lower
-            def process = "${type_lower}-stats-${meta.id}"
-            tuple(new_meta, table, caption, col_names, section, process)
-        }
+            def section = variant_lower
+            def process = "${variant_lower}-stats-${meta.id}"
+            tuple(meta, section, process, tables, tab, caption, col_names)}
 
     QUARTO_FUSION_TABLES(ch_fusion_table_in)
 
@@ -350,13 +363,16 @@ workflow FIGENO_REPORT {
 
     ch_empty_fusion = ch_fusion_tables.empty
         .combine(ch_fusion)
-        .map { meta, table, type ->
-            def type_lower = type.toLowerCase()
-            def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
-            def text = "No gene fusions remaining after applying filters"
-            def section = type_lower
-            def process = "${type_lower}-empty-${meta.id}"
-            tuple(new_meta, text, section, process)
+        .groupTuple()
+        .map { meta, _tables, types, variants ->
+            def variant_uniqe = variants[0]
+            def variant_lower = variant_uniqe.toLowerCase()
+            def types_empty = types.size() > 1 ? "${types[0]} or ${types[1]}" : "${types[0]}"
+            def text = "No gene fusions called by ${types_empty} remaining after applying filters"  // Placeholder text for empty table
+            def section = variant_lower
+            def type_multi = types_empty.replace(' ', '-')
+            def process = "${variant_lower}-${type_multi}-empty-${meta.id}"
+            tuple(meta, text, section, process)
         }
 
     QUARTO_TEXT_FUSION(
@@ -371,7 +387,7 @@ workflow FIGENO_REPORT {
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths,
-                'Gene fusions called by Sniffles2 with > 4 reads support and at least one annotation of high or moderate impact by SnpEff']
+                'Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel']
         }
 
     QUARTO_FUSION_SECTION(
@@ -406,7 +422,7 @@ workflow FIGENO_REPORT {
         .groupTuple()
         .map { id, section, filePaths ->
             [id, section[0], filePaths,
-                'Genes of interest shown in figeno WITHOUT any Sniffles2 calls with > 4 reads support and at least one annotation of high or moderate impact by SnpEff. SV with length > 1mb is not included in figeno plots.']
+                'Genes of interest shown in figeno WITHOUT any calls with > 4 reads support and at least one annotation of high or moderate impact. SV with length > 1mb is not included in figeno plots.']
         }
 
     QUARTO_TARGETS_SECTION (
@@ -421,31 +437,37 @@ workflow FIGENO_REPORT {
 */
 
     ch_snp_table = ch_snp_table
-        .branch { meta, table ->
+        .map { meta,table ->
+            def type = meta.id.contains('somatic') ? 'ClairS-TO' : 'Clair3'
+            def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
+            def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
+            tuple(meta_final, table, type)}
+        .branch { meta, table, type ->
             pos: table.readLines().size() > 1
             empty: true }
 
     ch_snp_table_in = ch_snp_table.pos
-            .map { meta, table ->
-                def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
-                def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
-                def type = meta.id.contains('germline') ? "Clair3" : "ClairS-TO"
-                def caption = "SNPs called by $type and filtered for regions included in the panels"
-                def col_names = ""
-                def section = "SNPs"
-                def process = "snp-${type}-stats-${meta.id}"
-                tuple(meta_final, table, caption, col_names, section, process)
+        .groupTuple()
+        .map { meta, tables, type ->
+            def tab = type
+            def caption = type.collect { types ->
+                "SNPs called by $types and filtered for regions included in the panels"
             }
+            def col_names = ""
+            def section = "SNPs"
+            def process = "snp-${type}-stats-${meta.id}"
+            tuple(meta, section, process, tables, tab, caption, col_names)
+        }
 
     ch_empty_snp = ch_snp_table.empty
-        .map { meta, table ->
-            def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
-            def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
-            def type = meta.id.contains('germline') ? "Clair3" : "ClairS-TO"
-            def text = "No SNPs called by ${type} remaining after applying filter in targeted regions."
+        .groupTuple()
+        .map { meta, _tables, types ->
+            def types_empty = types.size() > 1 ? "${types[0]} or ${types[1]}" : "${types[0]}"
+            def text = "No SNPs called by ${types_empty} remaining after applying filter in targeted regions."
             def section = "SNPs"
-            def process = "snp-${type}-empty-${meta.id}"
-            tuple(meta_final, text, section, process)
+            def type_multi = types_empty.replace(' ', '-')
+            def process = "snp-${type_multi}-empty-${meta.id}"
+            tuple(meta, text, section, process)
         }
 
     QUARTO_TEXT_SNP(ch_empty_snp)
