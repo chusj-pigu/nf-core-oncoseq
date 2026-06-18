@@ -269,11 +269,16 @@ workflow ADAPTIVE {
         PHASING_GERMLINE.out.haptag_bam
             .map { meta, bamfile, bai ->
             // Restore original sample ID for output naming
-            def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff_phased', '', '')
-            meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_snpeff_phased', '', '')
+                def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff_phased', '', '')
             tuple(meta_restore, bamfile, bai)
             },
-        ch_ref_for_calling
+        ch_ref_for_calling,
+        PHASING_GERMLINE.out.phased_vcf
+            .map { meta, bamfile, bai ->
+                def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff_phased', '', '')
+            tuple(meta_restore, bamfile, bai)
+            },
+        vep_cache
     )
 
     // Copy number variant calling
@@ -289,6 +294,7 @@ workflow ADAPTIVE {
     // Filter variants to visualize :
     VARIANT_PROCESS (
         ch_bam_for_calling,
+        COVERAGE_SEPARATE.out.split_bed,
         SV_CALLING.out.vcf,
         CNV_CALLING.out.qdnaseq_bed,
         CNV_CALLING.out.qdnaseq_segs,

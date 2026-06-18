@@ -212,29 +212,33 @@ workflow LOCAL_REALTIME {
             ref
         )
 
+        ch_clair3_phased_placeholder = channel.empty()
+
         SV_UNPHASED(
             MAPPING.out.bam,
-            ref
+            ref,
+            ch_clair3_phased_placeholder,
+            vep_cache
         )
 
-        ch_clair3_out = channel.empty()
+
+        COVERAGE_SEPARATE(
+            MAPPING.out.bam,
+            bed,
+            ref
+        )
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
+            COVERAGE_SEPARATE.out.split_bed,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
             CNV_CALLING.out.delly_segs,
-            ch_clair3_out
-        )
-
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed,
-            ref
+            ch_clair3_phased_placeholder
         )
 
         // Placeholders for report
@@ -256,9 +260,13 @@ workflow LOCAL_REALTIME {
             ref
         )
 
+        ch_clair3_phased_placeholder = channel.empty()
+
         SV_UNPHASED(
             MAPPING.out.bam,
-            ref
+            ref,
+            ch_clair3_phased_placeholder,
+            vep_cache
         )
 
         COVERAGE_SEPARATE(
@@ -278,6 +286,7 @@ workflow LOCAL_REALTIME {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
+            COVERAGE_SEPARATE.out.split_bed,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
@@ -324,6 +333,7 @@ workflow LOCAL_REALTIME {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
+            COVERAGE_SEPARATE.out.split_bed,
             SV_UNPHASED.out.vcf,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
