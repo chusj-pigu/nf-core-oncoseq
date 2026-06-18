@@ -141,7 +141,7 @@ workflow PIPELINE_INITIALISATION {
             .set { ch_cfdna }
 
     }
-    
+
     if (params.bed != "${projectDir}/assets/NO_BED") {
 
         channel
@@ -217,7 +217,8 @@ workflow PIPELINE_INITIALISATION {
         'hg19'   : 'hg19',
         'GRCh37' : 'hg19',
         'hs1'    : 'hs1',
-        'CHM13'  : 'hs1'
+        'CHM13'  : 'hs1',
+        't2t'    : 'hs1'
     ]
 
     ch_genome    = params.genome ? channel.of(params.genome) : channel.empty()

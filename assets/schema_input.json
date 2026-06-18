@@ -32,7 +32,7 @@
             },
             "genome": {
                 "type": "string",
-                "pattern": "^(?i)(hg38|GRCh38|hg19|GRCh37|hs1|CHM13)$",
+                "pattern": "^(?i)(hg38|GRCh38|hg19|GRCh37|hs1|CHM13|t2t)$",
                 "errorMessage": "Reference type must be provided and be either hg38|GRCh38, hg19|GRCh37 or hs1|CHM13"
             },
             "ref_path": {
