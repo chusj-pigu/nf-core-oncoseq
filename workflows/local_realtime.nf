@@ -262,13 +262,6 @@ workflow LOCAL_REALTIME {
 
         ch_clair3_phased_placeholder = channel.empty()
 
-        SV_UNPHASED(
-            MAPPING.out.bam,
-            ref,
-            ch_clair3_phased_placeholder,
-            vep_cache
-        )
-
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
@@ -280,6 +273,17 @@ workflow LOCAL_REALTIME {
             ref,
             basecall_model,
             COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
+        )
+
+        SV_UNPHASED(
+            MAPPING.out.bam,
+            ref,
+            CLAIR3_CALLING.out.vcf_vep
+                .map { meta, vcf ->
+                    def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_vep', '', '')
+                tuple(meta_restore, vcf)
+                },
             vep_cache
         )
 
@@ -305,11 +309,6 @@ workflow LOCAL_REALTIME {
 
     } else if (params.realtime == 72) {
 
-        SV_UNPHASED(
-            MAPPING.out.bam,
-            ref
-        )
-
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
@@ -321,6 +320,17 @@ workflow LOCAL_REALTIME {
             ref,
             basecall_model,
             COVERAGE_SEPARATE.out.split_bed,
+            vep_cache
+        )
+
+        SV_UNPHASED(
+            MAPPING.out.bam,
+            ref,
+            CLAIR3_CALLING.out.vcf_vep
+                .map { meta, vcf ->
+                    def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_vep', '', '')
+                tuple(meta_restore, vcf)
+                },
             vep_cache
         )
 
