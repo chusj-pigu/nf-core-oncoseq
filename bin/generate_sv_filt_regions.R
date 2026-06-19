@@ -403,7 +403,7 @@ safe_write_table <- function(lst, suffix) {
 
 safe_write_figeno_table <- function(df, file) {
   if (nrow(df) > 0) {
-      write_tsv(df, file, col_names = FALSE, quote = "none")
+      write_tsv(df, file, col_names = TRUE, quote = "none")
   } else {
       df <- data.frame(chr1 = "", pos1 = "", chr2 = "",
         pos2 = "", strand1 = "", strand2 = "", color = "", svtype = "")
