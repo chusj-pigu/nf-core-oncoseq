@@ -533,7 +533,7 @@ def CreateSVInput(meta, file, type, support, sv, program) {
     def sv_type_noext = sv_type.replaceAll(".png", "")
     def type_red = type.toLowerCase().replaceFirst(/s$/, '').replace('-', ' ')
     def multi_program_support = program.size() > 1 ? "${support[0]} (${program[0]}) and ${support[1]} (${program[1]})" :
-        "${support[0]} (${program[0]})"
+        "${support} (${program})"
     // Transform chrom into two new variables
     def caption = type_red == "important gene" ?
         "Figeno Plot showing ${sv_type_noext}" :
