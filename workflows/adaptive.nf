@@ -274,9 +274,9 @@ workflow ADAPTIVE {
             },
         ch_ref_for_calling,
         PHASING_GERMLINE.out.phased_vcf
-            .map { meta, bamfile, bai ->
+            .map { meta, vcf ->
                 def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff_phased', '', '')
-            tuple(meta_restore, bamfile, bai)
+            tuple(meta_restore, vcf)
             },
         vep_cache
     )
