@@ -135,7 +135,8 @@ process ENSEMBL_VEP_TABLE {
 
     input:
     tuple val(meta),
-        path(bed)
+        path(bed),
+        path(list_exclude)
 
     output:
     tuple val(meta),
@@ -148,6 +149,7 @@ process ENSEMBL_VEP_TABLE {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     def read_depth_threshold = params.cfdna ? '' : "&& \$8 > 20" // Only apply read depth filter for non-cfdna samples
+    def pass_filter = prefix.contains('germline') ? "&& \$6 == 'PASS'" : ''
     """
         awk -F'\t' '
         BEGIN {
@@ -160,13 +162,13 @@ process ENSEMBL_VEP_TABLE {
             ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
             for (i in transcripts) {
                 split(transcripts[i], f, "|")
-                if (ad_alt > 5 ${read_depth_threshold} && \$6 == "PASS") {
+                if (ad_alt > 5 ${read_depth_threshold} ${pass_filter}) {
                     print \$1,\$2,\$3,\$4,\$5, \
                     f[4],f[2],f[3],f[72],f[7],f[27], \
                     f[11],f[12],f[18],f[37],f[38],f[49], \
                     \$8,ad_alt
                 }
             }
-        }' ${bed} > ${prefix}_filt.csv
+        }' ${bed} | grep -vF -f ${list_exclude} > ${prefix}_filt.csv
     """
 }

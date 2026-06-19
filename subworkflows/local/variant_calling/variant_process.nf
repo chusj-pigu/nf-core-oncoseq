@@ -102,7 +102,12 @@ workflow VARIANT_PROCESS {
     // Table for Filtered snps :
     BCFTOOLS_QUERY_SNP(snp_filt)
 
-    ENSEMBL_VEP_TABLE(BCFTOOLS_QUERY_SNP.out.bed)
+    ch_snp_exclude = channel.fromPath(params.snp_exclude)
+
+    ch_snp_to_table = BCFTOOLS_QUERY_SNP.out.bed
+        .combine(ch_snp_exclude)
+
+    ENSEMBL_VEP_TABLE(ch_snp_to_table)
 
     ch_other_sv = SV_PROCESS.out.other_tsv
         .transpose()
