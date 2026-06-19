@@ -236,7 +236,7 @@ workflow FIGENO_REPORT {
     // Process tables to extract necessary information to put in legend
 
     ch_sv_stats = ch_sv_tables.pos
-        .flatMap { meta, table ->
+        .flatMap { meta, table, program ->
             def tuples = []
             table.readLines().each { line ->
                 def cols = line.split('\t')
@@ -244,10 +244,11 @@ workflow FIGENO_REPORT {
                 def support = cols[6]
                 def type = cols[2]
                 def new_meta = meta.id + '_' + gene
-                tuples << tuple(new_meta, support, type)
+                tuples << tuple(new_meta, support, type, program)
             }
             return tuples
         }
+        .groupTuple()
 
     ch_sv_files = ch_sv_figures
         .combine(ch_sv)
@@ -257,8 +258,8 @@ workflow FIGENO_REPORT {
             tuple(meta_refined, meta, figure, type)
         }
         .join(ch_sv_stats)
-        .map { _meta, old_meta, file, type, support, sv ->
-        CreateSVInput(old_meta, file, type, support, sv)
+        .map { _meta, old_meta, file, type, support, sv, program ->
+        CreateSVInput(old_meta, file, type, support, sv, program)
         }
 
     QUARTO_FIGURE_SV(
@@ -330,7 +331,7 @@ workflow FIGENO_REPORT {
     QUARTO_FUSION_TABLES(ch_fusion_table_in)
 
     ch_fusion_stats = ch_fusion_tables.pos
-        .flatMap { meta, table ->
+        .flatMap { meta, table, program ->
             def tuples = []
             table.readLines().each { line ->
                 def cols = line.split('\t')
@@ -338,10 +339,11 @@ workflow FIGENO_REPORT {
                 def support = cols[7]
                 def type = cols[5].replaceAll('_', ' ')
                 def new_meta = meta.id + '_' + gene
-                tuples << tuple(new_meta, support, type)
+                tuples << tuple(new_meta, support, type, program)
             }
             return tuples
         }
+        .groupTuple()
 
     ch_fusion_files = ch_fusion_figures
         .combine(ch_fusion)
@@ -351,8 +353,8 @@ workflow FIGENO_REPORT {
             tuple(meta_refined, meta, figure, type)
         }
         .join(ch_fusion_stats)
-        .map { _meta, old_meta, file, type, support, sv ->
-        CreateSVInput(old_meta, file, type, support, sv)
+        .map { _meta, old_meta, file, type, support, sv, program ->
+        CreateSVInput(old_meta, file, type, support, sv, program)
         }
 
     QUARTO_FIGURE_FUSION(
@@ -407,9 +409,10 @@ workflow FIGENO_REPORT {
         .map { meta, file, type ->
             def support_placeholder = ""
             def sv_placeholder = ""
-            tuple(meta, file, type, support_placeholder, sv_placeholder) }
-        .map { meta, file, type, support_placeholder, sv_placeholder ->
-            CreateSVInput(meta, file, type, support_placeholder, sv_placeholder)
+            def program_placeholder = ""
+            tuple(meta, file, type, support_placeholder, sv_placeholder, program_placeholder) }
+        .map { meta, file, type, support_placeholder, sv_placeholder, program_placeholder ->
+            CreateSVInput(meta, file, type, support_placeholder, sv_placeholder, program_placeholder)
             }
 
     QUARTO_FIGURE_TARGETS(
@@ -524,16 +527,17 @@ def CreateFigureCNVInput(meta, file, type, text) {
     return [meta, file, caption, section, process ]
 }
 
-def CreateSVInput(meta, file, type, support, sv) {
+def CreateSVInput(meta, file, type, support, sv, program) {
     def new_meta = modifyMetaId(meta, 'replace', '_sv', '', '')
     def sv_type = file.name.toString().replaceAll("${meta.id}_", "")
     def sv_type_noext = sv_type.replaceAll(".png", "")
     def type_red = type.toLowerCase().replaceFirst(/s$/, '').replace('-', ' ')
-
+    def multi_program_support = program.size() > 1 ? "${support[0]} (${program[0]}) and ${support[1]} (${program[1]})" :
+        "${support[0]} (${program[0]})"
     // Transform chrom into two new variables
     def caption = type_red == "important gene" ?
         "Figeno Plot showing ${sv_type_noext}" :
-        "Figeno Plot showing ${sv} in ${sv_type_noext} with ${support} reads support"
+        "Figeno Plot showing ${sv} in ${sv_type_noext} with ${multi_program_support} reads support"
     def section = "${type}"
     def process = "figeno-${type}-${new_meta.id}-${sv_type_noext}"
 
