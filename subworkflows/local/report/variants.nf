@@ -459,7 +459,7 @@ workflow FIGENO_REPORT {
             }
             def col_names = ""
             def section = "SNPs"
-            def process = "snp-${type}-stats-${meta.id}"
+            def process = "snp-stats-${meta.id}"
             tuple(meta, section, process, tables, tab, caption, col_names)
         }
 
@@ -478,11 +478,18 @@ workflow FIGENO_REPORT {
 
     QUARTO_SNP_TABLES(ch_snp_table_in)
 
+    ch_snp_exclude = channel.fromPath(params.snp_exclude)
+        .splitText()
+        .map { it.trim() }
+        .collect()
+        .map { list -> list.join(", ") }
+
     ch_section_snp = QUARTO_SNP_TABLES.out.quarto_table
         .mix(QUARTO_TEXT_SNP.out.quarto_text)
         .groupTuple()
-        .map { id, section, filePaths ->
-            [id, section[0], filePaths, "SNPs filtered with EnsemblVep using filters :'$params.filtervep_expression'"]
+        .combine(ch_snp_exclude)
+        .map { id, section, filePaths, list ->
+            [id, section[0], filePaths, "SNPs filtered with EnsemblVep using filters :'$params.filtervep_expression', only keeping SNPs in targeted genes, ecluding SNPs in ${list}"]
         }
 
     QUARTO_SNP_SECTION(ch_section_snp)
