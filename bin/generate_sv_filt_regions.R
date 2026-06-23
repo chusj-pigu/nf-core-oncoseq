@@ -250,11 +250,11 @@ vcf <- lapply(input, function(f) {
 })
 
 names(vcf) <- sapply(input, function(f) {
-    if (grepl("severus", basename(f))) {
-        "severus"
-    } else if (grepl("sniffles", basename(f))) {
-        "sniffles"
-    }
+    case_when(
+        grepl("severus",  basename(f)) ~ "severus",
+        grepl("sniffles", basename(f)) ~ "sniffles",
+        TRUE ~ basename(f)  # fallback so nothing gets NA-named
+    )
 })
 
 targets_df <- read.csv(target_list)
@@ -281,6 +281,11 @@ if (length(vcf) > 0) {
 
     bnd <- lapply(df, parse_bnd)
     other <- lapply(df, parse_other_sv)
+
+    bnd <- lapply(df, parse_bnd)
+    bnd <- bnd[vapply(bnd, nrow, integer(1)) > 0]
+    other <- lapply(df, parse_other_sv)
+    other <- other[vapply(other, nrow, integer(1)) > 0]
 
     bnd_merged   <- bind_rows(bnd)
     other_merged <- bind_rows(other)
@@ -375,30 +380,19 @@ safe_write_figeno <- function(df, file) {
 }
 
 safe_write_table <- function(lst, suffix) {
+  expected <- c("severus", "sniffles")
+  empty_df <- data.frame()
 
-    expected <- c("severus", "sniffles")
+  for (nm in expected) {
+    outfile <- paste(sample_id, nm, suffix, sep = "_")
+    df      <- lst[[nm]]
 
-    empty_df <- data.frame()
-
-    for (nm in expected) {
-
-        outfile <- paste(sample_id, nm, suffix, sep = "_")
-
-        df <- lst[[nm]]
-
-        # replace NULL or missing with empty df
-        if (is.null(df) || !is.data.frame(df)) {
-            df <- empty_df
-        }
-
-        # write (empty or not)
-        write_tsv(
-            df,
-            outfile,
-            col_names = FALSE,
-            quote = "none"
-        )
+    if (is.null(df) || !is.data.frame(df)) {
+      df <- empty_df
     }
+
+    write_tsv(df, outfile, col_names = FALSE, quote = "none")
+  }
 }
 
 safe_write_figeno_table <- function(df, file) {
