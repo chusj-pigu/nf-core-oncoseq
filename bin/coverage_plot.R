@@ -157,8 +157,16 @@ general_ann <- function(bed) {
 
 # Function to generate a coverage plot
 generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
-  # Calculate axis parameters
-  axis_ticks <- seq(0, (ceiling(maximum / 10) * 10), length.out = 5)
+
+    if (maximum >= 10) {
+        ymax <- ceiling(maximum / 10) * 10
+    } else if (maximum >= 1) {
+        ymax <- ceiling(maximum)
+    } else {
+        ymax <- ceiling(maximum * 10) / 10
+    }
+
+    axis_ticks <- seq(0, ymax, length.out = 5)
 
   # Reorder chromosomes for plotting
 
