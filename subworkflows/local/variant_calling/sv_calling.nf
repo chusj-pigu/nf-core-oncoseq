@@ -70,7 +70,7 @@ workflow SV_CALLING {
 
     // Severus:
 
-    if (params.realtime) {
+    if (params.realtime || params.cfdna) {
 
         ch_severus_in = bam
             .join(ch_ref_type)
