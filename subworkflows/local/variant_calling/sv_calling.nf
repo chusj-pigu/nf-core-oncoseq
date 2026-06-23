@@ -78,12 +78,16 @@ workflow SV_CALLING {
         ch_vcf_severus = SEVERUS_TUMOR_UNPHASED.out.vcf
         ch_severus_versions = SEVERUS_TUMOR_UNPHASED.out.versions
     } else {
+
+        ch_vcf_snp = snp_vcf
+            .map { meta, vcf_file ->
+                def new_meta = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')
+                tuple(new_meta, vcf_file) }
+
         ch_severus_in = bam
-            .join(snp_vcf)
-            .map { meta, bamfile, bai, vcf_file ->
-                def new_meta = modifyMetaId(meta, 'replace', '_germline_snp_snpeff_phased', '', '')
-                tuple(meta, bamfile, bai, vcf_file) }
+            .join(ch_vcf_snp)
             .join(ch_ref_type)
+
         SEVERUS_TUMOR_PHASED(ch_severus_in)
         ch_vcf_severus = SEVERUS_TUMOR_PHASED.out.vcf
         ch_severus_versions = SEVERUS_TUMOR_PHASED.out.versions
