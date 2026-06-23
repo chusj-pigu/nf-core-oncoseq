@@ -75,35 +75,6 @@ workflow CFDNA_REPORT {
     )
 
 
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    CONSTRUCT QUARTO FIGURE FOR MPGI COVERAGE PLOT
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-    // ch_qc_files = ch_nanoplot_fig
-    //     .map { meta, fig ->
-    //         def filtered = fig.find { it.name.endsWith('WeightedLogTransformed_HistogramReadlength.svg') }
-    //         tuple(meta, filtered)
-    //     }
-    //     .map { tuple ->
-    //         // Extract the existing values from the tuple
-    //         def (meta, file) = tuple
-
-    //         // Transform chrom into two new variables
-    //         def caption = "Read length distribution for ${meta.id}"
-    //         def section = "QC"
-    //         def process = "length-plot-${meta.id}"
-
-    //         // Return a new tuple with the additional variables
-    //         return [meta, file, caption, section, process ]
-    //     }
-
-
-    // QUARTO_FIGURE_QC(
-    //     ch_qc_files
-    // )
-
     ch_section_qc = QUARTO_TABLE_COLNAMES.out.quarto_table
     //     .mix(QUARTO_FIGURE_QC.out.quarto_figure)
 
