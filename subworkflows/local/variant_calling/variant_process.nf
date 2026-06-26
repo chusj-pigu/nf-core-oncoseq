@@ -6,6 +6,7 @@
 include { BCFTOOLS_FILTER                      } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_SNP } from '../../../modules/local/bcftools/main.nf'
 include { SV_PROCESS                           } from '../../../modules/local/vcf_process/main.nf'
+include { STELLERATOR_PROCESS                  } from '../../../modules/local/vcf_process/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_FUSION    } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_OTHER     } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_TARGETS   } from '../../../modules/local/figeno/main.nf'
@@ -30,6 +31,7 @@ workflow VARIANT_PROCESS {
     bam        // channel: from mapping workflow, includes index
     bed
     sv_vcf
+    stellerator
     qdnaseq_calls
     qdnaseq_segm
     sv_targets
@@ -38,13 +40,23 @@ workflow VARIANT_PROCESS {
     snp_filt
     main:
 
-    // Circos with cnv
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     CNV CIRCOS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
 
     ch_cnv_process = qdnaseq_calls
         .join(qdnaseq_segm)
 
     // Process qdnaseq outputs to match expected ControlFREEC input of figeno:
     QDNASEQ_PROCESS(ch_cnv_process)
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     SV FILTERING AND PROCESSING
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
 
     BCFTOOLS_FILTER(sv_vcf)
 
@@ -68,6 +80,14 @@ workflow VARIANT_PROCESS {
 
     SV_PROCESS(ch_to_process)
 
+    STELLERATOR_PROCESS(stellerator)
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     VIZUALISATION
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
     ch_to_circos = SV_PROCESS.out.figeno_table
         .join(QDNASEQ_PROCESS.out.cnv_file)
         .join(QDNASEQ_PROCESS.out.ratio_file)
@@ -76,9 +96,16 @@ workflow VARIANT_PROCESS {
 
     // Figure for structural variants
 
-    ch_figeno_fusion = bam
+    ch_figeno_vcf = bam
         .join(SV_PROCESS.out.figeno_table)
         .join(SV_PROCESS.out.fusion_txt)
+
+    ch_figeno_stellerator = bam
+        .join(SV_PROCESS.out.figeno_table)
+        .join(STELLERATOR_PROCESS.out.figeno)
+
+    ch_figeno_fusion = ch_figeno_vcf
+        .mix(ch_figeno_stellerator)
 
     ch_figeno_sv = bam
         .join(SV_PROCESS.out.figeno_table)
@@ -113,6 +140,7 @@ workflow VARIANT_PROCESS {
         .transpose()
 
     ch_fusion = SV_PROCESS.out.fusion_tsv
+        .mix(STELLERATOR_PROCESS.out.tsv)
         .transpose()
 
     ch_versions = BCFTOOLS_FILTER.out.versions

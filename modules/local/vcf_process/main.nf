@@ -80,6 +80,43 @@ process SV_PROCESS {
     """
 }
 
+process STELLERATOR_PROCESS {
+
+    //TODO: SET FIXED VERSION WHEN PIPELINE IS STABLE
+    container 'ghcr.io/chusj-pigu/tidyverse:006154f90a8b1b1c8647a246a76cb0562517da61'
+    label 'local'
+    label 'process_low'
+    label 'process_single_cpu'
+    label 'process_very_low_memory'
+
+    tag "$meta.id"
+
+    input:
+    tuple val(meta),
+        path(tables)
+
+    output:
+    tuple val(meta),
+        path("*table_fusions.tsv"),
+        emit: tsv
+    tuple val(meta),
+        path("*fusions.txt"),
+        emit: figeno
+    path "versions.yml",
+        emit: versions
+
+    script:
+    """
+    generate_sv_filt_regions_stellerator.R
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -1)
+
+    END_VERSIONS
+    """
+}
+
 process QDNASEQ_PROCESS {
 
     label 'local'
