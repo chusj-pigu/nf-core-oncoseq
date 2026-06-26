@@ -38,6 +38,7 @@ workflow FIGENO_REPORT {
     ch_targets_figures
     ch_sv_tables
     ch_fusion_tables
+    ch_empty_stel
     ch_subchrom_figure
     ch_subchrom_focal
     ch_snp_table
@@ -308,7 +309,8 @@ workflow FIGENO_REPORT {
 
     ch_fusion_tables = ch_fusion_tables
         .map { meta, table ->
-            def type = table.name.contains('sniffles') ? 'sniffles' : 'severus'
+            def type = table.name.contains('sniffles') ? "sniflles" :
+                (table.name.contains('severus') ? 'severus' : 'stellerator')
             tuple(meta, table, type)}
         .branch { meta, table, type ->
             pos: table.size() > 0
@@ -365,15 +367,17 @@ workflow FIGENO_REPORT {
     // Empty table :
 
     ch_empty_fusion = ch_fusion_tables.empty
+        .mix(ch_empty_stel)
         .combine(ch_fusion)
         .groupTuple()
         .map { meta, _tables, types, variants ->
             def variant_uniqe = variants[0]
             def variant_lower = variant_uniqe.toLowerCase()
-            def types_empty = types.size() > 1 ? "${types[0]} or ${types[1]}" : "${types[0]}"
+            def types_empty = types.size() < 1 ? "${types[0]}" :
+                (types.size() == 2 ? "${types[0]} or ${types[1]}" : "${types[0]}, ${types[1]} or ${types[2]}")
             def text = "No gene fusions called by ${types_empty} remaining after applying filters"  // Placeholder text for empty table
             def section = variant_lower
-            def type_multi = types_empty.replace(' ', '-')
+            def type_multi = types_empty.replace(' ', '-').replace(',', '')
             def process = "${variant_lower}-${type_multi}-empty-${meta.id}"
             tuple(meta, text, section, process)
         }
@@ -389,8 +393,9 @@ workflow FIGENO_REPORT {
     ch_section_fusion = ch_section_fusion
         .groupTuple()
         .map { id, section, filePaths ->
-            [id, section[0], filePaths,
-                'Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel']
+            def caption = params.realtime <= 6 ? "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, all calls are shown." :
+                "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel."
+            [id, section[0], filePaths, caption]
         }
 
     QUARTO_FUSION_SECTION(
