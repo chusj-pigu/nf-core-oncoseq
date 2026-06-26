@@ -7,6 +7,7 @@ include { SNIFFLES_CALL                     } from '../../../modules/local/sniff
 include { SNPEFF_ANNOTATE                   } from '../../../modules/local/snpeff/main.nf'
 include { SEVERUS_TUMOR_PHASED              } from '../../../modules/local/severus/main.nf'
 include { SEVERUS_TUMOR_UNPHASED            } from '../../../modules/local/severus/main.nf'
+include { STELLERATOR                       } from '../../../modules/local/stellerator/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38 } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19 } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HS1  } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
@@ -31,6 +32,12 @@ workflow SV_CALLING {
     vep_cache
 
     main:
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     SNIFLLES2
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
 
     // Sniffles2
     ch_in_sniffles = bam
@@ -68,7 +75,11 @@ workflow SV_CALLING {
 
     SNPEFF_ANNOTATE(ch_sv_annotate)
 
-    // Severus:
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     SEVERUS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
 
     if (params.realtime || params.cfdna) {
 
@@ -156,6 +167,47 @@ workflow SV_CALLING {
         []
     )
 
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     STELLERATOR
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
+    ch_genes = channel.fromPath(params.fusion_targets, checkIfExists:true)
+        .splitCsv()
+        .map { row ->
+            tuple(row[0], row[1])
+            }
+
+    ch_in_stellerator = bam
+        .join(ch_ref_type)
+        .combine(ch_genes)
+
+    if (params.realtime <= 6 || params.cfdna) {
+
+        STELLERATOR(ch_in_stellerator)
+
+        ch_out_stellerator = STELLERATOR.out.table
+            .map { meta, table ->
+                def table_resolved = table.readLines().size > 1 ? table : "negative"
+                tuple(meta, table_resolved) }
+            .unique()
+            .groupTuple()
+            .branch { meta, tables ->
+                empty: tables.size() == 1
+                    return [meta, tables, "stellerator"]
+                pos:   true
+                    return [meta, tables.findAll { it != "negative" }] }
+
+        ch_pos_stellerator = ch_out_stellerator.pos
+        ch_empty_stellerator = ch_out_stellerator.empty
+
+
+    } else {
+        ch_pos_stellerator = channel.empty()
+        ch_empty_stellerator = channel.empty()
+    }
+
     ch_to_bgzip = SNPEFF_ANNOTATE.out.vcf
         .mix(ENSEMBLVEP_FILTERVEP.out.output)
 
@@ -172,6 +224,8 @@ workflow SV_CALLING {
 
     emit:
     vcf              = BCFTOOLS_INDEX.out.vcf_tbi
+    stellerator      = ch_pos_stellerator
+    empty_calls      = ch_empty_stellerator
     versions         = ch_versions
 
 }
