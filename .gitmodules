@@ -110,3 +110,7 @@
 	path = modules/local/severus
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = severus
+[submodule "modules/local/stellerator"]
+	path = modules/local/stellerator
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = stellerator
