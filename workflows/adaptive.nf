@@ -296,6 +296,7 @@ workflow ADAPTIVE {
         ch_bam_for_calling,
         COVERAGE_SEPARATE.out.split_bed,
         SV_CALLING.out.vcf,
+        SV_CALLING.out.stellerator,
         CNV_CALLING.out.qdnaseq_bed,
         CNV_CALLING.out.qdnaseq_segs,
         targets,
@@ -361,6 +362,7 @@ workflow ADAPTIVE {
         VARIANT_PROCESS.out.targets_plot,
         VARIANT_PROCESS.out.sv_table,
         VARIANT_PROCESS.out.fusion_table,
+        SV_CALLING.out.empty_calls,
         ch_subchrom_plot,
         ch_subchrom_focal,
         VARIANT_PROCESS.out.snp_table
