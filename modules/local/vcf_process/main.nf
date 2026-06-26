@@ -185,27 +185,53 @@ process ENSEMBL_VEP_TABLE {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def read_depth_threshold = params.cfdna ? '' : "&& \$8 >= 20" // Only apply read depth filter for non-cfdna samples
-    def pass_filter = prefix.contains('germline') ? '&& \$6 == "PASS"' : ''
+    def read_depth_threshold = params.cfdna ? '' : "&& dp >= 20" // Only apply read depth filter for non-cfdna samples
+    def pass_filter = prefix.contains('germline') ? '&& \$6 == "PASS"' : ''   // Keep Nonsomatic variants for somatic vcf
     """
-        awk -F'\t' '
+    awk -F'\t' '
         BEGIN {
             OFS=","
             print "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,SIFT,PolyPhen,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
         }
+        /^#/ { next }
         {
-            split(\$7, transcripts, ",")
+            dp = \$8+0
             split(\$9, ad_vals, ",")
-            ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
-            for (i in transcripts) {
+            split(\$4, alts, ",")
+            split(\$7, transcripts, ",")
+
+            for (i = 1; i <= length(transcripts); i++) {
                 split(transcripts[i], f, "|")
-                if (ad_alt >= 5 ${read_depth_threshold} ${pass_filter}) {
-                    print \$1,\$2,\$3,\$4,\$5, \
-                    f[4],f[2],f[3],f[72],f[7],f[27], \
-                    f[11],f[12],f[18],f[37],f[38],f[49], \
-                    \$8,ad_alt
+
+                if (f[1] != "" && f[1] != "-") {
+                    # Allele is explicit: single match by value
+                    alt_allele = f[1]
+                    alt_idx = 0
+                    for (a = 1; a <= length(alts); a++) {
+                        if (alts[a] == alt_allele) { alt_idx = a; break }
+                    }
+                    ad_alt = (alt_idx > 0 ? ad_vals[alt_idx + 1]+0 : 0)
+                    if (ad_alt >= 5 ${read_depth_threshold} ${pass_filter}) {
+                        print \$1,\$2,\$3,alt_allele,\$5,
+                            f[4],f[2],f[3],f[72],f[7],f[27],
+                            f[11],f[12],f[18],f[37],f[38],f[49],
+                            dp,ad_alt
+                    }
+                } else {
+                    # Allele is "-": VEP collapsed all ALTs into one annotation,
+                    # so emit one row per ALT each with its own AD depth
+                    for (a = 1; a <= length(alts); a++) {
+                        ad_alt = ad_vals[a + 1]+0
+                        if (ad_alt >= 5 ${read_depth_threshold} ${pass_filter}) {
+                            print \$1,\$2,\$3,alts[a],\$5,
+                                f[4],f[2],f[3],f[72],f[7],f[27],
+                                f[11],f[12],f[18],f[37],f[38],f[49],
+                                dp,ad_alt
+                        }
+                    }
                 }
             }
-        }' ${bed} | grep -vF -f ${list_exclude} > ${prefix}_filt.csv
+        }
+    ' ${bed} | grep -vF -f ${list_exclude} > ${prefix}_filt.csv
     """
 }
