@@ -316,18 +316,23 @@
         },
         "sv_targets": {
             "type": "string",
-            "default": "/workspaces/nf-core-oncoseq/assets/NOCSV",
+            "default": "/workspaces/nf-core-oncoseq/assets/sv-list.csv",
             "description": "List of genes to visualize with Figeno (columns GENE and pos)"
+        },
+        "fusion_targets": {
+            "type": "string",
+            "default": "/workspaces/nf-core-oncoseq/assets/fusion-list.csv",
+            "description": "List of important fusions to verify with stellerator"
         },
         "sv_exclude": {
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/sv_exclude.txt",
-            "description": "List of genes to exclude from SV analysis"
+            "description": "List of genes to exclude from SV analysis (possible artefacts)"
         },
         "snp_exclude": {
             "type": "string",
             "default": "/workspaces/nf-core-oncoseq/assets/snp_exclude.txt",
-            "description": "List of genes to exclude from SNP reporting"
+            "description": "List of genes to exclude from snp analysis"
         },
         "skip_mapping": {
             "type": "boolean"
