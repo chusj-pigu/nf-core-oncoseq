@@ -2,7 +2,21 @@
 
 suppressPackageStartupMessages({
   library(tidyverse)
+  library(optparse)
 })
+
+# -----------------------------
+# CLI Options
+# -----------------------------
+option_list <- list(
+  make_option(c("-m", "--min_support"), type = "double", default = 0,
+              help = "Minimum reads support to report SV [default: %default]", metavar = "NUMBER")
+)
+
+# ---- Parse options ----
+opt <- parse_args(OptionParser(option_list = option_list))
+
+min_support <- opt$min_support
 
 # Get list of all stellerator files
 input_files <- list.files(pattern = "stellerator.*\\.tsv$", full.names = TRUE)
@@ -14,8 +28,23 @@ clamp0 <- function(x) {
   pmax(as.numeric(x), 0)
 }
 
-# Function to process a single file
-process_figeno <- function(input) {
+process_table <- function(input) {
+  table <- read_tsv(input) %>%
+    mutate(FUSION = paste(query_gene, matched_partner_gene, sep = "-"),
+           BREAKPOINT1 = str_split_i(breakpoint_estimate, "/", 1),
+           BREAKPOINT2 = str_split_i(breakpoint_estimate, "/", 2)) %>%
+    rename(CHR1 = reference_name, CHR2 = inferred_partner_reference) %>%
+    group_by(FUSION, CHR1, BREAKPOINT1, CHR2, BREAKPOINT2) %>%
+    summarise(SUPPORT = n(), .groups = "drop") %>%
+    filter(SUPPORT >= min_support) %>%
+    mutate(TYPE = "SUPPLEMENTARY READS",
+           DIRECTION = NA) %>%
+    select(FUSION, CHR1, BREAKPOINT1, CHR2, BREAKPOINT2, TYPE, DIRECTION, SUPPORT)
+
+  return(table)
+}
+
+process_figeno <- function(input,table) {
   figeno <- read_tsv(input) %>%
     group_by(query_gene) %>%
     summarise(BREAKPOINT1 = min(alignment_start),
@@ -25,35 +54,21 @@ process_figeno <- function(input) {
               reference_name = unique(reference_name),
               inferred_partner_reference = unique(inferred_partner_reference),
               .groups = "drop") %>%
+    mutate(alteration = paste(query_gene, matched_partner_gene, sep = "-")) %>%
+    filter(alteration %in% table$FUSION) %>%
     mutate(
       pos  = paste0(reference_name, ":", clamp0(BREAKPOINT1 - 30000), "-", clamp0(BREAKPOINT1 + 30000)),
       pos2 = paste0(inferred_partner_reference, ":", clamp0(BREAKPOINT2 - 30000), "-", clamp0(BREAKPOINT2 + 30000)),
-      FUSION = paste(sample_id, paste(query_gene, matched_partner_gene, sep = "-"), sep = "_")
+      FUSION = paste(sample_id, alteration, sep = "_")
     ) %>%
     select(FUSION, pos, pos2)
 
     return(figeno)
 }
 
-process_table <- function(input) {
-  table <- read_tsv(input) %>%
-    mutate(FUSION = paste(query_gene, matched_partner_gene, sep = "-"),
-           BREAKPOINT1 = str_split_i(breakpoint_estimate, "/", 1),
-           BREAKPOINT2 = str_split_i(breakpoint_estimate, "/", 2)) %>%
-    rename(CHR1 = reference_name, CHR2 = inferred_partner_reference) %>%
-    group_by(FUSION, CHR1, BREAKPOINT1, CHR2, BREAKPOINT2) %>%
-    summarise(SUPPORT = n(), .groups = "drop") %>%
-    mutate(TYPE = "SUPPLEMENTARY READS",
-           DIRECTION = NA) %>%
-    select(FUSION, CHR1, BREAKPOINT1, CHR2, BREAKPOINT2, TYPE, DIRECTION, SUPPORT)
-
-  return(table)
-}
-
-figenos <- lapply(input_files,process_figeno)
 tables <- lapply(input_files,process_table)
-
 all_tables <- bind_rows(tables)
+figenos <- lapply(input_files,process_figeno, all_tables)
 all_figeno <- bind_rows(figenos)
 
 # Write combined tables with sample ID in filename

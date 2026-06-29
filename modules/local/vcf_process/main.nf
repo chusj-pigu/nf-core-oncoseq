@@ -106,8 +106,10 @@ process STELLERATOR_PROCESS {
         emit: versions
 
     script:
+    def support = params.realtime <= 6 || params.cfdna  ? 0 : 2
     """
-    generate_sv_filt_regions_stellerator.R
+    generate_sv_filt_regions_stellerator.R \\
+        -m ${support}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

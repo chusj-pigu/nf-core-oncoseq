@@ -183,30 +183,23 @@ workflow SV_CALLING {
         .join(ch_ref_type)
         .combine(ch_genes)
 
-    if (params.realtime <= 6 || params.cfdna) {
+    STELLERATOR(ch_in_stellerator)
 
-        STELLERATOR(ch_in_stellerator)
+    ch_out_stellerator = STELLERATOR.out.table
+        .map { meta, table ->
+            def table_resolved = table.readLines().size > 1 ? table : "negative"
+            tuple(meta, table_resolved) }
+        .unique()
+        .groupTuple()
+        .branch { meta, tables ->
+            empty: tables.size() == 1
+                return [meta, tables, "stellerator"]
+            pos:   true
+                return [meta, tables.findAll { it != "negative" }] }
 
-        ch_out_stellerator = STELLERATOR.out.table
-            .map { meta, table ->
-                def table_resolved = table.readLines().size > 1 ? table : "negative"
-                tuple(meta, table_resolved) }
-            .unique()
-            .groupTuple()
-            .branch { meta, tables ->
-                empty: tables.size() == 1
-                    return [meta, tables, "stellerator"]
-                pos:   true
-                    return [meta, tables.findAll { it != "negative" }] }
+    ch_pos_stellerator = ch_out_stellerator.pos
+    ch_empty_stellerator = ch_out_stellerator.empty
 
-        ch_pos_stellerator = ch_out_stellerator.pos
-        ch_empty_stellerator = ch_out_stellerator.empty
-
-
-    } else {
-        ch_pos_stellerator = channel.empty()
-        ch_empty_stellerator = channel.empty()
-    }
 
     ch_to_bgzip = SNPEFF_ANNOTATE.out.vcf
         .mix(ENSEMBLVEP_FILTERVEP.out.output)
