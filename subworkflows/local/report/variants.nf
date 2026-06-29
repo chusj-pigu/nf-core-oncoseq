@@ -309,7 +309,7 @@ workflow FIGENO_REPORT {
 
     ch_fusion_tables = ch_fusion_tables
         .map { meta, table ->
-            def type = table.name.contains('sniffles') ? "sniflles" :
+            def type = table.name.contains('sniffles') ? "sniffles" :
                 (table.name.contains('severus') ? 'severus' : 'stellerator')
             tuple(meta, table, type)}
         .branch { meta, table, type ->
@@ -373,7 +373,7 @@ workflow FIGENO_REPORT {
         .map { meta, _tables, types, variants ->
             def variant_uniqe = variants[0]
             def variant_lower = variant_uniqe.toLowerCase()
-            def types_empty = types.size() < 1 ? "${types[0]}" :
+            def types_empty = types.size() == 1 ? "${types[0]}" :
                 (types.size() == 2 ? "${types[0]} or ${types[1]}" : "${types[0]}, ${types[1]} or ${types[2]}")
             def text = "No gene fusions called by ${types_empty} remaining after applying filters"  // Placeholder text for empty table
             def section = variant_lower

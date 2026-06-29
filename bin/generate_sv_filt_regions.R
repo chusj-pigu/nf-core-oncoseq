@@ -277,14 +277,14 @@ vcf <- vcf[vapply(vcf, nrow, integer(1)) > 0]
 if (length(vcf) > 0) {
 
     df <- lapply(vcf, process_vcf)
+    names(df) <- names(vcf)
     df <- df[vapply(df, nrow, integer(1)) > 0]
 
     bnd <- lapply(df, parse_bnd)
-    other <- lapply(df, parse_other_sv)
-
-    bnd <- lapply(df, parse_bnd)
+    names(bnd) <- names(df)
     bnd <- bnd[vapply(bnd, nrow, integer(1)) > 0]
     other <- lapply(df, parse_other_sv)
+    names(other) <- names(df)
     other <- other[vapply(other, nrow, integer(1)) > 0]
 
     bnd_merged   <- bind_rows(bnd)
