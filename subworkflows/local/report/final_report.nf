@@ -13,7 +13,8 @@ include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfc
 workflow MIDNIGHT_REPORT {
 
     take:
-    ch_id
+    ch_params
+    ch_cfdna
     ch_sections
     ch_versions
     ch_title
@@ -26,6 +27,11 @@ workflow MIDNIGHT_REPORT {
     SOFTWARE VERSIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+    ch_id = ch_params
+        .map { meta, refid, ref_fasta, ref_index, bed_file, padding, lowfid ->
+            meta }
+        .unique()
 
     // Extract all versions into a single channel of values
     versions = softwareVersionsToYAML(ch_versions)
@@ -78,10 +84,29 @@ workflow MIDNIGHT_REPORT {
     ch_title = ch_id
         .join(ch_title)
 
-    ch_subtitle = ch_id
-        .map { meta ->
-            def type = params.adaptive ? 'adaptive' : (params.wgs ? 'wgs' : 'cfdna')
-            tuple(meta, "Ouputs summary for oncoseq ran with mode ${type}")}
+    if (params.cfdna) {
+
+        ch_subtitle = ch_params
+            .join(ch_cfdna)
+            .map { meta, refid, _ref_fasta, _ref_index, bed_file, _padding, _lowfid, _purity, filter ->
+                def bed = bed_file.name
+                def skip_modes = params.skip_mapping ? "and bam files as input, skipping mapping." :
+                    (params.skip_basecalling ? "and fastq files as input, skipping basecalling." :
+                        "using pod5 files as input, basecalling model ${params.basecall_model}")
+                def modif = params.m_bases ? "and modified basecalling model ${params.m_bases}" : ""
+                def filt = filter == "yes" ? "Reads shorter than ${params.max_length} bp were filtered out before mapping." : ""
+                tuple(meta, "Ouputs summary for oncoseq workflow, using reference genome ${refid}, targeted panel bed file ${bed}, ${skip_modes}${modif}. ${filt}")}
+
+    } else {
+        ch_subtitle = ch_params
+            .map { meta, refid, _ref_fasta, _ref_index, bed_file, _padding, _lowfid ->
+                def bed = bed_file.name
+                def skip_modes = params.skip_mapping ? "and bam files as input, skipping mapping." :
+                    (params.skip_basecalling ? "and fastq files as input, skipping basecalling." :
+                        "using pod5 files as input, basecalling model ${params.basecall_model}")
+                def modif = params.m_bases ? "and modified basecalling model ${params.m_bases}" : ""
+                tuple(meta, "Ouputs summary for oncoseq workflow, using reference genome ${refid}, targeted panel bed file ${bed}, ${skip_modes}${modif}")}
+    }
 
     ch_template = channel.fromPath(params.report_template)
 

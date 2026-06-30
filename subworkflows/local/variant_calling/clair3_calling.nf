@@ -74,17 +74,12 @@ workflow CLAIR3_CALLING {
 
     // Filter for regions inside adaptive bed file
 
-    if (params.bed != "${projectDir}/assets/NO_BED") {
+    BCFTOOLS_INDEX_RAW(CLAIR3_CALL.out.vcf)
+    ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
+        .join(bed)
+    BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
 
-        BCFTOOLS_INDEX_RAW(CLAIR3_CALL.out.vcf)
-        ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
-            .join(bed)
-        BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
-
-        ch_clair3_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
-    } else {
-        ch_clair3_out = CLAIR3_CALL.out.vcf
-    }
+    ch_clair3_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
 
     ch_vep = ch_clair3_out
         .join(ch_ref_type)

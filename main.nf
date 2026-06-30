@@ -15,9 +15,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { ADAPTIVE                } from './workflows/adaptive'
+include { ADAPTIVE_WGS            } from './workflows/adaptive_wgs'
 include { CFDNA                   } from './workflows/cfdna'
-include { WGS                     } from './workflows/wgs'
 include { LOCAL_REALTIME          } from './workflows/local_realtime'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
@@ -72,7 +71,7 @@ def selectModifiedModelDownload(chModelsList, chBaseModel, modifParam) {
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_ONCOSEQ_ADAPTIVE {
+workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
 
 
 
@@ -93,7 +92,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE {
     //
 
     if (params.realtime == null) {
-        ADAPTIVE (
+        ADAPTIVE_WGS (
             samplesheet,
             demux,
             ref,
@@ -151,37 +150,6 @@ workflow NFCORE_ONCOSEQ_CFDNA {
         clairs_model,
         bed,
         targets,
-        vep_cache
-    )
-}
-
-workflow NFCORE_ONCOSEQ_WGS {
-
-    take:
-    samplesheet // channel: samplesheet read in from --input
-    demux       // channel: demux_samplesheet read in from --demux_samplesheet
-    ref         // channel : reference for mapping, either empty if skipping mapping, or a path
-    clairs_model
-    basecall_model
-    bed_empty       // channel with empty bed file to trigger subchrom
-    sv_targets
-    ch_minqs
-    vep_cache
-
-    main:
-
-    //
-    // WORKFLOW: Run pipeline
-    //
-    WGS (
-        samplesheet,
-        demux,
-        ref,
-        clairs_model,
-        basecall_model,
-        bed_empty,
-        sv_targets,
-        ch_minqs,
         vep_cache
     )
 }
@@ -343,19 +311,7 @@ workflow {
 
    // WORKFLOW: Run main workflow
 
-
-    if ( params.adaptive) {
-        NFCORE_ONCOSEQ_ADAPTIVE (
-            ch_input,
-            PIPELINE_INITIALISATION.out.demux_sheet,
-            PIPELINE_INITIALISATION.out.ref_ch,
-            ch_clairs_model,
-            ch_model,
-            PIPELINE_INITIALISATION.out.bed_sheet,
-            ch_sv_targets,
-            ch_vep_cache
-        )
-    } else if ( params.cfdna ) {
+   if ( params.cfdna ) {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
@@ -371,8 +327,9 @@ workflow {
             ch_sv_targets,
             ch_vep_cache
         )
-    } else if ( params.wgs ) {
-        NFCORE_ONCOSEQ_WGS (
+
+    } else {
+        NFCORE_ONCOSEQ_ADAPTIVE_WGS (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
             PIPELINE_INITIALISATION.out.ref_ch,
@@ -380,10 +337,10 @@ workflow {
             ch_model,
             PIPELINE_INITIALISATION.out.bed_sheet,
             ch_sv_targets,
-            ch_minqs,
             ch_vep_cache
         )
     }
+
     //
     // SUBWORKFLOW: Run completion tasks
     //

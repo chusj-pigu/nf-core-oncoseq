@@ -49,7 +49,7 @@ include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.
 // 1. Skip basecalling: Start from pre-basecalled FASTQ files
 // 2. Full pipeline: Perform basecalling (simplex or multiplex) followed by analysis
 //
-workflow ADAPTIVE {
+workflow ADAPTIVE_WGS {
 
     take:
     samplesheet             // channel: samplesheet read in from --input
@@ -379,17 +379,20 @@ workflow ADAPTIVE {
         .mix(FIGENO_REPORT.out.sections)
         .mix(ch_classy_section)
 
-    // channel id containing only meta
-    ch_id = ch_bam_for_calling
-        .map { meta, bam, bai ->
-        meta}
+    // channel containing parameters used:
 
-    ch_title = ch_id
-        .map { meta ->
-        tuple(meta, "OncoSeq Adaptive Sampling Report — ${meta.id}")}
+    ch_cfdna = channel.empty()
+
+    ch_params = ref
+        .join(bed)
+
+    ch_title = ch_params
+        .map { meta, _refid, _ref_fasta, _ref_index, _bed_file, _padding, _lowfid ->
+        tuple(meta, "OncoSeq Workflow Report — ${meta.id}")}
 
     MIDNIGHT_REPORT(
-        ch_id,
+        ch_params,
+        ch_cfdna,
         ch_sections,
         ch_versions,
         ch_title

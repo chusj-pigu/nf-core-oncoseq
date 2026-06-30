@@ -142,68 +142,49 @@ workflow PIPELINE_INITIALISATION {
 
     }
 
-    if (params.bed != "${projectDir}/assets/NO_BED") {
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .combine(ch_bed)
+        .combine(ch_padding)
+        .combine(ch_low_fidelity)
+        .branch {
+            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+            common: (!bed && !padding && !lf)
+                return [ meta, bed_c, padding_c, lf_c ]
+            bed: (bed && !padding && !lf)
+                return [ meta, file(bed), padding_c, lf_c  ]
+            padding: (bed && padding && !lf)
+                return [ meta, file(bed), padding, lf_c  ]
+            bed_diff: (bed && padding && lf)
+                return [ meta, file(bed), padding, file(lf) ]
+        }
+        .set { ch_adaptive_branched }
 
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .combine(ch_bed)
-            .combine(ch_padding)
-            .combine(ch_low_fidelity)
-            .branch {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
-                common: (!bed && !padding && !lf)
-                    return [ meta, bed_c, padding_c, lf_c ]
-                bed: (bed && !padding && !lf)
-                    return [ meta, file(bed), padding_c, lf_c  ]
-                padding: (bed && padding && !lf)
-                    return [ meta, file(bed), padding, lf_c  ]
-                bed_diff: (bed && padding && lf)
-                    return [ meta, file(bed), padding, file(lf) ]
+    ch_adaptive_branched.common
+        .mix(ch_adaptive_branched.bed)
+        .mix(ch_adaptive_branched.padding)
+        .mix(ch_adaptive_branched.bed_diff)
+        .set { ch_adaptive }
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ERROR MESSAGES
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .combine(ch_bed)
+        .combine(ch_padding)
+        .combine(ch_low_fidelity)
+        .map { meta, project, input, ubam, ref, ref_path ,kit, barcode, bed, padding, low_fidelity, purity, filter, bed_c, padding_c, lf_c ->
+            if (!padding && padding_c == 20000){
+                log.warn("Using default padding of 20kb padding around ROI")
             }
-            .set { ch_adaptive_branched }
-
-        ch_adaptive_branched.common
-            .mix(ch_adaptive_branched.bed)
-            .mix(ch_adaptive_branched.padding)
-            .mix(ch_adaptive_branched.bed_diff)
-            .set { ch_adaptive }
-
-        /*
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        ERROR MESSAGES
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        */
-
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .combine(ch_bed)
-            .combine(ch_padding)
-            .combine(ch_low_fidelity)
-            .map { meta, project, input, ubam, ref, ref_path ,kit, barcode, bed, padding, low_fidelity, purity, filter, bed_c, padding_c, lf_c ->
-                if (params.adaptive && !padding && padding_c == 20000){
-                    log.warn("Using default padding of 20kb padding around ROI")
-                }
-                if (!bed && bed_c.name.contains("CRA-CHUSJ")) {
-                    log.warn("Using default bed file ${bed_c.name}")
-                }
+            if (!bed && bed_c.name == "v2.0.1-pre-merge-panel-20kb-pad.bed") {
+                log.warn("Using default bed file ${bed_c.name}")
             }
-
-    } else {
-
-        // Make channel with empty bed file for clair3 calling
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .combine(ch_bed)
-            .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, bed, padding, lf, _purity, _filter, bed_c->
-                if (bed) {
-                    tuple(meta,bed)
-                } else {
-                tuple(meta, bed_c)
-                }
-            }
-            .set { ch_adaptive }
-    }
+        }
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

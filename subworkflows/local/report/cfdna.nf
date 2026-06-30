@@ -15,6 +15,7 @@ include { QUARTO_TABLE_COLNAMES                } from '../../../modules/local/qu
 workflow CFDNA_REPORT {
 
     take:
+    ch_cfdna
     ch_seqkit
     ch_cramino
     ch_ichor_fig
@@ -113,8 +114,10 @@ workflow CFDNA_REPORT {
 
     ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
         .groupTuple()
-        .map { id, section, filePaths ->
-            [id, section[0], filePaths, "IchorCNA"]
+        .join(ch_cfdna)
+        .map { id, section, filePaths, purity, _filter ->
+            def purity_perc = purity * 100
+            [id, section[0], filePaths, "IchorCNA call using cell-free DNA purity estimate of ${purity_perc}%"]
         }
 
     QUARTO_SECTION_CNV(
