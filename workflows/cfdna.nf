@@ -89,8 +89,15 @@ workflow CFDNA {
             ref
         )
 
-        ch_to_classify = MAPPING.out.bam
-            .map { meta, _bam, _bai -> meta }
+        if (params.m_bases) {
+            ch_to_classify = MAPPING.out.bam
+                .map { meta, _bam, _bai -> meta }
+            ch_no_methylation_tags = channel.empty()
+        } else {
+            ch_no_methylation_tags = MAPPING.out.bam
+                .map { meta, _bam, _bai -> meta }
+            ch_to_classify = channel.empty()
+        }
 
     } else if (params.skip_basecalling || params.skip_mapping) {
 
@@ -119,13 +126,15 @@ workflow CFDNA {
                 pos:  count > 0
                     return meta
                 none: true
+                    return meta
             }
 
         ch_bam_methylation_counts.none
-            .subscribe { meta, count ->
+            .subscribe { meta ->
                 log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
             }
         ch_to_classify = ch_bam_methylation_counts.pos
+        ch_no_methylation_tags = ch_bam_methylation_counts.none
 
     } else {
 
@@ -151,8 +160,15 @@ workflow CFDNA {
             ref
         )
 
-        ch_to_classify = MAPPING.out.bam
-            .map { meta, _bam, _bai -> meta }
+        if (params.m_bases) {
+            ch_to_classify = MAPPING.out.bam
+                .map { meta, _bam, _bai -> meta }
+            ch_no_methylation_tags = channel.empty()
+        } else {
+            ch_no_methylation_tags = MAPPING.out.bam
+                .map { meta, _bam, _bai -> meta }
+            ch_to_classify = channel.empty()
+        }
 
     }
 
@@ -169,7 +185,7 @@ workflow CFDNA {
         )
 
         ch_bam_to_split = MAPPING.out.bam
-            .join(ch_bam_methylation_counts.none)
+            .join(ch_no_methylation_tags)
             .map { meta, bam, bai, _count ->
                 tuple(meta, bam, bai)}
 
