@@ -309,7 +309,7 @@ workflow FIGENO_REPORT {
 
     ch_fusion_tables = ch_fusion_tables
         .map { meta, table ->
-            def type = table.name.contains('sniffles') ? "sniflles" :
+            def type = table.name.contains('sniffles') ? "sniffles" :
                 (table.name.contains('severus') ? 'severus' : 'stellerator')
             tuple(meta, table, type)}
         .branch { meta, table, type ->

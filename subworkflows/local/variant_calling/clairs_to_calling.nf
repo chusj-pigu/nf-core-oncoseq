@@ -177,19 +177,14 @@ workflow CLAIRS_TO_CALLING {
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // */
 
-    if (params.bed != "${projectDir}/assets/NO_BED") {
+    BGZIP_INTER(BCFTOOLS_SORT.out.vcf)
 
-        BGZIP_INTER(BCFTOOLS_SORT.out.vcf)
+    BCFTOOLS_INDEX_RAW(BGZIP_INTER.out.vcf_gz)
+    ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
+        .join(bed)
+    BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
 
-        BCFTOOLS_INDEX_RAW(BGZIP_INTER.out.vcf_gz)
-        ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
-            .join(bed)
-        BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
-
-        ch_clairsto_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
-    } else {
-        ch_clairsto_out = BCFTOOLS_SORT.out.vcf
-    }
+    ch_clairsto_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->

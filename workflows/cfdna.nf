@@ -256,35 +256,24 @@ workflow CFDNA {
 
     }
 
-    if (params.bed != "${projectDir}/assets/NO_BED") {
+    // Analyze coverage separation between target and background regions
+    COVERAGE_SEPARATE(
+        ch_bam_for_calling,
+        ch_bed,
+        ch_ref_for_calling
+    )
+    ADAPTIVE_REPORT(
+        COVERAGE_SEPARATE.out.coverage_tbl,
+        COVERAGE_SEPARATE.out.coverage_plot
+    )
 
-        // Analyze coverage separation between target and background regions
-        COVERAGE_SEPARATE(
-            ch_bam_for_calling,
-            ch_bed,
-            ch_ref_for_calling
-        )
-        ADAPTIVE_REPORT(
-            COVERAGE_SEPARATE.out.coverage_tbl,
-            COVERAGE_SEPARATE.out.coverage_plot
-        )
+    ch_sections = ch_sections
+        .mix(ADAPTIVE_REPORT.out.sections)
 
-        ch_sections = ch_sections
-            .mix(ADAPTIVE_REPORT.out.sections)
+    ch_versions = ch_versions
+        .mix(COVERAGE_SEPARATE.out.versions)
 
-        ch_versions = ch_versions
-            .mix(COVERAGE_SEPARATE.out.versions)
-
-        ch_bed_for_processing = COVERAGE_SEPARATE.out.split_bed
-
-    } else {
-        ch_bed_empty = channel.fromPath(params.bed)
-
-        ch_bed_for_processing = ch_bam_to_process
-            .combine(ch_bed_empty)
-            .map { meta, _bam, _bai, bedfile ->
-                tuple(meta,bedfile)}
-    }
+    ch_bed_for_processing = COVERAGE_SEPARATE.out.split_bed
 
     ch_vcf_subchrom = channel.empty()
 
@@ -400,6 +389,7 @@ workflow CFDNA {
     )
 
     CFDNA_REPORT(
+        cfdna_samplesheet,
         READS_FILTER.out.stats,
         ch_coverage_table,
         ICHORCNA_CALLING.out.ichorcna_plot
@@ -436,11 +426,8 @@ workflow CFDNA {
         .mix(FIGENO_REPORT.out.sections)
 
         // channel id containing only meta
-    ch_id = ch_bam_to_process
-        .mix(ch_bam_for_calling)
-        .map { meta, _bam, _bai ->
-        meta }
-        .unique()
+    ch_params = ref
+        .join(bed)
 
     if (params.realtime) {
         ch_bam = MAPPING.out.bam
@@ -468,13 +455,14 @@ workflow CFDNA {
                 tuple(meta, "OncoSeq cfDNA Report in realtime — ${meta.id} (atfer ${time_str} of sequencing)")
             }
     } else {
-        ch_title = ch_id
-            .map { meta ->
+        ch_title = ch_params
+            .map { meta, refid, ref_fasta, ref_index, bed_file, padding, lowfid ->
             tuple(meta, "OncoSeq cfDNA Report — ${meta.id}")}
     }
 
     MIDNIGHT_REPORT(
-        ch_id,
+        ch_params,
+        cfdna_samplesheet,
         ch_sections,
         ch_versions,
         ch_title

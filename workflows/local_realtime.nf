@@ -450,13 +450,11 @@ workflow LOCAL_REALTIME {
         }
 
      // channel id containing only meta
-    ch_id = MAPPING.out.bam
-        .map { meta, _bam, _bai ->
-        meta }
-
+    ch_params = ref
+        .join(bed)
 
     MIDNIGHT_REPORT(
-        ch_id,
+        ch_params,
         ch_sections,
         ch_versions,
         ch_title
