@@ -373,7 +373,7 @@ workflow FIGENO_REPORT {
         .map { meta, _tables, types, variants ->
             def variant_uniqe = variants[0]
             def variant_lower = variant_uniqe.toLowerCase()
-            def types_empty = types.size() < 1 ? "${types[0]}" :
+            def types_empty = types.size() == 1 ? "${types[0]}" :
                 (types.size() == 2 ? "${types[0]} or ${types[1]}" : "${types[0]}, ${types[1]} or ${types[2]}")
             def text = "No gene fusions called by ${types_empty} remaining after applying filters"  // Placeholder text for empty table
             def section = variant_lower
@@ -393,8 +393,8 @@ workflow FIGENO_REPORT {
     ch_section_fusion = ch_section_fusion
         .groupTuple()
         .map { id, section, filePaths ->
-            def caption = params.realtime <= 6 ? "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, all calls are shown." :
-                "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel."
+            def caption = params.realtime <= 6 || params.cfdna ? "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, all calls are shown." :
+                "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, calls with at least 2 reads support are shown"
             [id, section[0], filePaths, caption]
         }
 
