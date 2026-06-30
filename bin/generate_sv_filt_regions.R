@@ -160,8 +160,8 @@ parse_other_sv <- function(df) {
   other <- df %>%
     filter(!str_detect(ID, "BND")) %>%
     mutate(
-      LEN = as.numeric(str_extract(X8, "(?<=SVLEN=)\\d+")),
-      END = as.numeric(str_extract(X8, "(?<=SVLEN=)\\d+")) + as.numeric(START),
+      LEN = as.numeric(str_extract(X8, "(?<=SVLEN=)-?\\d+")),
+      END = as.numeric(str_extract(X8, "(?<=SVLEN=)-?\\d+")) + as.numeric(START),
       TYPE = str_extract(X8, "(?<=SVTYPE=)[^;]+"),
       GENE = clean_genes(GENE),
       GENE = ifelse(GENE == "", X1, GENE)) %>%
@@ -199,7 +199,7 @@ region_figeno_bnd <- function(bnd) {
 }
 
 region_figeno_other <- function(other) {
-  figeno_other <- other[["severus"]] %>%
+  figeno_other <- other %>%
     group_by(X1,GENE) %>%
     summarise(
       START       = min(START),
@@ -225,7 +225,7 @@ input_sv_figeno <- function(df) {
     mutate(
       chr2 = case_when(is.na(get_chr_from_alt(ALT)) ~ X1,
                        TRUE ~ get_chr_from_alt(ALT)),
-      pos2 = case_when(is.na(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")) ~ as.numeric(str_extract(X8, "(?<=SVLEN=)\\d+")) + as.numeric(START),
+      pos2 = case_when(is.na(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")) ~ as.numeric(str_extract(X8, "(?<=SVLEN=)-?\\d+")) + as.numeric(START),
                        TRUE ~ as.numeric(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])"))),
       svtype = str_extract(X8, "(?<=SVTYPE=)[^;]+")
     ) %>%
