@@ -453,8 +453,11 @@ workflow LOCAL_REALTIME {
     ch_params = ref
         .join(bed)
 
+    ch_cfdna = channel.empty()
+
     MIDNIGHT_REPORT(
         ch_params,
+        ch_cfdna,
         ch_sections,
         ch_versions,
         ch_title
