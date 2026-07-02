@@ -221,7 +221,8 @@ workflow CFDNA {
                 tuple(meta, purity, filter, time_list)}
             .transpose()
             .map { meta, purity, filter, time ->
-                def new_meta = meta.id + "_0h_${time}h"
+                def time_stripped = time.replace('"', '')
+                def new_meta = meta.id + "_0h_${time_stripped}h"
                 tuple(id:new_meta,purity, filter)}
 
         CRAMINO_STATS(ch_bam_for_calling.filter{meta,bam, bai -> !meta.id.contains('FULL')})
@@ -235,10 +236,12 @@ workflow CFDNA {
                     def new_meta = meta.id + '_FULL'
                 tuple(id:new_meta,purity, filter)}
                 .mix(ch_cfdna_ss)
+                .view()
             ch_bam_to_process = ch_bam_for_calling
                 .filter{ meta, bam, bai -> meta.id.contains('FULL') }
         } else {
             ch_bam_to_process = ch_bam_for_calling
+            ch_cfdna_full     = ch_cfdna_ss
         }
 
     } else {
@@ -405,7 +408,7 @@ workflow CFDNA {
     )
 
     CFDNA_REPORT(
-        cfdna_samplesheet,
+        ch_cfdna_full,
         READS_FILTER.out.stats,
         ch_coverage_table,
         ICHORCNA_CALLING.out.ichorcna_plot
@@ -442,8 +445,8 @@ workflow CFDNA {
         .mix(FIGENO_REPORT.out.sections)
 
         // channel id containing only meta
-    ch_params = ref
-        .join(bed)
+    ch_params = ch_ref_for_calling
+        .join(ch_bed)
 
     if (params.realtime) {
         ch_bam = MAPPING.out.bam
@@ -478,7 +481,7 @@ workflow CFDNA {
 
     MIDNIGHT_REPORT(
         ch_params,
-        cfdna_samplesheet,
+        ch_cfdna_full,
         ch_sections,
         ch_versions,
         ch_title
