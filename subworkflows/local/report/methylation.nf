@@ -45,14 +45,14 @@ def makeCallChannel(ch, typeName, modelConfig, cutoffMap) {
             tuple(meta.id, type.flatten().first(), rows)
         }
         .collectFile { meta_id, type_name, rows ->
+            def header  = "Family\tClass\tClass name\tScore\tCutoff\n"
             def type_corr = type_name.replace(' ', '-')
-            def content   = rows.collect { r ->
+            def content   = header + rows.collect { r ->
                 "${r[1]}\t${r[2]}\t${r[3]}\t${r[4]}\t${r[5]}"
             }.join('\n') + '\n'
             return [ "${meta_id}_score_${type_corr}.tsv", content ]
         }
 }
-
 
 workflow CLASSIFIER_REPORT {
 
@@ -115,7 +115,7 @@ workflow CLASSIFIER_REPORT {
     ]
 
     // Configuration map: type -> [json_path, score_field, cutoff, parser_closure]
-    def modelConfig = [
+    def modelConfigClass = [
         'Marlin': [
             path  : 'inference.top_probabilities',
             score : { call -> call.probability },
@@ -124,7 +124,25 @@ workflow CLASSIFIER_REPORT {
                 call.group.toString().replace(', ', '-'),
                 call.class_name.toString().replace(', ', '-'),
                 call.probability
-            ]}
+            ]},
+                lineage : [
+                    path  : 'inference.lineage_probabilities',  // different json path
+                    score : { call -> call.probability },
+                    label : 'Lineage Probability',
+                    fields: { call -> [
+                        call.label.toString().replace(', ', '-'),
+                        call.probability
+                    ]}
+                ],
+                group : [
+                    path  : 'inference.group_probabilities',  // different json path
+                    score : { call -> call.probability },
+                    label : 'Group Probability',
+                    fields: { call -> [
+                        call.label.toString().replace(', ', '-'),
+                        call.probability
+                    ]}
+            ],
         ],
         'Tucan': [
             path  : 'tucan.averaged_scores',
@@ -134,7 +152,16 @@ workflow CLASSIFIER_REPORT {
                 call.class.toString(),
                 call.name.toString(),
                 call.score
-            ]}
+            ]},
+                lineage : [
+                    path  : 'tucan.family_scores',  // different json path
+                    score : { call -> call.score },
+                    label : 'Family Probability',
+                    fields: { call -> [
+                        call.label.toString(),
+                        call.score
+                ]}
+            ],
         ],
         'CrossNN PanCancer': [
             path  : 'crossnn.votes',
@@ -144,7 +171,7 @@ workflow CLASSIFIER_REPORT {
                 call['class'].toString().replace(', ', '-'),
                 call['Methylation.Class.Name'].toString().replace(', ', '-'),
                 call.score
-            ]}
+            ]},
         ],
         'Sturgeon General': [
             path  : 'sturgeon.scores',
@@ -169,14 +196,201 @@ workflow CLASSIFIER_REPORT {
         ]
     ]
 
-    ch_marlin_call           = makeCallChannel(ch_methylation_call, 'Marlin', modelConfig, cutoffMap)
-    ch_crossnn_call_tucan    = makeCallChannel(ch_methylation_call, 'Tucan', modelConfig, cutoffMap)
-    ch_crossnn_call_pancancer = makeCallChannel(ch_methylation_call, 'CrossNN PanCancer', modelConfig, cutoffMap)
-    ch_crossnn_call_caper    = makeCallChannel(ch_methylation_call, 'CrossNN Caper', modelConfig, cutoffMap)
-    ch_sturgeon_call         = makeCallChannel(ch_methylation_call, 'Sturgeon General', modelConfig, cutoffMap)
+    def modelConfigFamily = [
+        'Marlin': [
+            path  : 'inference.lineage_probabilities',  // different json path
+            score : { call -> call.probability },
+            label : 'Lineage Probability',
+            fields: { call -> [
+                call.label.toString().replace(', ', '-'),
+                call.probability
+            ]},
+        ],
+        'Tucan': [
+            path  : 'tucan.family_scores',  // different json path
+            score : { call -> call.score },
+            label : 'Family Probability',
+            fields: { call -> [
+                call.label.toString(),
+                call.score
+            ]}
+        ]
+    ]
 
-    ch_tables = ch_marlin_call
-        .mix(ch_crossnn_call_tucan)
+    def modelConfigGroup = [
+        'Marlin': [
+            path  : 'inference.group_probabilities',  // different json path
+            score : { call -> call.probability },
+            label : 'Group Probability',
+            fields: { call -> [
+                call.label.toString().replace(', ', '-'),
+                call.probability
+            ]},
+        ]
+    ]
+
+    ch_marlin_call_top_lineage = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Marlin') }
+        .splitJson(path:   modelConfigClass['Marlin'].path)
+        .map { meta, calls, type ->
+            def unique_lineage = calls.lineage
+            tuple(meta, unique_lineage, type)
+        }
+        .groupTuple()
+        .map { meta, lineages, type ->
+            def unique_lineage = lineages.unique()
+            tuple(meta, unique_lineage)
+        }
+        .transpose()
+
+    ch_marlin_call_top_group = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Marlin') }
+        .splitJson(path:   modelConfigClass['Marlin'].path)
+        .map { meta, calls, type ->
+            def unique_group = calls.group
+            tuple(meta, unique_group, type)
+        }
+        .groupTuple()
+        .map { meta, groups, type ->
+            def unique_group = groups.unique()
+            tuple(meta, unique_group)
+        }
+        .transpose()
+
+    ch_marlin_call_lineage = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Marlin') }
+        .splitJson(path:   modelConfigFamily['Marlin'].path)
+        .map { meta, calls, type ->
+            def unique_lineage = calls.label
+            def score = calls.probability
+            tuple(meta, unique_lineage, [lineage: score])
+        }
+        .join(ch_marlin_call_top_lineage, by: [0,1])
+
+    ch_marlin_call_group = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Marlin') }
+        .splitJson(path:   modelConfigGroup['Marlin'].path)
+        .map { meta, calls, type ->
+            def unique_group = calls.label
+            def score = calls.probability
+            tuple(meta, unique_group, [group: score])
+        }
+        .join(ch_marlin_call_top_group, by: [0,1])
+
+    ch_marlin_call_class = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Marlin') }
+        .splitJson(path:   modelConfigClass['Marlin'].path)
+        .map { meta, calls, type ->
+            def unique_class = calls.class_name
+            def unique_lineage = calls.lineage
+            def unique_group = calls.group
+            def score = calls.probability
+            tuple(meta, unique_lineage, unique_group, unique_class, [classes: score], type)
+        }
+        .combine(ch_marlin_call_lineage, by:[0,1])
+        .map { meta, lineage, group, classes, class_score, type, lineage_score ->
+            tuple(meta, group, lineage, lineage_score, classes, class_score, type)
+        }
+        .combine(ch_marlin_call_group, by:[0,1])
+        .map { meta, group, lineage, lineage_score, classes, class_score, type, group_score ->
+            tuple(meta, lineage, lineage_score, group, group_score, classes, class_score, type)
+        }
+        .groupTuple()
+
+    ch_marlin_table = ch_marlin_call_class
+        .map { meta, lineages, lineage_scores, groups, group_scores, classes, class_scores, type ->
+            def typeStr = type.flatten().first()
+
+            // Zip class-level data together and take top 5 by class score
+            def rows = [lineages, lineage_scores, groups, group_scores, classes, class_scores]
+                .transpose()
+                .sort { a, b -> b[5]['classes'] <=> a[5]['classes'] }
+                .take(5)
+                .collect { lineage, lin_score, group, grp_score, cls, cls_score ->
+                    def status = cls_score['classes'] >= cutoffMap['Marlin'] ? "PASS" : "FAIL"
+                    [lineage, lin_score['lineage'], group, grp_score['group'], cls, cls_score['classes'], status]
+                }
+            tuple(meta.id, typeStr, rows)
+        }
+        .collectFile { meta_id, type_name, rows ->
+            def header  = "Lineage\tLineage_Score\tGroup\tGroup_Score\tClass\tClass_Score\tCutoff\n"
+            def content = rows.collect { r ->
+                "${r[0]}\t${r[1]}\t${r[2]}\t${r[3]}\t${r[4]}\t${r[5]}\t${r[6]}"
+            }.join('\n') + '\n'
+            ["${meta_id}_score_Marlin.tsv", header + content]
+        }
+
+    // Tucan
+
+    ch_tucan_top_family = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Tucan') }
+        .splitJson(path:   modelConfigClass['Tucan'].path)
+        .take(5)
+        .map { meta, calls, type ->
+            def unique_family = calls.family
+            tuple(meta, unique_family, type)
+        }
+        .groupTuple()
+        .map { meta, families, _type ->
+            def unique_family = families.unique()
+            tuple(meta, unique_family)
+        }
+        .transpose()
+
+    ch_tucan_call_family = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Tucan') }
+        .splitJson(path:   modelConfigFamily['Tucan'].path)
+        .map { meta, calls, type ->
+            def unique_family = calls.family
+            def score = calls.score
+            tuple(meta, unique_family, [family: score])
+        }
+        .join(ch_tucan_top_family, by: [0,1])
+
+    ch_tucan_call_class = ch_methylation_call
+        .filter { meta, json, type -> type.contains('Tucan') }
+        .splitJson(path:   modelConfigClass['Tucan'].path)
+        .map { meta, calls, type ->
+            def unique_class = calls.name
+            def unique_family = calls.family
+            def score = calls.score
+            tuple(meta, unique_family, unique_class, [classes: score], type)
+        }
+        .take(5)
+        .combine(ch_tucan_call_family, by:[0,1])
+        .map { meta, family, classes, class_score, type, family_score ->
+            tuple(meta, family, family_score, classes, class_score, type)
+        }
+        .groupTuple()
+
+    ch_tucan_table = ch_tucan_call_class
+        .map { meta, families, family_scores, classes, class_scores, type ->
+            def typeStr = type.flatten().first()
+
+            def rows = [families, family_scores, classes, class_scores]
+                .transpose()
+                .sort { a, b -> b[3]['classes'] <=> a[3]['classes'] }
+                .take(5)
+                .collect { family, fam_score, cls, cls_score ->
+                    def status = cls_score['classes'] >= cutoffMap['Tucan'] ? "PASS" : "FAIL"
+                    [family, fam_score['family'], cls, cls_score['classes'], status]
+                }
+            tuple(meta.id, typeStr, rows)
+        }
+        .collectFile { meta_id, type_name, rows ->
+            def header  = "Family\tFamily_Score\tClass\tClass_Score\tCutoff\n"
+            def content = rows.collect { r ->
+                "${r[0]}\t${r[1]}\t${r[2]}\t${r[3]}\t${r[4]}"
+            }.join('\n') + '\n'
+            ["${meta_id}_score_Tucan.tsv", header + content]
+        }
+
+    ch_crossnn_call_pancancer = makeCallChannel(ch_methylation_call, 'CrossNN PanCancer', modelConfigClass, cutoffMap)
+    ch_crossnn_call_caper    = makeCallChannel(ch_methylation_call, 'CrossNN Caper', modelConfigClass, cutoffMap)
+    ch_sturgeon_call         = makeCallChannel(ch_methylation_call, 'Sturgeon General', modelConfigClass, cutoffMap)
+
+    ch_tables = ch_marlin_table
+        .mix(ch_tucan_table)
         .mix(ch_crossnn_call_pancancer)
         .mix(ch_crossnn_call_caper)
         .mix(ch_sturgeon_call)
@@ -193,7 +407,7 @@ workflow CLASSIFIER_REPORT {
                 def cutoff = cutoffMap[types]
                 "Tumor classifier predictions by ${types} model above score cutoff ${cutoff}"
             }
-            def colnames = "Family, Class, Class name, Score, Cutoff"
+            def colnames = ""
             def section = "Methylation"
             def process = "methylation-calls-${meta.id}"
             tuple(meta, section, process, tables, tab, captions, colnames)}

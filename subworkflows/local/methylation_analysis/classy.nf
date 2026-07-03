@@ -38,9 +38,6 @@ workflow CLASSY {
     ch_classy_in = input
         .join(ch_ref)
 
-    // ch_classy_in = ch_refid
-    //     .join(MODKIT.out.bedmethyl)
-
     CLASSY_MARLIN(ch_classy_in)
     CLASSY_TUCAN(ch_classy_in)
     CLASSY_STURGEON_GENERAL(ch_classy_in)
