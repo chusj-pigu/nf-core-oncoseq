@@ -405,7 +405,7 @@ workflow CLASSIFIER_REPORT {
             def tab = type
             def captions = type.collect { types ->
                 def cutoff = cutoffMap[types]
-                "Tumor classifier predictions by ${types} model above score cutoff ${cutoff}"
+                "Tumor classifier predictions by ${types} model. Entries with PASS are above score cutoff ${cutoff}"
             }
             def colnames = ""
             def section = "Methylation"

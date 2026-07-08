@@ -393,8 +393,10 @@ workflow FIGENO_REPORT {
     ch_section_fusion = ch_section_fusion
         .groupTuple()
         .map { id, section, filePaths ->
-            def caption = params.realtime <= 6 || params.cfdna ? "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, all calls are shown." :
-                "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, calls with at least 2 reads support are shown"
+            def stellerator_support = params.realtime != null && params.realtime <= 6 ? 
+            "all calls are shown" : 
+            (params.cfdna ? "calls with at least 2 reads support are shown" : "calls with at least 3 reads support are shown")
+            def caption = "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, ${stellerator_support}"
             [id, section[0], filePaths, caption]
         }
 
