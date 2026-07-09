@@ -47,7 +47,7 @@ With `--input` samplesheet:
 > | hg19 | GRCh37 |
 > | hs1  | CHM13  |
 
-![nf-core-oncoseq summary of full workflow](assets/pipeline_adaptive.svg)
+![nf-core-oncoseq summary of full workflow](assets/pipeline_adaptive.png)
 
 ---
 
