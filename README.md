@@ -47,7 +47,7 @@ With `--input` samplesheet:
 > | hg19 | GRCh37 |
 > | hs1  | CHM13  |
 
-![nf-core-oncoseq summary of full workflow](assets/nf-core-oncoseq_schema.jpg)
+![nf-core-oncoseq summary of full workflow](assets/pipeline_adaptive.svg)
 
 ---
 
@@ -99,8 +99,6 @@ Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Only reads ge
 
 To run IchorCNA as part of the cfDNA mode, include `-profile ichor_hg38` or `-profile ichor_hg19` depending on your reference genome.
 
-![nf-core-oncoseq summary of workflow with `--cfdna`](assets/nf-core-oncoseq_schema_cfdna.jpg)
-
 ---
 
 ## Usage
@@ -137,8 +135,6 @@ Most input can be provided as command line parameters if they are common, but th
 If your input is already basecalled, use `--skip_basecalling` and provide the path to fastq files as input. If your input is already mapped with minimap2, use `--skip_mapping` and provide the path to bam files as input.
 
 To run in real time while data is still sequencing, use `--realtime [INT]` where you must provide the sequencing time as an integer (hours).
-
-![nf-core-oncoseq when run in real time](assets/nf-core-oncoseq_schema_realtime.jpg)
 
 | Process | 1h to 6h | 6h to 71h | 72h |
 |-----------|----------|------|---------|
