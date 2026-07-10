@@ -195,7 +195,7 @@ process ENSEMBL_VEP_TABLE {
     awk -F'\t' '
         BEGIN {
             OFS=","
-            print "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,SIFT,PolyPhen,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
+            print "CHROM,POS,REF,ALT,QUAL,FILTER,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,SIFT,PolyPhen,gnomADe_AF,Read_depth (DP),Variant_depth (AD),VAF (%)"
         }
         /^#/ { next }
         {
@@ -215,22 +215,24 @@ process ENSEMBL_VEP_TABLE {
                         if (alts[a] == alt_allele) { alt_idx = a; break }
                     }
                     ad_alt = (alt_idx > 0 ? ad_vals[alt_idx + 1]+0 : 0)
+                    vaf = sprintf("%.2f", ad_alt / dp * 100)
                     if (ad_alt >= 5 ${read_depth_threshold} ${pass_filter}) {
-                        print \$1,\$2,\$3,alt_allele,\$5,
+                        print \$1,\$2,\$3,alt_allele,\$5,\$6,
                             f[4],f[2],f[3],f[72],f[7],f[27],
-                            f[11],f[12],f[18],f[37],f[38],f[49],
-                            dp,ad_alt
+                            f[11],f[12],f[18],f[38],f[39],f[49],
+                            dp,ad_alt,vaf
                     }
                 } else {
                     # Allele is "-": VEP collapsed all ALTs into one annotation,
                     # so emit one row per ALT each with its own AD depth
                     for (a = 1; a <= length(alts); a++) {
                         ad_alt = ad_vals[a + 1]+0
+                        vaf = sprintf("%.2f", ad_alt / dp * 100)
                         if (ad_alt >= 5 ${read_depth_threshold} ${pass_filter}) {
-                            print \$1,\$2,\$3,alts[a],\$5,
+                            print \$1,\$2,\$3,alts[a],\$5,\$6,
                                 f[4],f[2],f[3],f[72],f[7],f[27],
-                                f[11],f[12],f[18],f[37],f[38],f[49],
-                                dp,ad_alt
+                                f[11],f[12],f[18],f[38],f[39],f[49],
+                                dp,ad_alt,vaf
                         }
                     }
                 }
