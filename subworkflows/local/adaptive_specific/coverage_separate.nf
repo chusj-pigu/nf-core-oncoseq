@@ -25,6 +25,7 @@ workflow COVERAGE_SEPARATE {
     take:
     bam                     // channel: from mapping workflow, tuple with bam and bai
     bed                     // channel: from path read from params.bed, bed file used for adaptive sampling
+    bed_nopad
     ref
 
     main:
@@ -59,19 +60,12 @@ workflow COVERAGE_SEPARATE {
 
     MOSDEPTH_BACKGROUND(ch_bam_bg)
 
-    // Remove padding from bed file for further coverage computations
-    ch_bed_pad = bed
-        .map { meta,bedfile,padding,_low_fidelity ->
-            tuple(meta,bedfile,padding) }
-
-    REMOVE_PADDING(ch_bed_pad)
-
     // Create channels for running mosdepth with different filters for each sample by creating a new meta variable containing filter type,
         // joining the bed file without the padding and then adding the flag and MAPQ filters to the tuple
     // No filters on alignments:
 
     ch_nofilt = bam
-        .join(REMOVE_PADDING.out.bed)
+        .join(bed_nopad)
         .map { meta, bamfile, bai, bedfile ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_nofilter')
             tuple(new_meta, bamfile, bai, bedfile) }
@@ -81,7 +75,7 @@ workflow COVERAGE_SEPARATE {
     // Primary alignments only:
 
     ch_primary = bam
-        .join(REMOVE_PADDING.out.bed)
+        .join(bed_nopad)
         .map { meta, bamfile, bai, bedfile ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_primary')
             tuple(new_meta, bamfile, bai, bedfile) }
@@ -91,7 +85,7 @@ workflow COVERAGE_SEPARATE {
     // mapq60 alignments only:
 
     ch_mapq60 = bam
-        .join(REMOVE_PADDING.out.bed)
+        .join(bed_nopad)
         .map { meta, bamfile, bai, bedfile ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_panel_mapq60')
             tuple(new_meta, bamfile, bai, bedfile) }
@@ -156,7 +150,7 @@ workflow COVERAGE_SEPARATE {
     emit:
     coverage_plot       = COVERAGE_PLOT.out.cov_plot_svg
     coverage_tbl        = COVERAGE_PLOT.out.cov_df
-    split_bed           = REMOVE_PADDING.out.bed
+    split_bed           = bed_nopad
     versions            = ch_versions
 
 }
