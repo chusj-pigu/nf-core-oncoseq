@@ -69,13 +69,17 @@ workflow CFDNA {
     ch_versions = channel.empty()
     ch_sections = channel.empty()
 
-    // Process bed 
+    // Process bed
 
     ch_bed_pad = bed
         .map { meta,bedfile,padding,_low_fidelity ->
             tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
 
     REMOVE_PADDING(ch_bed_pad)
+
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .transpose()
 
     if (params.demux) {
 
@@ -288,7 +292,7 @@ workflow CFDNA {
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
         ch_bed,
-        REMOVE_PADDING.out.bed,
+        ch_bed_nopad,
         ch_ref_for_calling
     )
     ADAPTIVE_REPORT(
@@ -302,7 +306,7 @@ workflow CFDNA {
     ch_versions = ch_versions
         .mix(COVERAGE_SEPARATE.out.versions)
 
-    ch_bed_for_processing = REMOVE_PADDING.out.bed
+    ch_bed_for_processing = ch_bed_nopad
 
     ch_vcf_subchrom = channel.empty()
 

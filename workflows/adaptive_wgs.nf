@@ -70,13 +70,17 @@ workflow ADAPTIVE_WGS {
 
     ch_versions = channel.empty()
 
-    // Process bed 
+    // Process bed
 
     ch_bed_pad = bed
         .map { meta,bedfile,padding,_low_fidelity ->
             tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
 
     REMOVE_PADDING(ch_bed_pad)
+
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .transpose()
 
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling || params.skip_mapping) {
@@ -237,7 +241,7 @@ workflow ADAPTIVE_WGS {
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
         ch_bed,
-        REMOVE_PADDING.out.bed,
+        ch_bed_nopad,
         ch_ref_for_calling
     )
 
@@ -246,7 +250,7 @@ workflow ADAPTIVE_WGS {
         ch_bam_for_calling,
         ch_ref_for_calling,
         clairs_model,
-        REMOVE_PADDING.out.bed,
+        ch_bed_nopad,
         vep_cache
     )
 
@@ -255,7 +259,7 @@ workflow ADAPTIVE_WGS {
         ch_bam_for_calling,
         ch_ref_for_calling,
         basecall_model,
-        REMOVE_PADDING.out.bed,
+        ch_bed_nopad,
         vep_cache
     )
 
@@ -303,7 +307,7 @@ workflow ADAPTIVE_WGS {
     // Filter variants to visualize :
     VARIANT_PROCESS (
         ch_bam_for_calling,
-        REMOVE_PADDING.out.bed,
+        ch_bed_nopad,
         SV_CALLING.out.vcf,
         SV_CALLING.out.stellerator,
         CNV_CALLING.out.qdnaseq_bed,
