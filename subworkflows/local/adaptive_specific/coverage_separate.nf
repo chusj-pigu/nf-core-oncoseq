@@ -44,8 +44,12 @@ workflow COVERAGE_SEPARATE {
 
     ch_in_bedtools = ch_bed
         .join(ch_ref_id)
+        .groupTuple(by:[1,2])
 
     BEDTOOLS_SUBTRACT(ch_in_bedtools)
+
+    ch_bed_subtracted = BEDTOOLS_SUBTRACT.out.bed
+        .transpose()
 
     ch_bam_panel = bam
         .map { meta, bamfile, bai ->
@@ -53,7 +57,7 @@ workflow COVERAGE_SEPARATE {
         tuple(new_meta, bamfile, bai) }
 
     ch_bam_bg = bam
-        .join(BEDTOOLS_SUBTRACT.out.bed)
+        .join(ch_bed_subtracted)
         .map { meta, bamfile, bai, bed_bg ->
         def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_background')
         tuple(new_meta, bamfile, bai, bed_bg, 1796, 0) }
