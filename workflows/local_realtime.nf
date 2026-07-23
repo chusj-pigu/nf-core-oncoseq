@@ -74,6 +74,7 @@ workflow LOCAL_REALTIME {
     ch_bed_pad = bed
         .map { meta,bedfile,padding,_low_fidelity ->
             tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
 
     REMOVE_PADDING(ch_bed_pad)
 
@@ -275,6 +276,7 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            REMOVE_PADDING.out.bed,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -323,6 +325,7 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            REMOVE_PADDING.out.bed,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
