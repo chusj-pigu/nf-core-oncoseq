@@ -69,6 +69,18 @@ workflow LOCAL_REALTIME {
     ch_versions = channel.empty()
     ch_sections = channel.empty()
 
+    // Process bed
+
+    ch_bed_pad = bed
+        .map { meta,bedfile,padding,_low_fidelity ->
+            tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
+
+    REMOVE_PADDING(ch_bed_pad)
+
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .transpose()
+
     if (params.skip_basecalling) {
 
         MAPPING(
@@ -225,13 +237,14 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            ch_bed_nopad,
             ref
         )
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
             SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
@@ -266,6 +279,7 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            ch_bed_nopad,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -273,7 +287,7 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             vep_cache
         )
 
@@ -291,7 +305,7 @@ workflow LOCAL_REALTIME {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
             SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
@@ -314,6 +328,7 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            ch_bed_nopad,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -321,7 +336,7 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             vep_cache
         )
 
@@ -345,7 +360,7 @@ workflow LOCAL_REALTIME {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
             SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,

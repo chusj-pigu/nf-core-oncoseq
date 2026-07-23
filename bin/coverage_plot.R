@@ -194,7 +194,7 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
            geom_text(data=ann_facet, aes(x = gene, y = coverage, label = ann), size =4, vjust = 0.5, hjust = "outward", nudge_x = 0.5) +
            geom_hline(yintercept = ceiling(median), linewidth = 1, linetype = 'dashed') +
            geom_hline(yintercept = ceiling(bg_cov), linewidth = 1, linetype = 'dashed') +
-           facet_wrap(~ chr, nrow = 3, scales = "free_x") +
+           facet_wrap(~ chr, nrow = 5, scales = "free_x") +
            theme(
              plot.margin = unit(c(0.5,4,0,0), "cm"),
              axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),

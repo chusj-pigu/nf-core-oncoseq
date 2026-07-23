@@ -44,8 +44,12 @@ workflow COVERAGE_SEPARATE {
 
     ch_in_bedtools = ch_bed
         .join(ch_ref_id)
+        .groupTuple(by:[1,2])
 
     BEDTOOLS_SUBTRACT(ch_in_bedtools)
+
+    ch_bed_subtracted = BEDTOOLS_SUBTRACT.out.bed
+        .transpose()
 
     ch_bam_panel = bam
         .map { meta, bamfile, bai ->
@@ -53,7 +57,7 @@ workflow COVERAGE_SEPARATE {
         tuple(new_meta, bamfile, bai) }
 
     ch_bam_bg = bam
-        .join(BEDTOOLS_SUBTRACT.out.bed)
+        .join(ch_bed_subtracted)
         .map { meta, bamfile, bai, bed_bg ->
         def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_background')
         tuple(new_meta, bamfile, bai, bed_bg, 1796, 0) }
@@ -105,7 +109,7 @@ workflow COVERAGE_SEPARATE {
             def coverage = lines.last().tokenize('\t')[3].toFloat()    // Last line and only take mean coverage column (4th)
             tuple(new_meta, coverage)
         }
-        
+
     // collect each mosdepth adaptive output into it's own channel and join by orinal meta_id (sample_id) to produce plot
 
     PIGZ_BED(MOSDEPTH_PANEL.out.bed)
@@ -150,7 +154,6 @@ workflow COVERAGE_SEPARATE {
     emit:
     coverage_plot       = COVERAGE_PLOT.out.cov_plot_svg
     coverage_tbl        = COVERAGE_PLOT.out.cov_df
-    split_bed           = bed_nopad
     versions            = ch_versions
 
 }
