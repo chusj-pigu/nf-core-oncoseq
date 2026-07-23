@@ -39,28 +39,20 @@ process_bed <- function(input_bed) {
   return(bed)
 }
 
-clean_genes <- function(x) {
-  # Remove leading/trailing or double separators
-  x <- str_replace_all(x, "^&|&$", "")
-  x <- str_replace_all(x, "&{2,}", "&")
-  
-  # Split by '&' and keep first and last gene
-  parts <- str_split(x, "&", simplify = FALSE)
-  
-  sapply(parts, function(p) {
-    p <- p[p != ""]  # remove empty
-    if (length(p) == 0) return(NA_character_)
-    if (length(p) == 1) return(p)
-    paste0(p[1], "-", p[length(p)])
-  })
-}
-
 clamp0 <- function(x) {
   pmax(as.numeric(x), 0)
 }
 
 extract_gene <- function(x) {
-  str_extract(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")
+  # extract all gene symbols following HIGH| or MODERATE|
+  genes <- str_extract_all(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")[[1]]
+  
+  # dedupe (a gene often appears multiple times across transcripts)
+  genes <- unique(genes)
+  
+  # collapse into single dash-separated string
+  if (length(genes) == 0) return(NA_character_)
+  paste(genes, collapse = "-")
 }
 
 extract_support <- function(x,y) {
@@ -109,22 +101,17 @@ extract_genes_delins <- function(x) {
 process_vcf <- function(vcf) {
   df <- vcf %>%
     mutate(
-      GENE = extract_gene(X8),
+      GENE = map_chr(X8, extract_gene),
       ID = gsub("(_BND\\d+)_\\d+$", "\\1", X3),
       START = as.numeric(X2),
       SUPPORT = as.numeric(extract_support(X9,X10)),
-      ALT = X5,
-      INFO2 = ifelse(str_detect(X3, "severus"),str_split_i(X8, pattern = ",", i = 2), GENE),
-      GENE2 = ifelse(str_detect(X3, "Sniffles"), str_split_i(GENE, pattern = "&", i = 2),
-                     ifelse(is.na(INFO2), NA, extract_gene(INFO2)))
+      ALT = X5
     ) %>%
     mutate(
-      GENE    = ifelse(str_detect(GENE, "&"), str_split_i(GENE, pattern = "&", i = 1), GENE),
       strand1 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", X8), pattern = "", i=1),
       strand2 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", X8), pattern = "", i=2)) %>%
     filter(str_detect(X8, "HIGH|MODERATE")) %>%
-    filter(str_detect(GENE, pattern_start) | str_detect(GENE, pattern_end) |
-             str_detect(GENE2, pattern_start) | str_detect(GENE2, pattern_end))
+    filter(str_detect(GENE, pattern_start) | str_detect(GENE, pattern_end))
   return(df)
 }
 
@@ -140,7 +127,7 @@ parse_bnd <- function(df) {
       BREAKPOINT1 = START,
       BREAKPOINT2 = END,
       TYPE = get_type_from_alt(ID,X8),
-      FUSION = ifelse(is.na(GENE2), GENE, paste(GENE,GENE2, sep = "-"))) %>%
+      FUSION = GENE) %>%
     filter(!FUSION %in% unwanted_calls) %>%
     ## Collapse rows that represent same fusion
     rowwise() %>%
@@ -160,10 +147,9 @@ parse_other_sv <- function(df) {
   other <- df %>%
     filter(!str_detect(ID, "BND")) %>%
     mutate(
-      LEN = as.numeric(str_extract(X8, "(?<=SVLEN=)-?\\d+")),
-      END = as.numeric(str_extract(X8, "(?<=SVLEN=)-?\\d+")) + as.numeric(START),
+      END = as.numeric(str_extract(X8, "(?<=END=)\\d+")),
+      LEN = as.numeric(str_extract(X8, "(?<=SVLEN=)\\d+")),
       TYPE = str_extract(X8, "(?<=SVTYPE=)[^;]+"),
-      GENE = clean_genes(GENE),
       GENE = ifelse(GENE == "", X1, GENE)) %>%
     filter(!GENE %in% unwanted_calls)
   return(other)
@@ -171,13 +157,13 @@ parse_other_sv <- function(df) {
 
 summary_table_bnd <- function(df) {
   bnd <- df %>%
-    select(FUSION,CHR1,BREAKPOINT1,CHR2,BREAKPOINT2,TYPE,direction,SUPPORT)
+    select(FUSION,CHR1,BREAKPOINT1,CHR2,BREAKPOINT2,TYPE,direction,SUPPORT,SOURCE)
   return(bnd)
 }
 
 summary_table_other <- function(df) {
   other <- df %>%
-    select(X1,GENE,TYPE,START,END,LEN,SUPPORT)
+    select(X1,GENE,TYPE,START,END,LEN,SUPPORT,SOURCE)
   return(other)
 }
 
@@ -225,7 +211,7 @@ input_sv_figeno <- function(df) {
     mutate(
       chr2 = case_when(is.na(get_chr_from_alt(ALT)) ~ X1,
                        TRUE ~ get_chr_from_alt(ALT)),
-      pos2 = case_when(is.na(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")) ~ as.numeric(str_extract(X8, "(?<=SVLEN=)-?\\d+")) + as.numeric(START),
+      pos2 = case_when(is.na(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")) ~ as.numeric(str_extract(X8, "(?<=SVLEN=)\\d+")) + as.numeric(START),
                        TRUE ~ as.numeric(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])"))),
       svtype = str_extract(X8, "(?<=SVTYPE=)[^;]+")
     ) %>%
@@ -250,8 +236,14 @@ input_sv_figeno <- function(df) {
 # -----------------------------
 
 vcf <- lapply(input, function(f) {
-  read_tsv(f, col_names = FALSE, skip = 1, show_col_types = FALSE)
+  read_tsv(f, col_names = FALSE, skip = 1, show_col_types = FALSE) %>%
+    mutate(SOURCE = case_when(
+      grepl("severus",  basename(f)) ~ "severus",
+      grepl("sniffles", basename(f)) ~ "sniffles",
+      TRUE ~ basename(f)
+    ))
 })
+
 
 names(vcf) <- sapply(input, function(f) {
   case_when(
@@ -386,16 +378,16 @@ safe_write_figeno <- function(df, file) {
 
 safe_write_table <- function(lst, suffix) {
   expected <- c("severus", "sniffles")
-  empty_df <- data.frame()
+  
+  if (length(lst) > 0) {
+    combined <- bind_rows(lst)
+  } else {
+    combined <- data.frame(SOURCE = c("severus", "sniffles"))
+  }
   
   for (nm in expected) {
     outfile <- paste(sample_id, nm, suffix, sep = "_")
-    df      <- lst[[nm]]
-    
-    if (is.null(df) || !is.data.frame(df)) {
-      df <- empty_df
-    }
-    
+    df <- combined %>% filter(SOURCE == nm) %>% select(-SOURCE)
     write_tsv(df, outfile, col_names = FALSE, quote = "none")
   }
 }
