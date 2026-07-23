@@ -166,6 +166,12 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
         ymax <- ceiling(maximum * 10) / 10
     }
 
+    if (ymax == 0) {
+      ymax = 0.5
+    } else {
+      ymax = ymax
+    }
+
     axis_ticks <- seq(0, ymax, length.out = 5)
 
   # Reorder chromosomes for plotting

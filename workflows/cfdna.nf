@@ -16,6 +16,7 @@ include { COVERAGE_SEPARATE                     } from '../subworkflows/local/ad
 include { SPLIT_BAMS_TIME as SPLIT_BAMS_CLASSIFY } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
 include { SPLIT_BAMS_TIME as SPLIT_BAMS_OTHER    } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
 include { CRAMINO_STATS          } from '../modules/local/cramino/main.nf'
+include { REMOVE_PADDING                                } from '../modules/local/adaptive_specific/main.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
@@ -67,6 +68,14 @@ workflow CFDNA {
 
     ch_versions = channel.empty()
     ch_sections = channel.empty()
+
+    // Process bed 
+
+    ch_bed_pad = bed
+        .map { meta,bedfile,padding,_low_fidelity ->
+            tuple(meta,bedfile,padding) }
+
+    REMOVE_PADDING(ch_bed_pad)
 
     if (params.demux) {
 
@@ -279,6 +288,7 @@ workflow CFDNA {
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
         ch_bed,
+        REMOVE_PADDING.out.bed,
         ch_ref_for_calling
     )
     ADAPTIVE_REPORT(
@@ -292,7 +302,7 @@ workflow CFDNA {
     ch_versions = ch_versions
         .mix(COVERAGE_SEPARATE.out.versions)
 
-    ch_bed_for_processing = COVERAGE_SEPARATE.out.split_bed
+    ch_bed_for_processing = REMOVE_PADDING.out.bed
 
     ch_vcf_subchrom = channel.empty()
 
