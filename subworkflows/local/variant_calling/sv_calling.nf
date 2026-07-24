@@ -117,6 +117,9 @@ workflow SV_CALLING {
 
     ch_severus_empty = ch_count_variant.negative
         .join(ch_vcf_severus)
+        .map { meta, vcf ->
+            tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf)
+        }
 
     ch_vep = ch_vcf_severus
         .join(ch_count_variant.positive)
