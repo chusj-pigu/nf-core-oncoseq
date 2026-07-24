@@ -9,8 +9,9 @@
 include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/main.nf'
 include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
 include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
-include { BGZIP_VCF as BGZIP_FINAL     } from '../../../modules/local/bcftools/main.nf'
-include { BGZIP_VCF as BGZIP_INTER     } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BCFTOOLS_COUNT         } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BGZIP_VCF_FINAL        } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BGZIP_VCF_INTER        } from '../../../modules/local/bcftools/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HS1        } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
@@ -177,21 +178,32 @@ workflow CLAIRS_TO_CALLING {
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // */
 
-    BGZIP_INTER(BCFTOOLS_SORT.out.vcf)
+    BGZIP_VCF_INTER(BCFTOOLS_SORT.out.vcf)
 
-    BCFTOOLS_INDEX_RAW(BGZIP_INTER.out.vcf_gz)
+    BCFTOOLS_INDEX_RAW(BGZIP_VCF_INTER.out.vcf)
     ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
         .join(bed)
     BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
 
     ch_clairsto_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
 
+    BCFTOOLS_COUNT(ch_clairsto_out)
+
+    ch_count_variant = BCFTOOLS_COUNT.out.vcf
+        .branch { meta, vcf ->
+            positive: vcf.size() > 0
+                return meta
+            negative: true
+                return meta
+        }
+
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
             tuple(meta, refid) }
 
 
-    ch_vep = ch_clairsto_out
+    ch_vep = ch_count_variant.positive
+        .join(ch_clairsto_out)
         .join(ch_ref_type)
         .branch { meta, vcf, genome ->
             hg38: genome == "hg38"
@@ -202,7 +214,8 @@ workflow CLAIRS_TO_CALLING {
                 return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_somatic_snp_vep'),vcf,[])
             }
 
-    ch_fasta = ch_clairsto_out
+    ch_fasta = ch_count_variant.positive
+        .join(ch_clairsto_out)
         .join(ref)
         .branch { meta, _vcf, genome, ref_fasta, _ref_index ->
             hg38: genome == "hg38"
@@ -287,11 +300,11 @@ workflow CLAIRS_TO_CALLING {
 
     // Compress VCF files using bgzip (produces .vcf.gz files)
     // Bgzip creates block-compressed files that enable random access
-    BGZIP_FINAL(ch_vcf_final)
+    BGZIP_VCF_FINAL(ch_vcf_final)
 
     // Index compressed VCF files using BCFtools (produces .vcf.gz.tbi files)
     // Indexing allows fast retrieval of variants in specific genomic regions
-    BCFTOOLS_INDEX_FINAL(BGZIP_FINAL.out.vcf_gz)
+    BCFTOOLS_INDEX_FINAL(BGZIP_VCF_FINAL.out.vcf)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -302,7 +315,7 @@ workflow CLAIRS_TO_CALLING {
     */
     ch_versions = CLAIRS_TO_CALL.out.versions      // Version info from ClairS-TO
             .mix(SNPEFF_ANNOTATE.out.versions)     // Version info from SNPEff
-            .mix(BGZIP_FINAL.out.versions)           // Version info from bgzip
+            .mix(BGZIP_VCF_FINAL.out.versions)           // Version info from bgzip
             .mix(BCFTOOLS_INDEX_FINAL.out.versions) // Version info from BCFtools index
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
