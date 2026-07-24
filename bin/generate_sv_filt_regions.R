@@ -19,9 +19,9 @@ option_list <- list(
 
 opt <- parse_args(OptionParser(option_list = option_list))
 
-input <- list.files(path = ".", pattern = "\\.tsv$")
+input <- list.files(path = ".", pattern = "\\.vcf$")
 target_list <- opt$target
-sample_id <- unique(sub("_(severus|sniffles)_filt\\.tsv$","",basename(input)))
+sample_id <- unique(sub("_sv_(severus|sniffles|stellerator)\\.vcf$","",basename(input)))
 blacklist <- opt$exclude
 panel <- opt$panel
 
@@ -43,9 +43,16 @@ clamp0 <- function(x) {
   pmax(as.numeric(x), 0)
 }
 
-extract_gene <- function(x) {
+extract_gene <- function(x,source) {
   # extract all gene symbols following HIGH| or MODERATE|
-  genes <- str_extract_all(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")[[1]]
+
+  if (source == "stellerator") {
+    genes1 <- gsub(".*GENE1=([^;]+);.*", "\\1", x)
+    genes2 <- gsub(".*GENE2=([^;]+);.*", "\\1", x)
+    genes <- c(genes1,genes2)
+  } else {
+    genes <- str_extract_all(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")[[1]]
+  }
 
   # dedupe (a gene often appears multiple times across transcripts)
   genes <- unique(genes)
@@ -55,9 +62,14 @@ extract_gene <- function(x) {
   paste(genes, collapse = "-")
 }
 
-extract_support <- function(x,y) {
-  index_dv = str_which(str_split(x, pattern = ":")[[1]], pattern = "DV")
-  str_split_i(y, pattern = ":", i = index_dv)
+extract_support <- function(x,y,source) {
+    if (source == "stellerator") {
+        read_support_field <- "SR"
+    } else {
+        read_support_field <- "DV"
+    }
+    index_dv = str_which(str_split(x, pattern = ":")[[1]], pattern = read_support_field)
+    str_split_i(y, pattern = ":", i = index_dv)
 }
 
 extract_partner <- function(x) {
@@ -77,7 +89,7 @@ get_fusion_direction <- function(alt) {
 
 # Extract the chromosome from ALT (e.g. ]CHR7:152401117]T → chr7)
 get_chr_from_alt <- function(alt) {
-  chr <- str_extract(str_to_lower(alt), "chr\\d+|chrX|chrY")
+    chr <- str_extract(str_to_lower(alt), "chr\\d+|chrX|chrY")
 }
 
 # extract sv type according to program used
@@ -101,17 +113,18 @@ extract_genes_delins <- function(x) {
 process_vcf <- function(vcf) {
   df <- vcf %>%
     mutate(
-      GENE = map_chr(X8, extract_gene),
-      ID = gsub("(_BND\\d+)_\\d+$", "\\1", X3),
-      START = as.numeric(X2),
-      SUPPORT = as.numeric(extract_support(X9,X10)),
-      ALT = X5
+      GENE = map2_chr(V8, SOURCE, extract_gene),
+      ID = gsub("(_BND\\d+)_\\d+$", "\\1", V3),
+      START = as.numeric(V2),
+      SUPPORT = as.numeric(pmap_chr(list(V9, V10, SOURCE), extract_support)),
+      ALT = V5
     ) %>%
     mutate(
-      strand1 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", X8), pattern = "", i=1),
-      strand2 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", X8), pattern = "", i=2)) %>%
-    filter(str_detect(X8, "HIGH|MODERATE")) %>%
-    filter(str_detect(GENE, pattern_start) | str_detect(GENE, pattern_end))
+      strand1 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", V8), pattern = "", i = 1),
+      strand2 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", V8), pattern = "", i = 2)
+    ) %>%
+    filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
+    filter(SOURCE == "stellerator" | str_detect(GENE, pattern_start) | str_detect(GENE, pattern_end))
   return(df)
 }
 
@@ -120,13 +133,16 @@ parse_bnd <- function(df) {
     filter(str_detect(ID, "BND")) %>%
     mutate(
       direction = get_fusion_direction(ALT),
-      chr_alt = get_chr_from_alt(ALT),
-      END = as.numeric(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")),
-      CHR1 = X1,
+      chr_alt = case_when(SOURCE == "stellerator" ~ gsub(".*CHR2=([^;]+);.*", "\\1", V8),
+                          TRUE ~ get_chr_from_alt(ALT)),
+      END = case_when(SOURCE == "stellerator" ~ as.numeric(str_extract(V8, "(?<=(^|;)POS2=)[^;]+")),
+                            TRUE ~ as.numeric(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])"))),
+      CHR1 = V1,
       CHR2 = chr_alt,
       BREAKPOINT1 = START,
       BREAKPOINT2 = END,
-      TYPE = get_type_from_alt(ID,X8),
+      TYPE = case_when(SOURCE == "stellerator" ~ "SUPPLEMENTARY_READS",
+                       TRUE ~ get_type_from_alt(ID,V8)),
       FUSION = GENE) %>%
     filter(!FUSION %in% unwanted_calls) %>%
     ## Collapse rows that represent same fusion
@@ -147,10 +163,10 @@ parse_other_sv <- function(df) {
   other <- df %>%
     filter(!str_detect(ID, "BND")) %>%
     mutate(
-      END = as.numeric(str_extract(X8, "(?<=END=)\\d+")),
-      LEN = as.numeric(str_extract(X8, "(?<=SVLEN=)\\d+")),
-      TYPE = str_extract(X8, "(?<=SVTYPE=)[^;]+"),
-      GENE = ifelse(GENE == "", X1, GENE)) %>%
+      END = as.numeric(str_extract(V8, "(?<=END=)\\d+")),
+      LEN = as.numeric(str_extract(V8, "(?<=SVLEN=)\\d+")),
+      TYPE = str_extract(V8, "(?<=SVTYPE=)[^;]+"),
+      GENE = ifelse(GENE == "", V1, GENE)) %>%
     filter(!GENE %in% unwanted_calls)
   return(other)
 }
@@ -163,7 +179,7 @@ summary_table_bnd <- function(df) {
 
 summary_table_other <- function(df) {
   other <- df %>%
-    select(X1,GENE,TYPE,START,END,LEN,SUPPORT,SOURCE)
+    select(V1,GENE,TYPE,START,END,LEN,SUPPORT,SOURCE)
   return(other)
 }
 
@@ -186,7 +202,7 @@ region_figeno_bnd <- function(bnd) {
 
 region_figeno_other <- function(other) {
   figeno_other <- other %>%
-    group_by(X1,GENE) %>%
+    group_by(V1,GENE) %>%
     summarise(
       START       = min(START),
       END         = max(END),
@@ -194,7 +210,7 @@ region_figeno_other <- function(other) {
     ) %>%
     mutate(
       pos = paste0(
-        X1, ":",
+        V1, ":",
         clamp0(START - 20000), "-",
         clamp0(END + 20000)
       ),
@@ -209,11 +225,13 @@ region_figeno_other <- function(other) {
 input_sv_figeno <- function(df) {
   figeno_table <- df %>%
     mutate(
-      chr2 = case_when(is.na(get_chr_from_alt(ALT)) ~ X1,
+      chr2 = case_when(SOURCE == "stellerator" ~ gsub(".*CHR2=([^;]+);.*", "\\1", V8),
+                       is.na(get_chr_from_alt(ALT)) ~ V1,
                        TRUE ~ get_chr_from_alt(ALT)),
-      pos2 = case_when(is.na(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")) ~ as.numeric(str_extract(X8, "(?<=SVLEN=)\\d+")) + as.numeric(START),
+      pos2 = case_when(SOURCE == "stellerator" ~ as.numeric(str_extract(V8, "(?<=(^|;)POS2=)[^;]+")),
+                       is.na(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])")) ~ as.numeric(str_extract(V8, "(?<=SVLEN=)\\d+")) + as.numeric(START),
                        TRUE ~ as.numeric(str_extract(ALT, "(?<=:)\\d+(?=[]\\[])"))),
-      svtype = str_extract(X8, "(?<=SVTYPE=)[^;]+")
+      svtype = str_extract(V8, "(?<=SVTYPE=)[^;]+")
     ) %>%
     mutate(
       color = case_when(svtype == "BND" ~ "#27ae60",
@@ -226,8 +244,8 @@ input_sv_figeno <- function(df) {
       strand2 = case_when(strand2 == "+" | strand2 == "-" ~ strand2,
                           TRUE ~ NA)
     ) %>%
-    select(X1, START, chr2, pos2, strand1, strand2, color, svtype) %>%
-    rename(chr1 = X1, pos1 = START)
+    select(V1, START, chr2, pos2, strand1, strand2, color, svtype) %>%
+    rename(chr1 = V1, pos1 = START)
   return(figeno_table)
 }
 
@@ -236,12 +254,18 @@ input_sv_figeno <- function(df) {
 # -----------------------------
 
 vcf <- lapply(input, function(f) {
-  read_tsv(f, col_names = FALSE, skip = 1, show_col_types = FALSE) %>%
-    mutate(SOURCE = case_when(
-      grepl("severus",  basename(f)) ~ "severus",
-      grepl("sniffles", basename(f)) ~ "sniffles",
-      TRUE ~ basename(f)
-    ))
+  # check if file has any actual content
+  if (file.size(f) == 0) {
+    df <- data.frame()
+  } else {
+    df <- read.delim(f, header = FALSE) %>%
+        mutate(SOURCE = case_when(
+        grepl("severus",  basename(f)) ~ "severus",
+        grepl("sniffles", basename(f)) ~ "sniffles",
+        grepl("stellerator", basename(f)) ~ "stellerator",
+        TRUE ~ basename(f)
+        ))
+  }
 })
 
 
@@ -249,6 +273,7 @@ names(vcf) <- sapply(input, function(f) {
   case_when(
     grepl("severus",  basename(f)) ~ "severus",
     grepl("sniffles", basename(f)) ~ "sniffles",
+    grepl("stellerator", basename(f)) ~ "stellerator",
     TRUE ~ basename(f)  # fallback so nothing gets NA-named
   )
 })
@@ -256,7 +281,6 @@ names(vcf) <- sapply(input, function(f) {
 targets_df <- read.csv(target_list)
 unwanted_calls <- readLines(blacklist)
 genes_panel <- process_bed(panel)
-genes_panel <- c(genes_panel, "DMPK")
 
 # Pattern to select genes in panel
 pattern_end <- paste0(
@@ -292,22 +316,22 @@ if (length(vcf) > 0) {
     figeno_other <- region_figeno_other(other_merged)
 
     figeno <- bnd_merged %>%
-      select(ALT,X1,X8,START,strand1,strand2) %>%
-      rbind(select(other_merged,ALT,X1,X8,START,strand1,strand2))
+      select(ALT,V1,V8,START,strand1,strand2,SOURCE) %>%
+      rbind(select(other_merged,ALT,V1,V8,START,strand1,strand2,SOURCE))
     figeno_table <- input_sv_figeno(figeno)
   } else if (nrow(bnd_merged) > 0) {
     figeno_bnd <- region_figeno_bnd(bnd_merged)
     figeno_other <- other_merged
 
     figeno <- bnd_merged %>%
-      select(ALT,X1,X8,START,strand1,strand2)
+      select(ALT,V1,V8,START,strand1,strand2,SOURCE)
     figeno_table <- input_sv_figeno(figeno)
   } else if (nrow(other_merged) > 0) {
     figeno_other <- region_figeno_other(other_merged)
     figeno_bnd <- bnd_merged
 
     figeno <- other_merged %>%
-      select(ALT,X1,X8,START,strand1,strand2)
+      select(ALT,V1,V8,START,strand1,strand2,SOURCE)
     figeno_table <- input_sv_figeno(figeno)
   } else {
     figeno_bnd <- bnd_merged
@@ -377,12 +401,12 @@ safe_write_figeno <- function(df, file) {
 }
 
 safe_write_table <- function(lst, suffix) {
-  expected <- c("severus", "sniffles")
+  expected <- c("severus", "sniffles", "stellerator")
 
   if (length(lst) > 0) {
     combined <- bind_rows(lst)
   } else {
-    combined <- data.frame(SOURCE = c("severus", "sniffles"))
+    combined <- data.frame(SOURCE = c("severus", "sniffles", "stellerator"))
   }
 
   for (nm in expected) {

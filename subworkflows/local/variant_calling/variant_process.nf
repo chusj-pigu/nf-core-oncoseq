@@ -5,6 +5,7 @@
 */
 include { BCFTOOLS_FILTER                      } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_SNP } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BCFTOOLS_RM_HEADER  } from '../../../modules/local/bcftools/main.nf'
 include { SV_PROCESS                           } from '../../../modules/local/vcf_process/main.nf'
 include { STELLERATOR_PROCESS                  } from '../../../modules/local/vcf_process/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_FUSION    } from '../../../modules/local/figeno/main.nf'
@@ -60,17 +61,25 @@ workflow VARIANT_PROCESS {
 
     BCFTOOLS_FILTER(sv_vcf)
 
+    ch_severus_sniffles_filtered = BCFTOOLS_FILTER.out.filt_vcf
+
+    ch_in_rm_header = ch_severus_sniffles_filtered
+        .mix(stellerator)
+
+    BCFTOOLS_RM_HEADER(ch_in_rm_header)
+
     ch_exclude = channel.fromPath(params.sv_exclude)
 
     // Filter variants with HIGH and MODERATE impacts, create region file expected by figeno and tables for reports
-    ch_sv_vcf = BCFTOOLS_FILTER.out.filt_vcf
+    ch_sv_vcf = BCFTOOLS_RM_HEADER.out.vcf
         .map { meta, vcf ->
             def new_meta = modifyMetaId(meta, 'replace', '_sv_severus', '', '')
-            def meta_final = modifyMetaId(new_meta, 'replace', '_sv_sniffles', '', '')
+            def meta_replace = modifyMetaId(new_meta, 'replace', '_sv_sniffles', '', '')
+            def meta_final = modifyMetaId(meta_replace, 'replace', '_sv_stellerator', '', '')
             tuple(meta_final, vcf)}
         .groupTuple()
         .map { meta, list ->
-            tuple(meta, list[0], list[1])}
+            tuple(meta, list[0], list[1], list[2])}
 
 
     ch_to_process = ch_sv_vcf
@@ -79,8 +88,6 @@ workflow VARIANT_PROCESS {
         .combine(ch_exclude)
 
     SV_PROCESS(ch_to_process)
-
-    STELLERATOR_PROCESS(stellerator)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -96,16 +103,9 @@ workflow VARIANT_PROCESS {
 
     // Figure for structural variants
 
-    ch_figeno_vcf = bam
+    ch_figeno_fusion = bam
         .join(SV_PROCESS.out.figeno_table)
         .join(SV_PROCESS.out.fusion_txt)
-
-    ch_figeno_stellerator = bam
-        .join(SV_PROCESS.out.figeno_table)
-        .join(STELLERATOR_PROCESS.out.figeno)
-
-    ch_figeno_fusion = ch_figeno_vcf
-        .mix(ch_figeno_stellerator)
 
     ch_figeno_sv = bam
         .join(SV_PROCESS.out.figeno_table)
@@ -140,7 +140,6 @@ workflow VARIANT_PROCESS {
         .transpose()
 
     ch_fusion = SV_PROCESS.out.fusion_tsv
-        .mix(STELLERATOR_PROCESS.out.tsv)
         .transpose()
 
     ch_versions = BCFTOOLS_FILTER.out.versions

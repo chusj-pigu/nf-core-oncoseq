@@ -13,14 +13,12 @@ process SV_PROCESS {
     tuple val(meta),
         path(sniffles_vcf),
         path(severus_vcf),
+        path(stellerator_vcf),
         path(bed),
         path(gene_list),
         path(blacklist)
 
     output:
-    tuple val(meta),
-        path("*filt.tsv"),
-        emit: filt_tsv
     tuple val(meta),
         path("*region_fusions.txt"),
         emit: fusion_txt,
@@ -49,23 +47,7 @@ process SV_PROCESS {
         emit: versions
 
     script:
-    def prefix_sniffles = task.ext.prefix ?: "${meta.id}_sniffles"
-    def prefix_severus = task.ext.prefix ?: "${meta.id}_severus"
     """
-    # Process only high and moderate effect mutations
-    grep -v '^##' \\
-        "${sniffles_vcf}" > \\
-        "${prefix_sniffles}_filt.tsv" || :
-
-    grep -v '^##' \\
-        "${severus_vcf}" > \\
-        "${prefix_severus}_filt.tsv" || :
-
-    # Ensure placeholders exist if empty
-    [ -f "${prefix_sniffles}_filt.tsv" ] || touch "${prefix_sniffles}_filt.tsv"
-    [ -f "${prefix_severus}_filt.tsv" ] || touch "${prefix_severus}_filt.tsv"
-
-    # Transform into figeno region input file
     generate_sv_filt_regions.R \\
         --target ${gene_list} \\
         --exclude ${blacklist} \\
