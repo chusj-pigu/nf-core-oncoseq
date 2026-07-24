@@ -15,7 +15,17 @@
 
 [![Get help on Slack](http://img.shields.io/badge/slack-nf--core%20%23oncoseq-4A154B?labelColor=000000&logo=slack)](https://nfcore.slack.com/channels/oncoseq)[![Follow on Twitter](http://img.shields.io/badge/twitter-%40nf__core-1DA1F2?labelColor=000000&logo=twitter)](https://twitter.com/nf_core)[![Follow on Mastodon](https://img.shields.io/badge/mastodon-nf__core-6364ff?labelColor=FFFFFF&logo=mastodon)](https://mstdn.science/@nf_core)[![Watch on YouTube](http://img.shields.io/badge/youtube-nf--core-FF0000?labelColor=000000&logo=youtube)](https://www.youtube.com/c/nf-core)
 
-**Please note that for now, the workflow is not compatible with Nextflow v26. Please use Nextflow v25 to run this workflow.**
+## Dependencies
+
+- [Nextflow](https://www.nextflow.io/) (`<v26`)
+- One of the following container engines:
+  - [Docker](https://www.docker.com/)
+  - [Singularity](https://sylabs.io/docs/)
+  - [Apptainer](https://apptainer.org/)
+- [Java](https://www.oracle.com/java/technologies/downloads/) (required by Nextflow — see [Nextflow's Java requirements](https://www.nextflow.io/docs/latest/install.html) for the version matching your Nextflow release)
+
+> [!NOTE]
+> All pipeline tools (Dorado, minimap2, ClairS-TO, etc.) are bundled in per-process containers and pulled automatically — no manual installation needed beyond the above.
 
 ## Quick Start
 
