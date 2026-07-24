@@ -132,6 +132,7 @@ parse_bnd <- function(df) {
   bnd <- df %>%
     filter(str_detect(ID, "BND")) %>%
     mutate(
+      V6 = as.double(V6),
       direction = get_fusion_direction(ALT),
       chr_alt = case_when(SOURCE == "stellerator" ~ gsub(".*CHR2=([^;]+);.*", "\\1", V8),
                           TRUE ~ get_chr_from_alt(ALT)),
