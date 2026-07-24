@@ -35,7 +35,7 @@ process_bed <- function(input_bed) {
     mutate(gene = gsub("^\\d{4}_.+?_", "", gene)) %>%
     mutate(gene = ifelse(duplicated(gene), paste(gene, chr, sep = "_"), gene)) %>%
     pull(gene)
-  
+
   return(bed)
 }
 
@@ -46,10 +46,10 @@ clamp0 <- function(x) {
 extract_gene <- function(x) {
   # extract all gene symbols following HIGH| or MODERATE|
   genes <- str_extract_all(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")[[1]]
-  
+
   # dedupe (a gene often appears multiple times across transcripts)
   genes <- unique(genes)
-  
+
   # collapse into single dash-separated string
   if (length(genes) == 0) return(NA_character_)
   paste(genes, collapse = "-")
@@ -272,25 +272,25 @@ pattern_start <- paste0(
 vcf <- vcf[vapply(vcf, nrow, integer(1)) > 0]
 
 if (length(vcf) > 0) {
-  
+
   df <- lapply(vcf, process_vcf)
   names(df) <- names(vcf)
   df <- df[vapply(df, nrow, integer(1)) > 0]
-  
+
   bnd <- lapply(df, parse_bnd)
   names(bnd) <- names(df)
   bnd <- bnd[vapply(bnd, nrow, integer(1)) > 0]
   other <- lapply(df, parse_other_sv)
   names(other) <- names(df)
   other <- other[vapply(other, nrow, integer(1)) > 0]
-  
+
   bnd_merged   <- bind_rows(bnd)
   other_merged <- bind_rows(other)
-  
+
   if (nrow(bnd_merged) > 0 & nrow(other_merged) > 0) {
     figeno_bnd <- region_figeno_bnd(bnd_merged)
     figeno_other <- region_figeno_other(other_merged)
-    
+
     figeno <- bnd_merged %>%
       select(ALT,X1,X8,START,strand1,strand2) %>%
       rbind(select(other_merged,ALT,X1,X8,START,strand1,strand2))
@@ -298,33 +298,33 @@ if (length(vcf) > 0) {
   } else if (nrow(bnd_merged) > 0) {
     figeno_bnd <- region_figeno_bnd(bnd_merged)
     figeno_other <- other_merged
-    
+
     figeno <- bnd_merged %>%
       select(ALT,X1,X8,START,strand1,strand2)
     figeno_table <- input_sv_figeno(figeno)
   } else if (nrow(other_merged) > 0) {
     figeno_other <- region_figeno_other(other_merged)
     figeno_bnd <- bnd_merged
-    
+
     figeno <- other_merged %>%
       select(ALT,X1,X8,START,strand1,strand2)
     figeno_table <- input_sv_figeno(figeno)
   } else {
     figeno_bnd <- bnd_merged
     figeno_other <- other_merged
-    
+
     figeno_table <- bnd_merged
   }
-  
+
   table_bnd <- lapply(bnd, summary_table_bnd)
   table_other <- lapply(other, summary_table_other)
-  
+
 } else {
-  figeno_bnd <- vcf
-  figeno_other <- vcf
-  table_bnd <- vcf
-  table_other <- vcf
-  figeno_table <- vcf
+  figeno_bnd <- data.frame()
+  figeno_other <- data.frame()
+  table_bnd <- list()
+  table_other <- list()
+  figeno_table <- data.frame()
 }
 
 # -----------------------------
@@ -378,13 +378,13 @@ safe_write_figeno <- function(df, file) {
 
 safe_write_table <- function(lst, suffix) {
   expected <- c("severus", "sniffles")
-  
+
   if (length(lst) > 0) {
     combined <- bind_rows(lst)
   } else {
     combined <- data.frame(SOURCE = c("severus", "sniffles"))
   }
-  
+
   for (nm in expected) {
     outfile <- paste(sample_id, nm, suffix, sep = "_")
     df <- combined %>% filter(SOURCE == nm) %>% select(-SOURCE)
