@@ -232,7 +232,7 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--vep_cache` | | `path` | | Optional path to the VEP cache root. A matching cache in `--vep_cache` or `${ref_cache}/vep` is used; otherwise the cache for the selected VEP version and reference assembly is downloaded automatically. |
+| `--vep_cache` | | `path` | | Optional path to the VEP cache root. A matching cache in `--vep_cache` or `${ref_cache}/vep` is used; otherwise the cache for the selected VEP version and reference assembly is downloaded automatically on the Nextflow launch host, which must have internet access. |
 | `--vep_version` | | `integer` | `115` | Ensembl VEP version matching your cache. |
 | `--filtervep_expression` | | `string` | IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE | FilterVEP expression for SNV filtering (impacts, frequencies, etc.). |
 
