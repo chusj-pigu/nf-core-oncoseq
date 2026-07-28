@@ -26,6 +26,7 @@ include { selectLatestModif       } from './subworkflows/local/utils_nfcore_onco
 include { selectModelDownload     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { DORADO_DOWNLOAD_LIST    } from './modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from './modules/local/dorado/main.nf'
+include { ENSEMBLVEP_DOWNLOAD     } from './modules/nf-core/ensemblvep/download/main.nf'
 
 def resolveIndexedVcfFiles(vcfSpec) {
     def resolved = file(vcfSpec, checkIfExists: true)
@@ -66,6 +67,35 @@ def selectBaseModelDownload(chModelsList, modelParam) {
 
 def selectModifiedModelDownload(chModelsList, chBaseModel, modifParam) {
     selectModelDownload(chModelsList, modifParam, 'modified_models', chBaseModel)
+}
+
+def getVepCacheDetails(genome) {
+    def assemblies = [
+        hg38: [assembly: 'GRCh38', species: 'homo_sapiens'],
+        hg19: [assembly: 'GRCh37', species: 'homo_sapiens'],
+        hs1 : [assembly: 'CHM13', species: 'homo_sapiens']
+    ]
+
+    def aliases = [
+        hg38  : 'hg38',
+        GRCh38: 'hg38',
+        hg19  : 'hg19',
+        GRCh37: 'hg19',
+        hs1   : 'hs1',
+        CHM13 : 'hs1',
+        t2t   : 'hs1'
+    ]
+
+    def canonicalGenome = aliases[genome]
+    if (!canonicalGenome) {
+        throw new IllegalArgumentException("Unsupported genome for VEP cache: ${genome}")
+    }
+
+    assemblies[canonicalGenome]
+}
+
+def hasVepCache(cacheDirectory, cacheDetails, cacheVersion) {
+    cacheDirectory && file("${cacheDirectory}/${cacheDetails.species}/${cacheVersion}_${cacheDetails.assembly}").isDirectory()
 }
 
 //
@@ -292,12 +322,31 @@ workflow {
    // channels for SNP calling
     ch_clairs_model = channel.of(params.clairsto_model)
 
-    // vep cache
-    ch_vep_cache = params.vep_cache
-        ? channel.fromPath(params.vep_cache, checkIfExists: true).collect()
-        : params.ref_cache && file(params.ref_cache).isDirectory()
-            ? channel.fromPath("${params.ref_cache}/vep", checkIfExists: true).collect()
-            : null
+    // Use a supplied VEP cache when it contains the selected assembly. Otherwise,
+    // download the exact cache required by the selected reference genome.
+    def vepCacheDetails = getVepCacheDetails(params.genome)
+    def vepCacheDirectory = params.vep_cache ?: (
+        params.ref_cache && file(params.ref_cache).isDirectory() ? "${params.ref_cache}/vep" : null
+    )
+
+    if (hasVepCache(vepCacheDirectory, vepCacheDetails, params.vep_version)) {
+        ch_vep_cache = channel.fromPath(vepCacheDirectory, checkIfExists: true).collect()
+    } else {
+        log.info("Downloading Ensembl VEP ${params.vep_version} cache for ${vepCacheDetails.assembly}")
+
+        ch_vep_cache_to_download = channel.of([
+            [id: "${params.vep_version}_${vepCacheDetails.assembly}"],
+            vepCacheDetails.assembly,
+            vepCacheDetails.species,
+            params.vep_version
+        ])
+
+        ENSEMBLVEP_DOWNLOAD(ch_vep_cache_to_download, true)
+
+        ch_vep_cache = ENSEMBLVEP_DOWNLOAD.out.cache
+            .map { _meta, cache -> cache }
+            .collect()
+    }
     // channel for sv gene targets
     ch_sv_targets = channel.fromPath(params.sv_targets)
 
