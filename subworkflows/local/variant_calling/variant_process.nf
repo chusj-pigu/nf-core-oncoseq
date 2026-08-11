@@ -7,7 +7,6 @@ include { BCFTOOLS_FILTER                      } from '../../../modules/local/bc
 include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_SNP } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_VIEW as BCFTOOLS_RM_HEADER  } from '../../../modules/local/bcftools/main.nf'
 include { SV_PROCESS                           } from '../../../modules/local/vcf_process/main.nf'
-include { STELLERATOR_PROCESS                  } from '../../../modules/local/vcf_process/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_FUSION    } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_OTHER     } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_TARGETS   } from '../../../modules/local/figeno/main.nf'
