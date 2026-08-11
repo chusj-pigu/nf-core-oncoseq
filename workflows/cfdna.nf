@@ -2,7 +2,6 @@ include { BASECALL_MULTIPLEX     } from '../subworkflows/local/basecalling/basec
 include { BASECALL_SIMPLEX       } from '../subworkflows/local/basecalling/basecall_simplex'
 include { READS_FILTER           } from '../subworkflows/local/read_processing/reads_filter.nf'
 include { MAPPING                } from '../subworkflows/local/mapping/mapping'
-include { TIDEHUNTER_CONCENSUS   } from '../subworkflows/local/read_processing/tidehunter'
 include { CNV_CALLING            } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { SV_CALLING             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CLAIRS_TO_CALLING      } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'

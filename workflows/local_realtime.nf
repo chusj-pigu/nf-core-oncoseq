@@ -157,8 +157,7 @@ workflow LOCAL_REALTIME {
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet,
-                ref
+                demux_samplesheet
             )
 
             // Map basecalled reads to reference
