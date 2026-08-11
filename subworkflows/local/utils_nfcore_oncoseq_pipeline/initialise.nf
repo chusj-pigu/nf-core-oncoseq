@@ -17,10 +17,7 @@ include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
 include { SAMTOOLS_FAIDX            } from '../../../modules/local/samtools/main.nf'
-include { BGZIP_RECOMPRESS          } from '../../../modules/local/bcftools/main.nf'
-include { DORADO_DOWNLOAD_LIST    } from '../../../modules/local/dorado/main.nf'
-include { DORADO_DOWNLOAD_MODEL   } from '../../../modules/local/dorado/main.nf'
-include { ENSEMBLVEP_DOWNLOAD     } from '../../../modules/nf-core/ensemblvep/download/main.nf'
+include { HTSLIB_BGZIPTABIX         } from '../../../modules/nf-core/htslib/bgziptabix'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -40,47 +37,23 @@ workflow PIPELINE_INITIALISATION {
     input_bed                 // string: path to input bed file (not null if the same for all sample)
     input_padding               // Padding around ROI (parameter padding)
     list_low_fidelity                // List of low fidelity genes to discard for coverage calculations (parameter low_fidelity)
+    ref_genome              // reference genome
+    ref_cache_dir           // reference cache dir
 
     main:
 
     ch_versions = channel.empty()
 
     //
-    // Print version and exit if required and dump pipeline parameters to JSON file
-    //
-    UTILS_NEXTFLOW_PIPELINE (
-        version,
-        true,
-        outdir,
-        workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1
-    )
-
-    //
-    // Validate parameters and generate parameter summary to stdout
-    //
-    UTILS_NFSCHEMA_PLUGIN (
-        workflow,
-        validate_params,
-        null
-    )
-
-    //
-    // Check config provided to the pipeline
-    //
-    UTILS_NFCORE_PIPELINE (
-        nextflow_cli_args
-    )
-
-    //
-    // Create channel from input file provided through params.input
+    // Create channel from input file provided through input_sheet
     //
 
     // channels from parameters:
 
     ch_ubam         = channel.fromPath(params.ubam, checkIfExists: true)
-    ch_bed          = channel.fromPath(params.bed, checkIfExists: true)
-    ch_low_fidelity = channel.fromPath(params.low_fidelity, checkIfExists: true)
-    ch_padding      = channel.of(params.padding)
+    ch_bed          = channel.fromPath(input_bed, checkIfExists: true)
+    ch_low_fidelity = channel.fromPath(list_low_fidelity, checkIfExists: true)
+    ch_padding      = channel.of(input_padding)
 
     // Initialize empty channels to fall back on:
 
@@ -90,10 +63,10 @@ workflow PIPELINE_INITIALISATION {
     // Main input channel:
 
     channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
         .combine(ch_ubam)
         .branch {
-            meta, project, input, ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, ubam_ph ->
+            meta, project, input, ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, ubam_ph ->
             reg: (!ubam && !kit && !barcode)
                 return [ meta, file(input), ubam_ph ]
             resume: (ubam && !kit && !barcode)
@@ -111,12 +84,13 @@ workflow PIPELINE_INITIALISATION {
         .mix(ch_samplesheet_branched.demux_reg)
         .mix(ch_samplesheet_branched.demux_resume)
         .unique()
+        .view()
         .set { ch_in_samplesheet }
 
     channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
         .map {
-            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
+            meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
             if (project && kit && barcode) {
                 tuple(id:project, meta.id, barcode, kit)
             } else {
@@ -128,9 +102,9 @@ workflow PIPELINE_INITIALISATION {
     if (params.cfdna) {
 
         channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, purity, filter ->
+                meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, purity, filter ->
                 if(!purity){
                     throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
                 }
@@ -146,12 +120,12 @@ workflow PIPELINE_INITIALISATION {
     }
 
     channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
         .combine(ch_bed)
         .combine(ch_padding)
         .combine(ch_low_fidelity)
         .branch {
-            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+            meta, project, _input, _ubam, kit, barcode, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
             common: (!bed && !padding && !lf)
                 return [ meta, bed_c, padding_c, lf_c ]
             bed: (bed && !padding && !lf)
@@ -176,11 +150,11 @@ workflow PIPELINE_INITIALISATION {
     */
 
     channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
         .combine(ch_bed)
         .combine(ch_padding)
         .combine(ch_low_fidelity)
-        .map { meta, project, input, ubam, ref, ref_path ,kit, barcode, bed, padding, low_fidelity, purity, filter, bed_c, padding_c, lf_c ->
+        .map { meta, project, input, ubam, kit, barcode, bed, padding, low_fidelity, purity, filter, bed_c, padding_c, lf_c ->
             if (!padding && padding_c == 20000){
                 log.warn("Using default padding of 20kb padding around ROI")
             }
@@ -205,63 +179,31 @@ workflow PIPELINE_INITIALISATION {
         't2t'    : 'hs1'
     ]
 
-    ch_genome    = params.genome ? channel.of(params.genome) : channel.empty()
-    ch_ref_cache = params.ref_cache
-        ? channel.fromPath(params.ref_cache, checkIfExists: true)
+    ch_genome    = channel.of(ref_genome)
+    ch_ref_cache = ref_cache_dir
+        ? channel.fromPath(ref_cache_dir, checkIfExists: true)
         : channel.empty()
 
-    channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+    ch_genome
         .combine(ch_ref_cache.ifEmpty([null]))
-        .combine(ch_genome.ifEmpty([null]))
-        .map { meta, project, _input, _ubam, sample_genome, ref_path, kit, _barcode, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, genome_c ->
+        .map { genome_id, ref_cache ->
 
             def faExts  = ['.fa', '.fasta', '.fa.gz', '.fasta.gz']
             def faiExts = ['.fa.fai', '.fasta.fai', '.fa.gz.fai', '.fasta.gz.fai']
 
-            // Resolve genome: sample-level takes priority over global param
-            def rawGenome = sample_genome ?: genome_c
-            if (!rawGenome) error "ERROR: No genome provided. Set params.genome or provide genome in samplesheet."
-            def genome  = genomeMap[rawGenome] ?: { error "ERROR: Unrecognized genome '${rawGenome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
+            def genome  = genomeMap[genome_id] ?: { error "ERROR: Unrecognized genome '${genome_id}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
             def aliases = genomeMap.findAll { k, v -> v == genome }.keySet()
+
+            // Case-insensitive FASTA/FAI finders
+            def findFa  = { files, aliasList -> files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && faExts.any  { ext -> f.name.toLowerCase().endsWith(ext) } } }
+            def findFai = { files, aliasList -> files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && faiExts.any { ext -> f.name.toLowerCase().endsWith(ext) } } }
 
             def faFinal  = null
             def faiFinal = null
 
             // --- Case 1: sample-level ref_path provided ---
-            if (ref_path) {
-                def refFile = ref_path instanceof Path ? ref_path : file(ref_path)
-
-                // --- Case 1a: ref_path is a direct FASTA file ---
-                if (refFile.isFile()) {
-                    if (faExts.any { ext -> refFile.name.endsWith(ext) }) {
-                        faFinal  = refFile
-                        def faiFile = file("${refFile.parent}/${refFile.name}.fai")
-                        faiFinal = faiFile.exists() ? faiFile : null
-                        if (!faiFinal) log.warn("No FAI found next to '${refFile}' — will index")
-                    } else {
-                        error "ERROR: ref_path '${refFile}' does not look like a FASTA file. Expected extensions: ${faExts}"
-                    }
-
-                // --- Case 1b: ref_path is a directory ---
-                } else if (refFile.isDirectory()) {
-                    def allFiles = refFile.listFiles() as List
-                    def faFile   = findFaFile(allFiles, aliases, faExts)
-                    def faiFile  = findFaFile(allFiles, aliases, faiExts)
-
-                    faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
-                    faiFinal = faiFile ?: null
-
-                    if (!faFile)  log.warn("No FASTA found in ref_path '${refFile}' for '${genome}' — falling back to UCSC FTP")
-                    if (!faiFile) log.warn("No FAI found in ref_path '${refFile}' for '${genome}' — will index")
-
-                } else {
-                    error "ERROR: ref_path '${refFile}' does not exist"
-                }
-
-            // --- Case 2: global ref_cache provided ---
-            } else if (ref_c) {
-                def refCacheFile = ref_c instanceof Path ? ref_c : file(ref_c)
+            if (ref_cache) {
+                def refCacheFile = ref_cache instanceof Path ? ref_cache : file(ref_cache)
 
                 // --- Case 2a: ref_cache is a direct FASTA file ---
                 if (refCacheFile.isFile()) {
@@ -277,8 +219,8 @@ workflow PIPELINE_INITIALISATION {
                 // --- Case 2b: ref_cache is a directory ---
                 } else if (refCacheFile.isDirectory()) {
                     def allFiles = refCacheFile.listFiles() as List
-                    def faFile   = findFaFile(allFiles, aliases, faExts)
-                    def faiFile  = findFaFile(allFiles, aliases, faiExts)
+                    def faFile   = findFa(allFiles, aliases)
+                    def faiFile  = findFai(allFiles, aliases)
 
                     faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
                     faiFinal = faiFile ?: null
@@ -297,12 +239,12 @@ workflow PIPELINE_INITIALISATION {
                 faiFinal = null
             }
 
-            tuple(meta, genome, faFinal, faiFinal)
+            tuple(id:aliases[0], faFinal, faiFinal)
         }
         .set { ch_ref }
 
     ch_ref
-        .branch { meta, ref_id_c, faFinal, faiFinal ->        // <-- missing -> fixed
+        .branch { meta, faFinal, faiFinal ->        // <-- missing -> fixed
             indexed  : faiFinal != null
             to_index : faiFinal == null
         }
@@ -311,173 +253,32 @@ workflow PIPELINE_INITIALISATION {
     // If genome is compressed, always recompress with bgzip otherwise samtools faidx will fail
 
     ch_ref_branched.to_index
-        .branch { meta, ref_id_c, faFinal, faiFinal ->
+        .branch { meta, faFinal, faiFinal ->
             gzip: faFinal.extension == "gz"
             unzip: (faFinal.extension == "fa" || faFinal.extension == "fasta")
         }
         .set { ch_ref_to_index_branched }
 
-    BGZIP_RECOMPRESS(ch_ref_to_index_branched.gzip
-        .map { meta, ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) }
-        .groupTuple(by: 1)
-        )
+    ch_to_bgzip = ch_ref_to_index_branched.gzip
+        .map { meta, faFinal, faiFinal ->
+            tuple(meta, faFinal, faiFinal, [])}
+
+    HTSLIB_BGZIPTABIX(
+        ch_to_bgzip,
+        "decompress",
+        false,
+        "fa"
+    )
 
     // Reunite bgzipped FTP files with local files, then index all
-    ch_to_index = BGZIP_RECOMPRESS.out.file
-        .mix(ch_ref_to_index_branched.unzip.map { meta, ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) })
-        .transpose()
+    ch_to_index = HTSLIB_BGZIPTABIX.out.output
+        .mix(ch_ref_to_index_branched.unzip.map { meta, faFinal, _faiFinal -> tuple(meta, faFinal) })
 
-    SAMTOOLS_FAIDX(ch_to_index
-        .groupTuple(by: 1)
-    )
+    SAMTOOLS_FAIDX(ch_to_index)
 
-    // Rejoin with ref IDs
-    ch_ref_ids = ch_ref
-        .map { meta, ref_id_c, faFinal, faiFinal ->
-        tuple(meta, ref_id_c) }
-
-    ch_ref_indexed = ch_ref_ids
-        .join(SAMTOOLS_FAIDX.out.fasta_index.transpose())
+    ch_ref_indexed = SAMTOOLS_FAIDX.out.fasta_index
         .mix(ch_ref_branched.indexed)
-
-    /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Basecalling model checkup and download
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    */
-
-    if (params.skip_basecalling || params.skip_mapping ) {
-
-        ch_model = channel.empty()
-        ch_modif = channel.empty()
-
-    } else {
-        if (!params.m_bases) {
-            log.warn("Tumor classification will be skipped — parameter --m_bases not set")
-        }
-
-        ch_model_dir = params.ref_cache ? channel.fromPath("${params.ref_cache}", checkIfExists:true) : channel.fromPath("${launchDir}")
-        def model_resolved = params.ref_cache  ? selectLatestModel(params.basecall_model,file("${params.ref_cache}/dorado_models")) : null
-        def modif_resolved = params.m_bases && model_resolved ?
-            selectLatestModif(file("${params.ref_cache}/dorado_models"), model_resolved, params.m_bases) :
-            null
-        ch_modif = channel.fromPath("${projectDir}/assets/NOMOD")
-
-        if (model_resolved) {
-            ch_model = channel.fromPath(model_resolved)
-        }
-
-        if (modif_resolved) {
-            ch_modif = channel.fromPath(modif_resolved)
-        }
-
-        // download both
-        if (!model_resolved && !modif_resolved && params.m_bases) {
-
-            DORADO_DOWNLOAD_LIST()
-
-            ch_model_to_download_resolved = selectBaseModelDownload(
-                DORADO_DOWNLOAD_LIST.out.list,
-                params.basecall_model
-            )
-
-            ch_model_to_download = ch_model_to_download_resolved
-                .combine(ch_model_dir)
-                .map { type, model -> tuple("base", type, model)}
-
-            ch_modif_to_download = selectModifiedModelDownload(
-                DORADO_DOWNLOAD_LIST.out.list,
-                ch_model_to_download_resolved,
-                params.m_bases
-            )
-                .combine(ch_model_dir)
-                .map { type, model -> tuple("modif", type, model)}
-
-            ch_in_download = ch_model_to_download
-                .mix(ch_modif_to_download)
-
-            DORADO_DOWNLOAD_MODEL(ch_in_download)
-
-            ch_model = DORADO_DOWNLOAD_MODEL.out.model
-                .filter { type, model -> type == "base" }
-                .map { type, model -> model }
-
-            ch_modif = DORADO_DOWNLOAD_MODEL.out.model
-                .filter { type, model -> type == "modif" }
-                .map { type, model -> model }
-
-        // download only model
-        } else if (!model_resolved && !params.m_bases) {
-
-            DORADO_DOWNLOAD_LIST()
-
-            ch_model_to_download = selectBaseModelDownload(
-                DORADO_DOWNLOAD_LIST.out.list,
-                params.basecall_model
-            )
-            .combine(ch_model_dir)
-            .map { type, model -> tuple("base", type, model)}
-
-            ch_in_download = ch_model_to_download
-
-            DORADO_DOWNLOAD_MODEL(ch_model_to_download)
-
-            ch_model = DORADO_DOWNLOAD_MODEL.out.model
-                .map { type, model -> model }
-
-        // download only modif
-        } else if (model_resolved && !modif_resolved && params.m_bases) {
-
-            DORADO_DOWNLOAD_LIST()
-
-            ch_model_match = ch_model.map { it -> it.name }
-
-            ch_modif_to_download = selectModifiedModelDownload(
-                DORADO_DOWNLOAD_LIST.out.list,
-                ch_model_match,
-                params.m_bases
-            )
-                .combine(ch_model_dir)
-                .map { type, model -> tuple("modif", type, model)}
-
-            DORADO_DOWNLOAD_MODEL(ch_modif_to_download)
-
-            ch_modif = DORADO_DOWNLOAD_MODEL.out.model
-                .map { type, model -> model }
-        }
-    }
-
-    /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ENSEMBLVEP CACHE CHECKUP AND DOWNLOAD
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    */
-
-    // Use a supplied VEP cache when it contains the selected assembly. Otherwise,
-    // download the exact cache required by the selected reference genome.
-    def vepCacheDetails = getVepCacheDetails(params.genome)
-    def vepCacheDirectory = params.vep_cache ?: (
-        params.ref_cache && file(params.ref_cache).isDirectory() ? "${params.ref_cache}/vep" : null
-    )
-
-    if (hasVepCache(vepCacheDirectory, vepCacheDetails, params.vep_version)) {
-        ch_vep_cache = channel.fromPath(vepCacheDirectory, checkIfExists: true).collect()
-    } else {
-        log.info("Downloading Ensembl VEP ${params.vep_version} cache for ${vepCacheDetails.assembly}")
-
-        ch_vep_cache_to_download = channel.of([
-            [id: "${params.vep_version}_${vepCacheDetails.assembly}"],
-            vepCacheDetails.assembly,
-            vepCacheDetails.species,
-            params.vep_version
-        ])
-
-        ENSEMBLVEP_DOWNLOAD(ch_vep_cache_to_download, true)
-
-        ch_vep_cache = ENSEMBLVEP_DOWNLOAD.out.cache
-            .map { _meta, cache -> cache }
-            .collect()
-    }
+        .view()
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -487,9 +288,9 @@ workflow PIPELINE_INITIALISATION {
 
     if (params.demux) {
         channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
+                meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
                 if (project && kit && !barcode ) {
                     throw new IllegalArgumentException("Please provide barcode for sample ${meta.id ?: meta}")
                 }
@@ -502,9 +303,9 @@ workflow PIPELINE_INITIALISATION {
             }
     } else {
         channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .fromList(samplesheetToList(input_sheet, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
+                meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
                 if (kit || barcode) {
                     throw new IllegalArgumentException("Please use --demux option for demultiplexing samples")
                 }
@@ -517,55 +318,7 @@ workflow PIPELINE_INITIALISATION {
     samplesheet = ch_in_samplesheet
     ref_ch      = ch_ref_indexed
     cfdna_ch    = ch_cfdna
-    vep_cache   = ch_vep_cache
-    model_ch    = ch_model
-    modif_ch    = ch_modif
     versions    = ch_versions
-}
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    SUBWORKFLOW FOR PIPELINE COMPLETION
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-workflow PIPELINE_COMPLETION {
-
-    take:
-    email           //  string: email address
-    email_on_fail   //  string: email address sent on pipeline failure
-    plaintext_email // boolean: Send plain-text email instead of HTML
-    outdir          //    path: Path to output directory where results will be published
-    monochrome_logs // boolean: Disable ANSI colour codes in log output
-    hook_url        //  string: hook URL for notifications
-
-    main:
-    summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
-
-    //
-    // Completion email and summary
-    //
-    workflow.onComplete {
-        if (email || email_on_fail) {
-            completionEmail(
-                summary_params,
-                email,
-                email_on_fail,
-                plaintext_email,
-                outdir,
-                monochrome_logs
-            )
-        }
-
-        completionSummary(monochrome_logs)
-        if (hook_url) {
-            imNotification(summary_params, hook_url)
-        }
-    }
-
-    workflow.onError {
-        log.error "Pipeline failed. Please refer to troubleshooting docs: https://nf-co.re/docs/usage/troubleshooting"
-    }
 }
 
 /*
@@ -648,44 +401,47 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
     // Clone metadata and normalize to strings
     def new_meta = meta.collectEntries { k, v -> [k, v?.toString()] }
 
-    if (operation == 'remove_suffix') {
-        if (new_meta.id && suffix) {
-            new_meta.id = new_meta.id.replaceFirst(suffix.toString(), '')
-        }
-    }
-    else if (operation == 'add_suffix') {
-        if (new_meta.id && suffix) {
-            new_meta.id = new_meta.id + suffix
-        }
-    }
-    else if (operation == 'replace') {
-        if (new_meta.id && search_string) {
-            new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
-        }
-    }
-    else if (operation == 'prefix') {
-        if (new_meta.id && suffix) {
-            new_meta.id = suffix + new_meta.id
-        }
+    switch(operation) {
+        case 'remove_suffix':
+            if (new_meta.id && suffix) {
+                new_meta.id = new_meta.id.replaceFirst(suffix.toString(), '')
+            }
+            break
+
+        case 'add_suffix':
+            if (new_meta.id && suffix) {
+                new_meta.id = new_meta.id + suffix
+            }
+            break
+
+        case 'replace':
+            if (new_meta.id && search_string) {
+                new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
+            }
+            break
+
+        case 'prefix':
+            if (new_meta.id && suffix) {
+                new_meta.id = suffix + new_meta.id
+            }
+            break
     }
 
     return new_meta
 }
 
 def getMinQC(model) {
-    def model_string = model.toString()
-    if (model_string.contains('sup')) {
-        return 10
-    }
-    else if (model_string.contains('hac')) {
-        return 9
-    }
-    else {
-        return 8
-    }
+    model_string = model.toString()
+        if (model_string.contains('sup')) {
+            return 10
+        } else if (model_string.contains('hac')) {
+            return 9
+        } else {
+            return 8
+        }
 }
 
-def selectLatestModel(model, model_path) {
+def selectLatestModel(model,model_path) {
     def model_name = model.toString()
     def requested_version = null
 
@@ -701,7 +457,7 @@ def selectLatestModel(model, model_path) {
 
     // 1) Find clean (unmodified) models
     def clean_models = model_path.listFiles().findAll { f ->
-        f.name ==~ ".*${model_name}@v${version_pattern}\$"
+        f.name ==~ /.*${model_name}@v${version_pattern}$/
     }
 
     def clean_model_dna = clean_models.findAll { f ->
@@ -714,8 +470,7 @@ def selectLatestModel(model, model_path) {
             "No model file found in the provided ${model_path} for model ${model_name}${version_note}: model will be downloaded"
         )
         return null
-    }
-    else {
+    } else {
         if (requested_version) {
             return clean_model_dna.first()
         }
@@ -727,18 +482,12 @@ def selectLatestModel(model, model_path) {
                 def vb = b.name.split('@v')[-1].tokenize('.').collect { it as int }
 
                 int len = Math.max(va.size(), vb.size())
-
-                def diff_index = (0..<len).find { i ->
-                    def ai = i < va.size() ? va[i] : 0
-                    def bi = i < vb.size() ? vb[i] : 0
-                    ai != bi
+                for (int i = 0; i < len; i++) {
+                    int ai = i < va.size() ? va[i] : 0
+                    int bi = i < vb.size() ? vb[i] : 0
+                    if (ai != bi) return ai <=> bi
                 }
-
-                if (diff_index == null) return 0
-
-                def ai = diff_index < va.size() ? va[diff_index] : 0
-                def bi = diff_index < vb.size() ? vb[diff_index] : 0
-                ai <=> bi
+                return 0
             }
             .last()
     }
@@ -765,7 +514,7 @@ def selectLatestModif(model_path, model, modif) {
         : '[0-9]+(\\.[0-9]+)*'
 
     def clean_model_mod = model_path.listFiles().findAll { f ->
-        f.name ==~ "${base_model}_${modif_name}@v${version_pattern}\$"
+        f.name ==~ /${base_model}_${modif_name}@v${version_pattern}$/
     }
 
     if (!clean_model_mod) {
@@ -774,15 +523,14 @@ def selectLatestModif(model_path, model, modif) {
             "No modified model found for ${base_model} with ${modif_name}${version_note} in ${model_path}: model will be downloaded"
         )
         return null
-    }
-    else {
+    } else {
         if (requested_version) {
             return clean_model_mod.first()
         }
         return clean_model_mod
             .sort { a, b ->
-                def va = a.name.split('@v')[-1].tokenize('.').collect { it.toInteger() }.join('').toInteger()
-                def vb = b.name.split('@v')[-1].tokenize('.').collect { it.toInteger() }.join('').toInteger()
+                def va = a.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
+                def vb = b.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
                 va <=> vb
             }
             .last()
@@ -844,46 +592,4 @@ def selectModelDownload(chModelsList, modelParam, subfield = null, chParentModel
             def exact = list.find { it[0] == modelParam }
             exact ? exact[0] : list[-1][0]
         }
-}
-
-def selectBaseModelDownload(chModelsList, modelParam) {
-    selectModelDownload(chModelsList, modelParam)
-}
-
-def selectModifiedModelDownload(chModelsList, chBaseModel, modifParam) {
-    selectModelDownload(chModelsList, modifParam, 'modified_models', chBaseModel)
-}
-
-def getVepCacheDetails(genome) {
-    def assemblies = [
-        hg38: [assembly: 'GRCh38', species: 'homo_sapiens'],
-        hg19: [assembly: 'GRCh37', species: 'homo_sapiens'],
-        hs1 : [assembly: 'CHM13', species: 'homo_sapiens']
-    ]
-
-    def aliases = [
-        hg38  : 'hg38',
-        GRCh38: 'hg38',
-        hg19  : 'hg19',
-        GRCh37: 'hg19',
-        hs1   : 'hs1',
-        CHM13 : 'hs1',
-        t2t   : 'hs1'
-    ]
-
-    def canonicalGenome = aliases[genome]
-    if (!canonicalGenome) {
-        throw new IllegalArgumentException("Unsupported genome for VEP cache: ${genome}")
-    }
-
-    assemblies[canonicalGenome]
-}
-
-def hasVepCache(cacheDirectory, cacheDetails, cacheVersion) {
-    cacheDirectory && file("${cacheDirectory}/${cacheDetails.species}/${cacheVersion}_${cacheDetails.assembly}").isDirectory()
-}
-
-// Case-insensitive FASTA/FAI finders
-def findFaFile (files, aliasList, exts) {
-    files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && exts.any { ext -> f.name.toLowerCase().endsWith(ext) } }
 }
