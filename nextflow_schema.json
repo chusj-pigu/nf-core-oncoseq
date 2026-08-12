@@ -307,7 +307,7 @@
             "type": "string"
         },
         "realtime": {
-            "type": "integer",
+            "type": "string",
             "description": "Use number of sequencing hour to activate real time mode"
         },
         "subchrom_binsize": {

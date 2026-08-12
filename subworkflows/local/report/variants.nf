@@ -52,6 +52,7 @@ workflow FIGENO_REPORT {
     ch_fusion = channel.of("Fusions")
     ch_sv = channel.of("Structural-Variants")
     ch_targets = channel.of("Important-Genes")
+    def realtime = params.realtime?.toInteger()
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     CIRCOS FIGURE
@@ -143,7 +144,7 @@ workflow FIGENO_REPORT {
     CNLOH FIGURES
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-    if (params.realtime == null || params.realtime == 72) {
+    if (realtime == null || realtime == 72) {
 
         ch_subtitle_cnloh = ch_bin_sizes
             .filter { meta, _value ->
@@ -391,7 +392,7 @@ workflow FIGENO_REPORT {
     ch_section_fusion = ch_section_fusion
         .groupTuple()
         .map { id, section, filePaths ->
-            def stellerator_support = params.realtime != null && params.realtime <= 6 ?
+            def stellerator_support = realtime != null && realtime <= 6 ?
             "all calls are shown" :
             (params.cfdna ? "calls with at least 2 reads support are shown" : "calls with at least 3 reads support are shown")
             def caption = "Gene fusions with > 4 reads support, at least one annotation of high or moderate impact, and affecting at least one gene in the panel. For Stellerator, ${stellerator_support}"
