@@ -356,8 +356,16 @@ workflow PIPELINE_INITIALISATION {
             log.warn("Tumor classification will be skipped — parameter --m_bases not set")
         }
 
-        ch_model_dir = params.ref_cache ? channel.fromPath("${params.ref_cache}", checkIfExists:true) : channel.fromPath("${launchDir}")
-        def model_resolved = params.ref_cache  ? selectLatestModel(params.basecall_model,file("${params.ref_cache}/dorado_models")) : null
+        def ref_cache_dir      = params.ref_cache ? file(params.ref_cache) : null
+        def ref_cache_resolved = ref_cache_dir ? (ref_cache_dir.isDirectory() ? ref_cache_dir.toString() : ref_cache_dir.getParent()) : null
+
+        ch_model_dir = ref_cache_resolved
+            ? channel.fromPath(ref_cache_resolved, checkIfExists: true)
+            : channel.fromPath("${launchDir}")
+
+        def model_resolved = ref_cache_resolved
+            ? selectLatestModel(params.basecall_model, file("${ref_cache_resolved}/dorado_models"))
+            : null
         def modif_resolved = params.m_bases && model_resolved ?
             selectLatestModif(file("${params.ref_cache}/dorado_models"), model_resolved, params.m_bases) :
             null
@@ -456,12 +464,20 @@ workflow PIPELINE_INITIALISATION {
     // Use a supplied VEP cache when it contains the selected assembly. Otherwise,
     // download the exact cache required by the selected reference genome.
     def vepCacheDetails = getVepCacheDetails(params.genome)
-    def vepCacheDirectory = params.vep_cache ?: (
-        params.ref_cache && file(params.ref_cache).isDirectory() ? "${params.ref_cache}/vep" : null
-    )
+    def refCacheFile = params.ref_cache ? file(params.ref_cache) : null
+    def refCacheDir  = refCacheFile ? (refCacheFile.isDirectory() ? refCacheFile.toString() : refCacheFile.getParent()) : null
 
-    if (hasVepCache(vepCacheDirectory, vepCacheDetails, params.vep_version)) {
+    def vepCacheCandidates = params.vep_cache
+        ? [params.vep_cache]
+        : (refCacheDir ? ['vep', 'vep_cache'].collect { cacheName -> "${refCacheDir}/${cacheName}" } : [])
+
+    def vepCacheDirectory = vepCacheCandidates.find { candidate ->
+        hasVepCache(candidate, vepCacheDetails, params.vep_version)
+    }
+
+    if (vepCacheDirectory) {
         ch_vep_cache = channel.fromPath(vepCacheDirectory, checkIfExists: true).collect()
+        println "Using existing Ensembl VEP ${params.vep_version} cache for ${vepCacheDetails.assembly} from ${vepCacheDirectory}"
     } else {
         log.info("Downloading Ensembl VEP ${params.vep_version} cache for ${vepCacheDetails.assembly}")
 
