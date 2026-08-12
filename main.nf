@@ -145,8 +145,10 @@ workflow {
     } else {
 
         ch_input = PIPELINE_INITIALISATION.out.samplesheet
-            .combine(PIPELINE_INITIALISATION.out.samplesheet.out.model_ch)
-            .combine(PIPELINE_INITIALISATION.out.samplesheet.out.modif_ch)
+            .combine(PIPELINE_INITIALISATION.out.model_ch)
+            .combine(PIPELINE_INITIALISATION.out.modif_ch)
+
+        ch_model = PIPELINE_INITIALISATION.out.model_ch
     }
 
    // channels for SNP calling
