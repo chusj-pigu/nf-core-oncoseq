@@ -18,8 +18,8 @@ include { QUARTO_TABLE_TABS     } from '../../../modules/local/quarto/main.nf'
 // Reusable closure to filter calls by cutoff or fall back to max
 def applyFilter(flatCalls, cutoff, scoreField) {
     flatCalls
-        .sort { a, b -> scoreField(a) <=> scoreField(b) }  // ascending first
-        .reverse()                                          // then reverse to get descending
+        .sort { a, b -> scoreField.call(a) <=> scoreField.call(b) }  // ascending first
+        .reverse()                                                    // then reverse to get descending
         .take(5)
 }
 
@@ -38,7 +38,7 @@ def makeCallChannel(ch, typeName, modelConfig, cutoffMap) {
 
             def rows = topCalls.collect { call ->
                 def f      = config.fields(call)
-                def status = scoreField(call) >= cutoff ? "PASS" : "FAIL"
+                def status = scoreField.call(call) >= cutoff ? "PASS" : "FAIL"
                 [meta.id, f[0], f[1], f[2], f[3], status, type.flatten().first()]
             }
             // Return as single tuple with all rows — don't flatMap yet
@@ -325,7 +325,14 @@ workflow CLASSIFIER_REPORT {
     ch_tucan_top_family = ch_methylation_call
         .filter { meta, json, type -> type.contains('Tucan') }
         .splitJson(path:   modelConfigClass['Tucan'].path)
-        .take(5)
+        .groupTuple()
+        .map { tup ->
+            def meta   = tup[0]
+            def fields = tup[1]
+            def top5   = fields.sort { -it.score }.take(5)
+            [meta, top5, "Tucan"]
+        }
+        .transpose()
         .map { meta, calls, type ->
             def unique_family = calls.family
             tuple(meta, unique_family, type)
@@ -356,7 +363,6 @@ workflow CLASSIFIER_REPORT {
             def score = calls.score
             tuple(meta, unique_family, unique_class, [classes: score], type)
         }
-        .take(5)
         .combine(ch_tucan_call_family, by:[0,1])
         .map { meta, family, classes, class_score, type, family_score ->
             tuple(meta, family, family_score, classes, class_score, type)

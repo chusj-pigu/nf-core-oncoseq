@@ -14,7 +14,8 @@ include { ENSEMBLVEP_VEP as ENSEMBLVEP_HS1  } from '../../../modules/nf-core/ens
 include { ENSEMBLVEP_FILTERVEP              } from '../../../modules/nf-core/ensemblvep/filtervep/main.nf'
 include { BCFTOOLS_SORT                     } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX                    } from '../../../modules/local/bcftools/main.nf'
-include { BGZIP_VCF                         } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BCFTOOLS_COUNT   } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BGZIP_VCF        } from '../../../modules/local/bcftools/main.nf'
 include { modifyMetaId                      } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
@@ -104,7 +105,24 @@ workflow SV_CALLING {
         ch_severus_versions = SEVERUS_TUMOR_PHASED.out.versions
     }
 
+    BCFTOOLS_COUNT(ch_vcf_severus)
+
+    ch_count_variant = BCFTOOLS_COUNT.out.vcf
+        .branch { meta, vcf ->
+            positive: vcf.size() > 0
+                return meta
+            negative: true
+                return meta
+        }
+
+    ch_severus_empty = ch_count_variant.negative
+        .join(ch_vcf_severus)
+        .map { meta, vcf ->
+            tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf)
+        }
+
     ch_vep = ch_vcf_severus
+        .join(ch_count_variant.positive)
         .join(ch_ref_type)
         .branch { meta, vcf, genome ->
             hg38: genome == "hg38"
@@ -116,6 +134,7 @@ workflow SV_CALLING {
             }
 
     ch_fasta = ch_vcf_severus
+        .join(ch_count_variant.positive)
         .join(ref)
         .branch { meta, _vcf, genome, ref_fasta, _ref_index ->
             hg38: genome == "hg38"
@@ -174,10 +193,6 @@ workflow SV_CALLING {
     */
 
     ch_genes = channel.fromPath(params.fusion_targets, checkIfExists:true)
-        .splitCsv()
-        .map { row ->
-            tuple(row[0], row[1])
-            }
 
     ch_in_stellerator = bam
         .join(ch_ref_type)
@@ -185,27 +200,17 @@ workflow SV_CALLING {
 
     STELLERATOR(ch_in_stellerator)
 
-    ch_out_stellerator = STELLERATOR.out.table
-        .map { meta, table ->
-            def table_resolved = table.readLines().size > 1 ? table : "negative"
-            tuple(meta, table_resolved) }
-        .unique()
-        .groupTuple()
-        .branch { meta, tables ->
-            empty: tables.size() == 1
-                return [meta, tables, "stellerator"]
-            pos:   true
-                return [meta, tables.findAll { it != "negative" }] }
-
-    ch_pos_stellerator = ch_out_stellerator.pos
-    ch_empty_stellerator = ch_out_stellerator.empty
-
+    ch_out_stellerator = STELLERATOR.out.vcf
+        .map { meta, vcf ->
+            tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_stellerator'),vcf)
+        }
 
     ch_to_bgzip = SNPEFF_ANNOTATE.out.vcf
         .mix(ENSEMBLVEP_FILTERVEP.out.output)
+        .mix(ch_severus_empty)
 
     BGZIP_VCF(ch_to_bgzip)
-    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf_gz)
+    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf)
 
 
     ch_versions = SNIFFLES_CALL.out.versions
@@ -214,11 +219,11 @@ workflow SV_CALLING {
         .mix(BGZIP_VCF.out.versions)
         .mix(BCFTOOLS_INDEX.out.versions)
         .mix(ch_severus_versions)
+        .mix(STELLERATOR.out.versions)
 
     emit:
     vcf              = BCFTOOLS_INDEX.out.vcf_tbi
-    stellerator      = ch_pos_stellerator
-    empty_calls      = ch_empty_stellerator
+    stellerator      = ch_out_stellerator
     versions         = ch_versions
 
 }

@@ -95,7 +95,7 @@ workflow MIDNIGHT_REPORT {
                     (params.skip_basecalling ? "and fastq files as input, skipping basecalling." :
                         "using pod5 files as input, basecalling model ${params.basecall_model}")
                 def modif = params.m_bases ? " and modified basecalling model ${params.m_bases}" : ""
-                def filt = filter == "yes" ? "Reads shorter than ${params.max_length} bp were filtered out before mapping." : ""
+                def filt = filter == "yes" ? "Reads longer than ${params.max_length} bp were filtered out before mapping." : ""
                 tuple(meta, "Ouputs summary for oncoseq workflow, using reference genome ${refid}, targeted panel bed file ${bed}, ${skip_modes}${modif}. ${filt}")}
 
     } else {

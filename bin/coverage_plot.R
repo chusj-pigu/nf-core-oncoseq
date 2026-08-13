@@ -74,28 +74,32 @@ detect_outliers_low <- function(bed) {
 
 normalize_bed <- function(bed, maximum) {
 
-  # Normalize outliers in coverage
-  high_coverage_limit <- (ceiling(maximum / 10) * 10)
+  high_coverage_limit <- ceiling(maximum / 10) * 10
+  if (high_coverage_limit == 0) {
+    high_coverage_limit <- 0.05
+  }
 
   bed <- bed %>%
     mutate(nofilter = case_when(
-      nofilter > high_coverage_limit & primary > high_coverage_limit ~ (ceiling(maximum / 10) * 10),
-      nofilter > high_coverage_limit ~ (ceiling(maximum / 10) * 10),
+      nofilter > high_coverage_limit & primary > high_coverage_limit ~ high_coverage_limit,
+      nofilter > high_coverage_limit ~ high_coverage_limit,
       TRUE ~ nofilter
     ),
     primary = case_when(
-      primary > high_coverage_limit & mapq60 > high_coverage_limit ~ (ceiling(maximum / 10) * 10),
-      primary > high_coverage_limit ~ (ceiling(maximum / 10) * 10),
+      primary > high_coverage_limit & mapq60 > high_coverage_limit ~ high_coverage_limit,
+      primary > high_coverage_limit ~ high_coverage_limit,
       TRUE ~ primary
     ),
     mapq60 = case_when(
-      mapq60 > high_coverage_limit ~ (ceiling(maximum / 10) * 10),
+      mapq60 > high_coverage_limit ~ high_coverage_limit,
       TRUE ~ mapq60
     ))
 
-  # Add fidelity variable for coloring
   bed <- bed %>%
-    mutate(fidelity = ifelse(gene %in% genes_low_fidelity, "Low fidelity", ifelse(gene %in% outliers_high, "Possible increased copy number", ifelse(gene %in% outliers_low, "Possible decreased copy number", "Normal (-2.75 < zscore < 2.75)"))))
+    mutate(fidelity = ifelse(gene %in% genes_low_fidelity, "Low fidelity",
+                       ifelse(gene %in% outliers_high, "Possible increased copy number",
+                       ifelse(gene %in% outliers_low, "Possible decreased copy number",
+                              "Normal (-2.75 < zscore < 2.75)"))))
   return(bed)
 }
 
@@ -166,6 +170,12 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
         ymax <- ceiling(maximum * 10) / 10
     }
 
+    if (ymax == 0) {
+    ymax <- 0.05
+    } else {
+    ymax <- ymax
+    }
+
     axis_ticks <- seq(0, ymax, length.out = 5)
 
   # Reorder chromosomes for plotting
@@ -188,7 +198,7 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
            geom_text(data=ann_facet, aes(x = gene, y = coverage, label = ann), size =4, vjust = 0.5, hjust = "outward", nudge_x = 0.5) +
            geom_hline(yintercept = ceiling(median), linewidth = 1, linetype = 'dashed') +
            geom_hline(yintercept = ceiling(bg_cov), linewidth = 1, linetype = 'dashed') +
-           facet_wrap(~ chr, nrow = 3, scales = "free_x") +
+           facet_wrap(~ chr, nrow = 5, scales = "free_x") +
            theme(
              plot.margin = unit(c(0.5,4,0,0), "cm"),
              axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
@@ -220,7 +230,7 @@ generate_plot <- function(bed, maximum, ann_out, ann_facet, output_pdf) {
           geom_text(data = ann_facet, aes(x = gene, y = coverage, label = ann), size = 4, vjust = 0.5, hjust = "outward", nudge_x = 0.5) +
           geom_hline(yintercept = ceiling(median), linewidth = 1, linetype = 'dashed') +
           geom_hline(yintercept = ceiling(bg_cov), linewidth = 1, linetype = 'dashed') +
-          facet_wrap(~ chr, nrow = 3, scales = "free_x") +
+          facet_wrap(~ chr, nrow = 5, scales = "free_x") +
           theme(
             plot.margin = unit(c(0.5, 4, 0, 0), "cm"),
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
@@ -273,7 +283,12 @@ tryCatch({
   genes_high <- bed_all %>% filter(mapq60 > 1.5*median | primary > 1.5*median | nofilter > 1.5*median) %>% pull(gene)
 
   # Execute functions to make data ready for plotting:
-  max_normal_coverage <- max(bed_all$nofilter[bed_all$nofilter < 1.5 * median])
+  max_normal_coverage <- suppressWarnings(
+    max(bed_all$nofilter[bed_all$nofilter < 1.5 * median])
+  )
+  if (!is.finite(max_normal_coverage)) {
+    max_normal_coverage <- 0
+  }
   bed_norm <- normalize_bed(bed_all,max_normal_coverage)
   bed_long <- df_long(bed_norm)
   ann_df <- generate_ann_out(bed_long, bed_all)

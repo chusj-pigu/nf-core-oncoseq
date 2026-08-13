@@ -18,6 +18,9 @@ include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
 include { SAMTOOLS_FAIDX            } from '../../../modules/local/samtools/main.nf'
 include { BGZIP_RECOMPRESS          } from '../../../modules/local/bcftools/main.nf'
+include { DORADO_DOWNLOAD_LIST    } from '../../../modules/local/dorado/main.nf'
+include { DORADO_DOWNLOAD_MODEL   } from '../../../modules/local/dorado/main.nf'
+include { ENSEMBLVEP_DOWNLOAD     } from '../../../modules/nf-core/ensemblvep/download/main.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -222,10 +225,6 @@ workflow PIPELINE_INITIALISATION {
             def genome  = genomeMap[rawGenome] ?: { error "ERROR: Unrecognized genome '${rawGenome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
             def aliases = genomeMap.findAll { k, v -> v == genome }.keySet()
 
-            // Case-insensitive FASTA/FAI finders
-            def findFa  = { files, aliasList -> files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && faExts.any  { ext -> f.name.toLowerCase().endsWith(ext) } } }
-            def findFai = { files, aliasList -> files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && faiExts.any { ext -> f.name.toLowerCase().endsWith(ext) } } }
-
             def faFinal  = null
             def faiFinal = null
 
@@ -247,8 +246,8 @@ workflow PIPELINE_INITIALISATION {
                 // --- Case 1b: ref_path is a directory ---
                 } else if (refFile.isDirectory()) {
                     def allFiles = refFile.listFiles() as List
-                    def faFile   = findFa(allFiles, aliases)
-                    def faiFile  = findFai(allFiles, aliases)
+                    def faFile   = findFaFile(allFiles, aliases, faExts)
+                    def faiFile  = findFaFile(allFiles, aliases, faiExts)
 
                     faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
                     faiFinal = faiFile ?: null
@@ -278,8 +277,8 @@ workflow PIPELINE_INITIALISATION {
                 // --- Case 2b: ref_cache is a directory ---
                 } else if (refCacheFile.isDirectory()) {
                     def allFiles = refCacheFile.listFiles() as List
-                    def faFile   = findFa(allFiles, aliases)
-                    def faiFile  = findFai(allFiles, aliases)
+                    def faFile   = findFaFile(allFiles, aliases, faExts)
+                    def faiFile  = findFaFile(allFiles, aliases, faiExts)
 
                     faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
                     faiFinal = faiFile ?: null
@@ -343,6 +342,161 @@ workflow PIPELINE_INITIALISATION {
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Basecalling model checkup and download
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
+    if (params.skip_basecalling || params.skip_mapping ) {
+
+        ch_model = channel.empty()
+        ch_modif = channel.empty()
+
+    } else {
+        if (!params.m_bases) {
+            log.warn("Tumor classification will be skipped — parameter --m_bases not set")
+        }
+
+        def ref_cache_dir      = params.ref_cache ? file(params.ref_cache) : null
+        def ref_cache_resolved = ref_cache_dir ? (ref_cache_dir.isDirectory() ? ref_cache_dir.toString() : ref_cache_dir.getParent()) : null
+
+        ch_model_dir = ref_cache_resolved
+            ? channel.fromPath(ref_cache_resolved, checkIfExists: true)
+            : channel.fromPath("${launchDir}")
+
+        def model_resolved = ref_cache_resolved
+            ? selectLatestModel(params.basecall_model, file("${ref_cache_resolved}/dorado_models"))
+            : null
+        def modif_resolved = params.m_bases && model_resolved ?
+            selectLatestModif(file("${params.ref_cache}/dorado_models"), model_resolved, params.m_bases) :
+            null
+        ch_modif = channel.fromPath("${projectDir}/assets/NOMOD")
+
+        if (model_resolved) {
+            ch_model = channel.fromPath(model_resolved)
+        }
+
+        if (modif_resolved) {
+            ch_modif = channel.fromPath(modif_resolved)
+        }
+
+        // download both
+        if (!model_resolved && !modif_resolved && params.m_bases) {
+
+            DORADO_DOWNLOAD_LIST()
+
+            ch_model_to_download_resolved = selectBaseModelDownload(
+                DORADO_DOWNLOAD_LIST.out.list,
+                params.basecall_model
+            )
+
+            ch_model_to_download = ch_model_to_download_resolved
+                .combine(ch_model_dir)
+                .map { type, model -> tuple("base", type, model)}
+
+            ch_modif_to_download = selectModifiedModelDownload(
+                DORADO_DOWNLOAD_LIST.out.list,
+                ch_model_to_download_resolved,
+                params.m_bases
+            )
+                .combine(ch_model_dir)
+                .map { type, model -> tuple("modif", type, model)}
+
+            ch_in_download = ch_model_to_download
+                .mix(ch_modif_to_download)
+
+            DORADO_DOWNLOAD_MODEL(ch_in_download)
+
+            ch_model = DORADO_DOWNLOAD_MODEL.out.model
+                .filter { type, model -> type == "base" }
+                .map { type, model -> model }
+
+            ch_modif = DORADO_DOWNLOAD_MODEL.out.model
+                .filter { type, model -> type == "modif" }
+                .map { type, model -> model }
+
+        // download only model
+        } else if (!model_resolved && !params.m_bases) {
+
+            DORADO_DOWNLOAD_LIST()
+
+            ch_model_to_download = selectBaseModelDownload(
+                DORADO_DOWNLOAD_LIST.out.list,
+                params.basecall_model
+            )
+            .combine(ch_model_dir)
+            .map { type, model -> tuple("base", type, model)}
+
+            ch_in_download = ch_model_to_download
+
+            DORADO_DOWNLOAD_MODEL(ch_model_to_download)
+
+            ch_model = DORADO_DOWNLOAD_MODEL.out.model
+                .map { type, model -> model }
+
+        // download only modif
+        } else if (model_resolved && !modif_resolved && params.m_bases) {
+
+            DORADO_DOWNLOAD_LIST()
+
+            ch_model_match = ch_model.map { it -> it.name }
+
+            ch_modif_to_download = selectModifiedModelDownload(
+                DORADO_DOWNLOAD_LIST.out.list,
+                ch_model_match,
+                params.m_bases
+            )
+                .combine(ch_model_dir)
+                .map { type, model -> tuple("modif", type, model)}
+
+            DORADO_DOWNLOAD_MODEL(ch_modif_to_download)
+
+            ch_modif = DORADO_DOWNLOAD_MODEL.out.model
+                .map { type, model -> model }
+        }
+    }
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ENSEMBLVEP CACHE CHECKUP AND DOWNLOAD
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
+    // Use a supplied VEP cache when it contains the selected assembly. Otherwise,
+    // download the exact cache required by the selected reference genome.
+    def vepCacheDetails = getVepCacheDetails(params.genome)
+    def refCacheFile = params.ref_cache ? file(params.ref_cache) : null
+    def refCacheDir  = refCacheFile ? (refCacheFile.isDirectory() ? refCacheFile.toString() : refCacheFile.getParent()) : null
+
+    def vepCacheCandidates = params.vep_cache
+        ? [params.vep_cache]
+        : (refCacheDir ? ['vep', 'vep_cache'].collect { cacheName -> "${refCacheDir}/${cacheName}" } : [])
+
+    def vepCacheDirectory = vepCacheCandidates.find { candidate ->
+        hasVepCache(candidate, vepCacheDetails, params.vep_version)
+    }
+
+    if (vepCacheDirectory) {
+        ch_vep_cache = channel.fromPath(vepCacheDirectory, checkIfExists: true).collect()
+        println "Using existing Ensembl VEP ${params.vep_version} cache for ${vepCacheDetails.assembly} from ${vepCacheDirectory}"
+    } else {
+        log.info("Downloading Ensembl VEP ${params.vep_version} cache for ${vepCacheDetails.assembly}")
+
+        ch_vep_cache_to_download = channel.of([
+            [id: "${params.vep_version}_${vepCacheDetails.assembly}"],
+            vepCacheDetails.assembly,
+            vepCacheDetails.species,
+            params.vep_version
+        ])
+
+        ENSEMBLVEP_DOWNLOAD(ch_vep_cache_to_download, true)
+
+        ch_vep_cache = ENSEMBLVEP_DOWNLOAD.out.cache
+            .map { _meta, cache -> cache }
+            .collect()
+    }
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Error messages
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
@@ -379,6 +533,9 @@ workflow PIPELINE_INITIALISATION {
     samplesheet = ch_in_samplesheet
     ref_ch      = ch_ref_indexed
     cfdna_ch    = ch_cfdna
+    vep_cache   = ch_vep_cache
+    model_ch    = ch_model
+    modif_ch    = ch_modif
     versions    = ch_versions
 }
 
@@ -507,47 +664,44 @@ def modifyMetaId(Map meta, String operation, String search_string = '', String r
     // Clone metadata and normalize to strings
     def new_meta = meta.collectEntries { k, v -> [k, v?.toString()] }
 
-    switch(operation) {
-        case 'remove_suffix':
-            if (new_meta.id && suffix) {
-                new_meta.id = new_meta.id.replaceFirst(suffix.toString(), '')
-            }
-            break
-
-        case 'add_suffix':
-            if (new_meta.id && suffix) {
-                new_meta.id = new_meta.id + suffix
-            }
-            break
-
-        case 'replace':
-            if (new_meta.id && search_string) {
-                new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
-            }
-            break
-
-        case 'prefix':
-            if (new_meta.id && suffix) {
-                new_meta.id = suffix + new_meta.id
-            }
-            break
+    if (operation == 'remove_suffix') {
+        if (new_meta.id && suffix) {
+            new_meta.id = new_meta.id.replaceFirst(suffix.toString(), '')
+        }
+    }
+    else if (operation == 'add_suffix') {
+        if (new_meta.id && suffix) {
+            new_meta.id = new_meta.id + suffix
+        }
+    }
+    else if (operation == 'replace') {
+        if (new_meta.id && search_string) {
+            new_meta.id = new_meta.id.replace(search_string, replace_string ?: '')
+        }
+    }
+    else if (operation == 'prefix') {
+        if (new_meta.id && suffix) {
+            new_meta.id = suffix + new_meta.id
+        }
     }
 
     return new_meta
 }
 
 def getMinQC(model) {
-    model_string = model.toString()
-        if (model_string.contains('sup')) {
-            return 10
-        } else if (model_string.contains('hac')) {
-            return 9
-        } else {
-            return 8
-        }
+    def model_string = model.toString()
+    if (model_string.contains('sup')) {
+        return 10
+    }
+    else if (model_string.contains('hac')) {
+        return 9
+    }
+    else {
+        return 8
+    }
 }
 
-def selectLatestModel(model,model_path) {
+def selectLatestModel(model, model_path) {
     def model_name = model.toString()
     def requested_version = null
 
@@ -563,7 +717,7 @@ def selectLatestModel(model,model_path) {
 
     // 1) Find clean (unmodified) models
     def clean_models = model_path.listFiles().findAll { f ->
-        f.name ==~ /.*${model_name}@v${version_pattern}$/
+        f.name ==~ ".*${model_name}@v${version_pattern}\$"
     }
 
     def clean_model_dna = clean_models.findAll { f ->
@@ -576,7 +730,8 @@ def selectLatestModel(model,model_path) {
             "No model file found in the provided ${model_path} for model ${model_name}${version_note}: model will be downloaded"
         )
         return null
-    } else {
+    }
+    else {
         if (requested_version) {
             return clean_model_dna.first()
         }
@@ -588,12 +743,18 @@ def selectLatestModel(model,model_path) {
                 def vb = b.name.split('@v')[-1].tokenize('.').collect { it as int }
 
                 int len = Math.max(va.size(), vb.size())
-                for (int i = 0; i < len; i++) {
-                    int ai = i < va.size() ? va[i] : 0
-                    int bi = i < vb.size() ? vb[i] : 0
-                    if (ai != bi) return ai <=> bi
+
+                def diff_index = (0..<len).find { i ->
+                    def ai = i < va.size() ? va[i] : 0
+                    def bi = i < vb.size() ? vb[i] : 0
+                    ai != bi
                 }
-                return 0
+
+                if (diff_index == null) return 0
+
+                def ai = diff_index < va.size() ? va[diff_index] : 0
+                def bi = diff_index < vb.size() ? vb[diff_index] : 0
+                ai <=> bi
             }
             .last()
     }
@@ -620,7 +781,7 @@ def selectLatestModif(model_path, model, modif) {
         : '[0-9]+(\\.[0-9]+)*'
 
     def clean_model_mod = model_path.listFiles().findAll { f ->
-        f.name ==~ /${base_model}_${modif_name}@v${version_pattern}$/
+        f.name ==~ "${base_model}_${modif_name}@v${version_pattern}\$"
     }
 
     if (!clean_model_mod) {
@@ -629,14 +790,15 @@ def selectLatestModif(model_path, model, modif) {
             "No modified model found for ${base_model} with ${modif_name}${version_note} in ${model_path}: model will be downloaded"
         )
         return null
-    } else {
+    }
+    else {
         if (requested_version) {
             return clean_model_mod.first()
         }
         return clean_model_mod
             .sort { a, b ->
-                def va = a.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
-                def vb = b.name.split('@v')[-1].tokenize('.')*.toInteger().join('').toInteger()
+                def va = a.name.split('@v')[-1].tokenize('.').collect { it.toInteger() }.join('').toInteger()
+                def vb = b.name.split('@v')[-1].tokenize('.').collect { it.toInteger() }.join('').toInteger()
                 va <=> vb
             }
             .last()
@@ -698,4 +860,46 @@ def selectModelDownload(chModelsList, modelParam, subfield = null, chParentModel
             def exact = list.find { it[0] == modelParam }
             exact ? exact[0] : list[-1][0]
         }
+}
+
+def selectBaseModelDownload(chModelsList, modelParam) {
+    selectModelDownload(chModelsList, modelParam)
+}
+
+def selectModifiedModelDownload(chModelsList, chBaseModel, modifParam) {
+    selectModelDownload(chModelsList, modifParam, 'modified_models', chBaseModel)
+}
+
+def getVepCacheDetails(genome) {
+    def assemblies = [
+        hg38: [assembly: 'GRCh38', species: 'homo_sapiens'],
+        hg19: [assembly: 'GRCh37', species: 'homo_sapiens'],
+        hs1 : [assembly: 'CHM13', species: 'homo_sapiens']
+    ]
+
+    def aliases = [
+        hg38  : 'hg38',
+        GRCh38: 'hg38',
+        hg19  : 'hg19',
+        GRCh37: 'hg19',
+        hs1   : 'hs1',
+        CHM13 : 'hs1',
+        t2t   : 'hs1'
+    ]
+
+    def canonicalGenome = aliases[genome]
+    if (!canonicalGenome) {
+        throw new IllegalArgumentException("Unsupported genome for VEP cache: ${genome}")
+    }
+
+    assemblies[canonicalGenome]
+}
+
+def hasVepCache(cacheDirectory, cacheDetails, cacheVersion) {
+    cacheDirectory && file("${cacheDirectory}/${cacheDetails.species}/${cacheVersion}_${cacheDetails.assembly}").isDirectory()
+}
+
+// Case-insensitive FASTA/FAI finders
+def findFaFile (files, aliasList, exts) {
+    files.find { f -> aliasList.any { a -> f.name.toLowerCase().contains(a.toLowerCase()) } && exts.any { ext -> f.name.toLowerCase().endsWith(ext) } }
 }

@@ -2,7 +2,6 @@ include { BASECALL_MULTIPLEX     } from '../subworkflows/local/basecalling/basec
 include { BASECALL_SIMPLEX       } from '../subworkflows/local/basecalling/basecall_simplex'
 include { READS_FILTER           } from '../subworkflows/local/read_processing/reads_filter.nf'
 include { MAPPING                } from '../subworkflows/local/mapping/mapping'
-include { TIDEHUNTER_CONCENSUS   } from '../subworkflows/local/read_processing/tidehunter'
 include { CNV_CALLING            } from '../subworkflows/local/variant_calling/cnv_calling.nf'
 include { SV_CALLING             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CLAIRS_TO_CALLING      } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
@@ -16,6 +15,7 @@ include { COVERAGE_SEPARATE                     } from '../subworkflows/local/ad
 include { SPLIT_BAMS_TIME as SPLIT_BAMS_CLASSIFY } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
 include { SPLIT_BAMS_TIME as SPLIT_BAMS_OTHER    } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
 include { CRAMINO_STATS          } from '../modules/local/cramino/main.nf'
+include { REMOVE_PADDING                                } from '../modules/local/adaptive_specific/main.nf'
 
 // Reporting
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
@@ -67,6 +67,18 @@ workflow CFDNA {
 
     ch_versions = channel.empty()
     ch_sections = channel.empty()
+
+    // Process bed
+
+    ch_bed_pad = bed
+        .map { meta,bedfile,padding,_low_fidelity ->
+            tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
+
+    REMOVE_PADDING(ch_bed_pad)
+
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .transpose()
 
     if (params.demux) {
 
@@ -279,6 +291,7 @@ workflow CFDNA {
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
         ch_bed,
+        ch_bed_nopad,
         ch_ref_for_calling
     )
     ADAPTIVE_REPORT(
@@ -292,7 +305,7 @@ workflow CFDNA {
     ch_versions = ch_versions
         .mix(COVERAGE_SEPARATE.out.versions)
 
-    ch_bed_for_processing = COVERAGE_SEPARATE.out.split_bed
+    ch_bed_for_processing = ch_bed_nopad
 
     ch_vcf_subchrom = channel.empty()
 
@@ -401,7 +414,6 @@ workflow CFDNA {
         VARIANT_PROCESS.out.targets_plot,
         VARIANT_PROCESS.out.sv_table,
         VARIANT_PROCESS.out.fusion_table,
-        SV_CALLING.out.empty_calls,
         ch_subchrom_plot,
         ch_subchrom_focal,
         VARIANT_PROCESS.out.snp_table

@@ -1,0 +1,43 @@
+name: Nextflow version compatibility
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+env:
+    NXF_ANSI_LOG: false
+
+jobs:
+    test:
+        name: nextflow/${{ matrix.nextflow_version }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                nextflow_version:
+                    - '24.04.4'
+                    - '24.10.2'
+                    - '25.04.6'
+                    - '25.10.2'
+                    - '26.04.4'
+        steps:
+            - name: Check out pipeline code
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+            - name: Set up Nextflow
+              uses: nf-core/setup-nextflow@v2
+              with:
+                  version: ${{ matrix.nextflow_version }}
+
+            - name: Compile the VEP module
+              run: |
+                  cd "$RUNNER_TEMP"
+                  nextflow \
+                      -c "$GITHUB_WORKSPACE/nextflow.config" \
+                      -c "$GITHUB_WORKSPACE/.github/nextflow-act.config" \
+                      run "$GITHUB_WORKSPACE/nextflow-version-compatibility.nf" \
+                      -profile docker \
+                      -stub-run \
+                      -work-dir "$RUNNER_TEMP/work-${{ matrix.nextflow_version }}"

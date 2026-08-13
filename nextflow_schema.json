@@ -307,7 +307,7 @@
             "type": "string"
         },
         "realtime": {
-            "type": "integer",
+            "type": ["string", "number"],
             "description": "Use number of sequencing hour to activate real time mode"
         },
         "subchrom_binsize": {
@@ -372,7 +372,7 @@
         },
         "vep_cache": {
             "type": "string",
-            "description": "Path to cache used by ensembl VEP"
+            "description": "Optional root directory for Ensembl VEP caches. The selected version and genome assembly are downloaded automatically on the Nextflow launch host when absent; that host must have internet access."
         },
         "vep_version": {
             "type": "integer",

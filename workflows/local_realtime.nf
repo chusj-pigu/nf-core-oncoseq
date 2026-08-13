@@ -68,6 +68,19 @@ workflow LOCAL_REALTIME {
 
     ch_versions = channel.empty()
     ch_sections = channel.empty()
+    def realtime = params.realtime?.toInteger()
+
+    // Process bed
+
+    ch_bed_pad = bed
+        .map { meta,bedfile,padding,_low_fidelity ->
+            tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
+
+    REMOVE_PADDING(ch_bed_pad)
+
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .transpose()
 
     if (params.skip_basecalling) {
 
@@ -145,8 +158,7 @@ workflow LOCAL_REALTIME {
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet,
-                ref
+                demux_samplesheet
             )
 
             // Map basecalled reads to reference
@@ -185,7 +197,7 @@ workflow LOCAL_REALTIME {
         ch_classy_in = MAPPING.out.bam
     }
 
-    if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
+    if (realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
         if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
 
@@ -225,13 +237,14 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            ch_bed_nopad,
             ref
         )
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
             SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
@@ -249,7 +262,7 @@ workflow LOCAL_REALTIME {
         ch_versions = ch_versions
             .mix(CLASSY.out.versions)
 
-    } else if (params.realtime >=6 & params.realtime < 72 ) {
+    } else if (realtime >=6 & realtime < 72 ) {
 
         // Placeholder vcf for subcrhom as it's not run at this timepoint
 
@@ -266,6 +279,7 @@ workflow LOCAL_REALTIME {
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            ch_bed_nopad,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -273,7 +287,7 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             vep_cache
         )
 
@@ -291,7 +305,7 @@ workflow LOCAL_REALTIME {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
             SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
@@ -309,11 +323,12 @@ workflow LOCAL_REALTIME {
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
 
-    } else if (params.realtime == 72) {
+    } else if (realtime == 72) {
 
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
             bed,
+            ch_bed_nopad,
             ref
         )
         // Germline variant calling using Clair3 (always uses original mapping output)
@@ -321,7 +336,7 @@ workflow LOCAL_REALTIME {
             MAPPING.out.bam,
             ref,
             basecall_model,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             vep_cache
         )
 
@@ -345,7 +360,7 @@ workflow LOCAL_REALTIME {
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
             SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
@@ -412,7 +427,6 @@ workflow LOCAL_REALTIME {
         VARIANT_PROCESS.out.targets_plot,
         VARIANT_PROCESS.out.sv_table,
         VARIANT_PROCESS.out.fusion_table,
-        SV_UNPHASED.out.empty_calls,
         ch_subchrom_plot,
         ch_subchrom_focal,
         VARIANT_PROCESS.out.snp_table
