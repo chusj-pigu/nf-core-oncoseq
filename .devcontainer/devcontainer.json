@@ -2,7 +2,7 @@
     "name": "nfcore",
     "image": "nfcore/gitpod:latest",
     "remoteUser": "gitpod",
-    "runArgs": ["--privileged"],
+    "runArgs": ["--privileged", "--network=host"],
     "remoteEnv": {
         // Nextflow installation version
         "NXF_HOME": "/workspaces/nf-core-oncoseq/.nextflow",
