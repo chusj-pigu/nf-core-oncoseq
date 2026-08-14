@@ -120,7 +120,7 @@ params {
     qdnaseq_binsize: Integer = 500
 
     // Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)
-    bed: Path = '/workspaces/nf-core-oncoseq/assets/v2.0.1-pre-merge-panel-20kb-pad.bed'
+    bed: Path = "${projectDir}/assets/v2.0.1-pre-merge-panel-20kb-pad.bed"
 
     // turn on multiplex basecalling
     demux: Boolean
@@ -150,7 +150,7 @@ params {
     clairsto_model: String = 'ont_r10_dorado_sup_5khz_ssrs'
 
     // Path to text file containing list of genes of low fidelity for adaptive sampling (default is empty list)
-    low_fidelity: Path = '/workspaces/nf-core-oncoseq/assets/panel_low_fidelity.txt'
+    low_fidelity: Path = "${projectDir}/assets/panel_low_fidelity.txt"
 
     // Padding around region of interest for adaptive sampling
     padding: Integer = 20000
@@ -181,16 +181,16 @@ params {
     subchrom_binsize: Integer = 500
 
     // List of genes to visualize with Figeno (columns GENE and pos)
-    sv_targets: Path = '/workspaces/nf-core-oncoseq/assets/sv-list.csv'
+    sv_targets: Path = "${projectDir}/assets/sv-list.csv"
 
     // List of important fusions to verify with stellerator
-    fusion_targets: Path = '/workspaces/nf-core-oncoseq/assets/fusion-list.csv'
+    fusion_targets: Path = "${projectDir}/assets/fusion-list.csv"
 
     // List of genes to exclude from SV analysis (possible artefacts)
-    sv_exclude: Path = '/workspaces/nf-core-oncoseq/assets/sv_exclude.txt'
+    sv_exclude: Path = "${projectDir}/assets/sv_exclude.txt"
 
     // List of genes to exclude from snp analysis
-    snp_exclude: Path = '/workspaces/nf-core-oncoseq/assets/snp_exclude.txt'
+    snp_exclude: Path = "${projectDir}/assets/snp_exclude.txt"
 
     skip_mapping: Boolean
 
@@ -203,10 +203,10 @@ params {
     // Bin size to use for IchorCNA (in bases)
     ichor_bin_size: Integer = 500000
 
-    report_template: Path = '/workspaces/nf-core-oncoseq/assets/templates/report_template.qmd'
+    report_template: Path = "${projectDir}/assets/templates/report_template.qmd"
 
     // Placeholder for incomplete ubam, to use basecalling resume, specify path to incomplete ubam in samplesheet
-    ubam: Path = '/workspaces/nf-core-oncoseq/assets/NOFILE'
+    ubam: Path = "${projectDir}/assets/NOFILE"
 
     // Bin size to use with Delly CNV calling
     delly_bin_size: Integer = 50000
@@ -278,7 +278,7 @@ params {
     validate_params: Boolean = true
 
     // Base URL or local path to location of pipeline test dataset files
-    pipelines_testdata_base_path: Path = '/workspaces/nf-core-oncoseq/test_data/'
+    pipelines_testdata_base_path: Path = "${projectDir}/test_data/"
 
     // Suffix to add to the trace report filename. Default is the date and time in the format yyyy-MM-dd_HH-mm-ss.
     trace_report_suffix: String?
