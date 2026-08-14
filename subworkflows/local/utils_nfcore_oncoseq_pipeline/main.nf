@@ -37,9 +37,9 @@ workflow PIPELINE_INITIALISATION {
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
     input_sheet             //  string: Path to input samplesheet
-    input_bed                 // string: path to input bed file (not null if the same for all sample)
-    input_padding               // Padding around ROI (parameter padding)
-    list_low_fidelity                // List of low fidelity genes to discard for coverage calculations (parameter low_fidelity)
+    basecall_model          //  string: basecalling model
+    ref_cache            //  string: path to reference cache directory
+    vep_cache            //  string: path to Ensembl VEP cache directory
 
     main:
 
@@ -61,7 +61,14 @@ workflow PIPELINE_INITIALISATION {
     UTILS_NFSCHEMA_PLUGIN (
         workflow,
         validate_params,
-        null
+        "${projectDir}/nextflow_schema.json",
+        false,
+        false,
+        false,
+        params.before_text ?: "",
+        params.after_text ?: "",
+        "nextflow run . --input ${input_sheet} --basecall_model ${basecall_model} --ref_cache ${ref_cache} --vep_cache ${vep_cache} --outdir ${outdir}",
+        false
     )
 
     //
@@ -130,7 +137,7 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, purity, filter ->
+                meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, _bed, _padding, _low_fidelity, purity, filter ->
                 if(!purity){
                     throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
                 }
@@ -151,7 +158,7 @@ workflow PIPELINE_INITIALISATION {
         .combine(ch_padding)
         .combine(ch_low_fidelity)
         .branch {
-            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+            meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
             common: (!bed && !padding && !lf)
                 return [ meta, bed_c, padding_c, lf_c ]
             bed: (bed && !padding && !lf)

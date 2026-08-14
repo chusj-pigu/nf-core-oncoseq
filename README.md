@@ -17,7 +17,7 @@
 
 ## Dependencies
 
-- [Nextflow](https://www.nextflow.io/) (`>= v25.10.7`)
+- [Nextflow](https://www.nextflow.io/) (version >= 26.04.0)
 - One of the following container engines:
   - [Docker](https://www.docker.com/)
   - [Singularity](https://sylabs.io/docs/)
