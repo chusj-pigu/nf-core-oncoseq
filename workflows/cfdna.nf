@@ -227,18 +227,27 @@ workflow CFDNA {
 
         ch_time_series = channel.of(params.time_points)
 
-        ch_cfdna_ss = cfdna_samplesheet
+        ch_samplesheet_renamed = cfdna_samplesheet
+            .join(tumor_type)
             .combine(ch_time_series)
-            .map { meta, purity, filter, times ->
+            .map { meta, purity, filter, tumor, times ->
                 def time_list = times.tokenize(',')
-                tuple(meta, purity, filter, time_list)}
+                tuple(meta, purity, filter, tumor, time_list)}
             .transpose()
-            .map { meta, purity, filter, time ->
+
+        ch_cfdna_ss = ch_samplesheet_renamed
+            .map { meta, purity, filter, _tumor, time ->
                 def time_stripped = time.replace('"', '')
                 def new_meta = meta.id + "_0h_${time_stripped}h"
                 tuple(id:new_meta,purity, filter)}
 
-        CRAMINO_STATS(ch_bam_for_calling.filter{meta,bam, bai -> !meta.id.contains('FULL')})
+        ch_tumor_ss = ch_samplesheet_renamed
+            .map { meta, _purity, _filter, tumor, time ->
+                def time_stripped = time.replace('"', '')
+                def new_meta = meta.id + "_0h_${time_stripped}h"
+                tuple(id:new_meta,tumor)}
+
+        CRAMINO_STATS(ch_bam_for_calling.filter{meta,_bam,_bai -> !meta.id.contains('FULL')})
 
         ch_coverage_table = CRAMINO_STATS.out.stats
             .mix(MAPPING.out.coverage)
@@ -249,12 +258,17 @@ workflow CFDNA {
                     def new_meta = meta.id + '_FULL'
                 tuple(id:new_meta,purity, filter)}
                 .mix(ch_cfdna_ss)
-                .view()
             ch_bam_to_process = ch_bam_for_calling
                 .filter{ meta, bam, bai -> meta.id.contains('FULL') }
+            ch_tumor_type = tumor_type
+                .map { meta, tumor ->
+                    def new_meta = meta.id + '_FULL'
+                    tuple(new_meta, tumor)}
+                .mix(ch_tumor_ss)
         } else {
             ch_bam_to_process = ch_bam_for_calling
             ch_cfdna_full     = ch_cfdna_ss
+            ch_tumor_type     = ch_tumor_ss
         }
 
     } else {
@@ -267,6 +281,7 @@ workflow CFDNA {
         ch_bed             = bed
         ch_cfdna_full      = cfdna_samplesheet
         ch_coverage_table  = MAPPING.out.coverage
+        ch_tumor_type      = tumor_type
     }
 
     if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
@@ -365,6 +380,7 @@ workflow CFDNA {
 
     ICHORCNA_CALLING (
         ch_bam_for_calling,
+        ch_ref_for_calling,
         ch_cfdna_full,
         ichor_bin,
         mapq_wig
