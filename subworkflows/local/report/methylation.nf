@@ -9,51 +9,6 @@ include { QUARTO_FIGURE_TABS    } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT           } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_TABS     } from '../../../modules/local/quarto/main.nf'
 
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   DEFINE FUNCTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-// Reusable closure to filter calls by cutoff or fall back to max
-def applyFilter(flatCalls, cutoff, scoreField) {
-    flatCalls
-        .sort { a, b -> scoreField.call(a) <=> scoreField.call(b) }  // ascending first
-        .reverse()                                                    // then reverse to get descending
-        .take(5)
-}
-
-// Single shared channel transformation
-def makeCallChannel(ch, typeName, modelConfig, cutoffMap) {
-    def config = modelConfig[typeName]
-    ch
-        .filter { meta, json, type -> type.contains(typeName) }
-        .splitJson(path: config.path)
-        .groupTuple()
-        .map { meta, calls, type ->
-            def flatCalls  = calls.flatten()
-            def cutoff     = cutoffMap[type.flatten().first()]
-            def scoreField = config.score
-            def topCalls   = applyFilter(flatCalls, cutoff, scoreField)
-
-            def rows = topCalls.collect { call ->
-                def f      = config.fields(call)
-                def status = scoreField.call(call) >= cutoff ? "PASS" : "FAIL"
-                [meta.id, f[0], f[1], f[2], f[3], status, type.flatten().first()]
-            }
-            // Return as single tuple with all rows — don't flatMap yet
-            tuple(meta.id, type.flatten().first(), rows)
-        }
-        .collectFile { meta_id, type_name, rows ->
-            def header  = "Family\tClass\tClass name\tScore\tCutoff\n"
-            def type_corr = type_name.replace(' ', '-')
-            def content   = header + rows.collect { r ->
-                "${r[1]}\t${r[2]}\t${r[3]}\t${r[4]}\t${r[5]}"
-            }.join('\n') + '\n'
-            return [ "${meta_id}_score_${type_corr}.tsv", content ]
-        }
-}
-
 workflow CLASSIFIER_REPORT {
 
     take:
@@ -89,7 +44,10 @@ workflow CLASSIFIER_REPORT {
 
             def tabs = types
             def captions = types.collect { type ->
+                def caption_type = type == "Tissue of origin" ?
+                "${type} prediction by Nanomix model" :
                 "Tumor classifier prediction for ${type} tumors"
+                caption_type
             }
             def section = "Methylation"
             def process = "meth-plot-${meta.id}"

@@ -62,16 +62,24 @@ workflow CLASSY {
     ch_plot_solid = ch_tumor_branched.solid
         .join(addTypeToChannel(CLASSY_COMBINED.out.svg_solid, "Solid"))
 
-    ch_plot_other = ch_tumor_branched.other
-        .join(addTypeToChannel(CLASSY_COMBINED.out.svg_blood, "Blood"))
-        .join(addTypeToChannel(CLASSY_COMBINED.out.svg_brain, "Brain"))
-        .join(addTypeToChannel(CLASSY_COMBINED.out.svg_solid, "Solid"))
+    ch_plot_other = ch_tumor_branched.other.join(addTypeToChannel(CLASSY_COMBINED.out.svg_blood, "Blood"))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(CLASSY_COMBINED.out.svg_brain, "Brain")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(CLASSY_COMBINED.out.svg_solid, "Solid")))
+        .groupTuple()
         .transpose()
 
-    ch_final_plot = ch_plot_blood
-        .mix(ch_plot_brain)
-        .mix(ch_plot_solid)
-        .mix(ch_plot_other)
+    if (params.cfdna) {
+        ch_final_plot = ch_plot_blood
+            .mix(ch_plot_brain)
+            .mix(ch_plot_solid)
+            .mix(ch_plot_other)
+            .mix(addTypeToChannel(CLASSY_COMBINED.out.svg_nanomix, "Tissue of origin"))
+    } else {
+        ch_final_plot = ch_plot_blood
+            .mix(ch_plot_brain)
+            .mix(ch_plot_solid)
+            .mix(ch_plot_other)
+    }
 
     ch_final_pred = addTypeToChannel(PARSE_JSON_COMBINED.out.alma, "Alma")
         .mix(addTypeToChannel(PARSE_JSON_COMBINED.out.capper, "CrossNN Capper"))
