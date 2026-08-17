@@ -47,6 +47,7 @@ workflow CFDNA {
     take:
     samplesheet // channel: samplesheet read in from --input
     demux       // channel: demux_samplesheet read in from --demux_samplesheet
+    tumor_type  // channel: tumor type read in from samplesheet
     cfdna_samplesheet   // channel : from demux or samplesheeet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     max_len
@@ -272,12 +273,14 @@ workflow CFDNA {
 
         CLASSY(
             ch_bam_to_classify,
-            ch_ref_for_calling
+            ch_ref_for_calling,
+            tumor_type
         )
 
         CLASSIFIER_REPORT(
             CLASSY.out.plot,
-            CLASSY.out.pred
+            CLASSY.out.pred,
+            tumor_type
         )
 
         ch_sections = CLASSIFIER_REPORT.out.sections

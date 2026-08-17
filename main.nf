@@ -31,7 +31,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
 
     take:
     samplesheet // channel: samplesheet read in from --input
-    demux       // channel: demux_samplesheet read in from --demux_samplesheet
+    demux       // channel: demux_samplesheet read in from samplesheet
+    tumor_type  // channel: tumor type read in from samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     clairs_model  // channel: model for calling snp with ClairS-TO
@@ -49,6 +50,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
         ADAPTIVE_WGS (
             samplesheet,
             demux,
+            tumor_type,
             ref,
             bed,
             clairs_model,
@@ -60,6 +62,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
         LOCAL_REALTIME (
             samplesheet,
             demux,
+            tumor_type,
             ref,
             bed,
             basecall_model,
@@ -74,6 +77,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     take:
     samplesheet         // channel: samplesheet read in from --input
     demux               // channel: demux_samplesheet read in from --demux_samplesheet
+    tumor_type          // channel: tumor type read in from samplesheet
     cfdna_samplesheet   // channel : from demux or samplesheeet
     ref                 // channel : reference for mapping, either empty if skipping mapping, or a path
     max_len
@@ -94,6 +98,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     CFDNA (
         samplesheet,
         demux,
+        tumor_type,
         cfdna_samplesheet,
         ref,
         max_len,
@@ -361,6 +366,7 @@ workflow {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.tumor_type,
             PIPELINE_INITIALISATION.out.cfdna_ch,
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_max_len,
@@ -378,6 +384,7 @@ workflow {
         NFCORE_ONCOSEQ_ADAPTIVE_WGS (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.tumor_type,
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_clairs_model,
             ch_model,
