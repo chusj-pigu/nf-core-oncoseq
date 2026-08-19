@@ -259,7 +259,7 @@ workflow CFDNA {
                 tuple(id:new_meta,purity, filter)}
                 .mix(ch_cfdna_ss)
             ch_bam_to_process = ch_bam_for_calling
-                .filter{ meta, bam, bai -> meta.id.contains('FULL') }
+                .filter{ meta, _bam, _bai -> meta.id.contains('FULL') }
             ch_tumor_type = tumor_type
                 .map { meta, tumor ->
                     def new_meta = meta.id + '_FULL'
@@ -289,13 +289,13 @@ workflow CFDNA {
         CLASSY(
             ch_bam_to_classify,
             ch_ref_for_calling,
-            tumor_type
+            ch_tumor_type
         )
 
         CLASSIFIER_REPORT(
             CLASSY.out.plot,
             CLASSY.out.pred,
-            tumor_type
+            ch_tumor_type
         )
 
         ch_sections = CLASSIFIER_REPORT.out.sections
