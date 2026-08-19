@@ -200,7 +200,6 @@ params {
     skip_mapping: Boolean
 
     // -- ichorCNA parameters --------------------------------------------------
-    // Comma-separated chromosome list used by readCounter to build the wig file
 
     // Maximum length (in bases) of reads to include in cfdna analysis (if filter true in samplesheet)
     max_length: Integer = 700
@@ -211,16 +210,20 @@ params {
     // Bin size to use for IchorCNA (in bases)
     ichor_bin_size: Integer = 500000
 
-    chr_wig: String?
+    // Comma-separated chromosome list used by readCounter to build the wig file
+    chr_wig: String = "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY"
 
-    // Candidate tumour ploidy values passed to runIchorCNA.R (R vector syntax)
-    custom_ploidy: String?
+    // Candidate tumour ploidy values passed to run IchorCNA.R (R vector syntax)
+    custom_ploidy: String = 'c(2,3)'
 
     // Maximum copy number to consider
-    custom_maxCN: Integer?
+    custom_maxCN: Integer = 5
 
-    // Chromosome naming style ichorCNA should use internally
-    genome_style: String?
+    // Chromosome naming style ichorCNA should use internally (UCSC or Ensembl)
+    genome_style: String = "UCSC"
+
+    // Estimate subclonal prevalence within IchorCNA (default is false, which is faster)
+    estimate_sc_prevalence: Boolean
 
     // ---------------------------------------------------------------------------
 

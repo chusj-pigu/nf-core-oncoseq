@@ -344,9 +344,30 @@
             "default": 500000,
             "description": "Bin size to use for IchorCNA (in bases)"
         },
-        "rca": {
+        "chr_wig": {
+            "type": "string",
+            "default": "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY",
+            "description": "Comma-separated chromosome list used by readCounter to build the wig file"
+        },
+        "custom_ploidy": {
+            "type": "string",
+            "default": "c(2,3)",
+            "description": "Candidate tumour ploidy values passed to run IchorCNA.R (R vector syntax)"
+        },
+        "custom_maxCN": {
+            "type": "integer",
+            "default": 5,
+            "description": "Maximum copy number to consider"
+        },
+        "genome_style": {
+            "type": "string",
+            "default": "UCSC",
+            "description": "Chromosome naming style ichorCNA should use internally (UCSC or Ensembl)"
+        },
+        "estimate_sc_prevalence": {
             "type": "boolean",
-            "description": "Whether to run cfdna in rca mode (runs tidehunter)"
+            "default": false,
+            "description": "Estimate subclonal prevalence within IchorCNA (default is false, which is faster)"
         },
         "report_template": {
             "type": "string",
