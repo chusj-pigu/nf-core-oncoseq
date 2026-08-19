@@ -24,8 +24,9 @@ workflow CLASSIFIER_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_methylation_text = tumor_type
-        .map { meta, type ->
+    ch_methylation_text_classified = tumor_type
+        .join(ch_methylation_call)
+        .map { meta, type, _tables, _type_dup ->
             def section = "Methylation"
             def process = "Methylation-text-${meta.id}"
             def classifier_list = type == "blood" ? "Alma, Lamprey and Marlin" :
@@ -35,7 +36,7 @@ workflow CLASSIFIER_REPORT {
         }
 
     QUARTO_TEXT(
-        ch_methylation_text
+        ch_methylation_text_classified
     )
 
     ch_quarto_fig = ch_methylation_plot
