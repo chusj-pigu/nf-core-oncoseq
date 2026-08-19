@@ -217,7 +217,7 @@ workflow CFDNA {
             .mix(SPLIT_BAMS_OTHER.out.ref)
             .map { meta, ref_id, ref_fa, ref_index ->
                 tuple(id:meta.id, ref_id, ref_fa, ref_index)}
-        ch_bed = SPLIT_BAMS_CLASSIFY.out.bed
+        ch_bed_for_calling = SPLIT_BAMS_CLASSIFY.out.bed
             .mix(SPLIT_BAMS_OTHER.out.bed)
             .map { meta,bedfile,padding,low_fidelity ->
                 tuple(id:meta.id,bedfile,padding,low_fidelity)}
@@ -247,10 +247,18 @@ workflow CFDNA {
                 def new_meta = meta.id + "_0h_${time_stripped}h"
                 tuple(id:new_meta,tumor)}
 
+        ch_bed_nopad_timed = ch_bed_nopad
+            .join(ch_samplesheet_renamed)
+            .map { meta, bedfile, _purity, _filter, _tumor, time_list->
+                def time_stripped = time_list.replace('"', '')
+                def new_meta = meta.id + "_0h_${time_stripped}h"
+                tuple(id:new_meta,bedfile)}
+
         CRAMINO_STATS(ch_bam_for_calling.filter{meta,_bam,_bai -> !meta.id.contains('FULL')})
 
         ch_coverage_table = CRAMINO_STATS.out.stats
-            .mix(MAPPING.out.coverage)
+
+        ch_seqkit_timed = channel.empty()
 
         if (params.include_full) {
             ch_cfdna_full = cfdna_samplesheet
@@ -263,12 +271,35 @@ workflow CFDNA {
             ch_tumor_type = tumor_type
                 .map { meta, tumor ->
                     def new_meta = meta.id + '_FULL'
-                    tuple(new_meta, tumor)}
+                    tuple(id:new_meta, tumor)}
                 .mix(ch_tumor_ss)
+
+            ch_coverage_final = MAPPING.out.coverage
+                .map { meta, cov ->
+                    def new_meta = meta.id + '_FULL'
+                    tuple(id:new_meta, cov)}
+                .mix(ch_coverage_table)
+
+            ch_seqkit_stats = READS_FILTER.out.stats
+                .map { meta, tbl ->
+                    def new_meta = meta.id + '_FULL'
+                    tuple(id:new_meta, tbl)}
+                .mix(ch_seqkit_timed)
+
+            ch_bed_nopad_final = ch_bed_nopad
+                .map { meta,bedfile ->
+                    def new_meta = meta.id + '_FULL'
+                    tuple(id:new_meta, bedfile)
+                }
+                .mix(ch_bed_nopad_timed)
+
         } else {
-            ch_bam_to_process = ch_bam_for_calling
-            ch_cfdna_full     = ch_cfdna_ss
-            ch_tumor_type     = ch_tumor_ss
+            ch_bam_to_process  = ch_bam_for_calling
+            ch_cfdna_full      = ch_cfdna_ss
+            ch_tumor_type      = ch_tumor_ss
+            ch_coverage_final  = ch_coverage_table
+            ch_seqkit_stats    = channel.empty()
+            ch_bed_nopad_final = ch_bed_nopad_timed
         }
 
     } else {
@@ -278,10 +309,12 @@ workflow CFDNA {
         ch_bam_for_calling = MAPPING.out.bam
         ch_bam_to_process  = MAPPING.out.bam
         ch_ref_for_calling = ref
-        ch_bed             = bed
+        ch_bed_for_calling = bed
+        ch_bed_nopad_final = ch_bed_nopad
         ch_cfdna_full      = cfdna_samplesheet
-        ch_coverage_table  = MAPPING.out.coverage
+        ch_coverage_final  = MAPPING.out.coverage
         ch_tumor_type      = tumor_type
+        ch_seqkit_stats    = READS_FILTER.out.stats
     }
 
     if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
@@ -308,8 +341,8 @@ workflow CFDNA {
     // Analyze coverage separation between target and background regions
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
-        ch_bed,
-        ch_bed_nopad,
+        ch_bed_for_calling,
+        ch_bed_nopad_final,
         ch_ref_for_calling
     )
     ADAPTIVE_REPORT(
@@ -323,7 +356,7 @@ workflow CFDNA {
     ch_versions = ch_versions
         .mix(COVERAGE_SEPARATE.out.versions)
 
-    ch_bed_for_processing = ch_bed_nopad
+    ch_bed_for_processing = ch_bed_nopad_final
 
     ch_vcf_subchrom = channel.empty()
 
@@ -440,8 +473,8 @@ workflow CFDNA {
 
     CFDNA_REPORT(
         ch_cfdna_full,
-        READS_FILTER.out.stats,
-        ch_coverage_table,
+        ch_seqkit_stats,
+        ch_coverage_final,
         ICHORCNA_CALLING.out.ichorcna_plot
     )
 
@@ -475,9 +508,9 @@ workflow CFDNA {
         .mix(CFDNA_REPORT.out.sections)
         .mix(FIGENO_REPORT.out.sections)
 
-        // channel id containing only meta
+    // channel id containing only meta
     ch_params = ch_ref_for_calling
-        .join(ch_bed)
+        .join(ch_bed_for_calling)
 
     if (params.realtime) {
         ch_bam = MAPPING.out.bam
