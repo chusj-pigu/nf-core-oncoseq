@@ -82,7 +82,7 @@ workflow CLASSY {
     }
 
     ch_final_pred = addTypeToChannel(PARSE_JSON_COMBINED.out.alma, "Alma")
-        .mix(addTypeToChannel(PARSE_JSON_COMBINED.out.capper, "CrossNN Capper"))
+        .mix(addTypeToChannel(PARSE_JSON_COMBINED.out.capper, "CrossNN Caper"))
         .mix(addTypeToChannel(PARSE_JSON_COMBINED.out.pancan, "CrossNN PanCancer"))
         .mix(addTypeToChannel(PARSE_JSON_COMBINED.out.lamprey, "Lamprey"))
         .mix(addTypeToChannel(PARSE_JSON_COMBINED.out.marlin, "Marlin"))

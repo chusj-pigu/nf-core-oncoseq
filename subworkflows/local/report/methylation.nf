@@ -30,7 +30,7 @@ workflow CLASSIFIER_REPORT {
             def section = "Methylation"
             def process = "Methylation-text-${meta.id}"
             def classifier_list = type == "blood" ? "Alma, Lamprey and Marlin" :
-                type == "brain" ? "CrossNN Capper, MPACT and Sturgeon" :
+                type == "brain" ? "CrossNN Caper, MPACT and Sturgeon" :
                 type == "solid" ? "CrossNN PanCancer and Tucan" : "All classifiers"
             tuple(meta, "Tumor classifier predictions based on DNA methylation profiles. Top 5 scoring predictions are shown, and relevant classifiers for ${type} tumor types are ${classifier_list}.", section, process)
         }
