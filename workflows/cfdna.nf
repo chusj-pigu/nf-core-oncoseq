@@ -387,13 +387,25 @@ workflow CFDNA {
         vep_cache
     )
 
-    CLAIRS_TO_CALLING (
-        ch_high_cov_bam,
-        ch_ref_for_calling,
-        clairs_model,
-        ch_bed_for_processing,
-        vep_cache
-    )
+    if (!params.realtime) {
+
+        CLAIRS_TO_CALLING (
+            ch_high_cov_bam,
+            ch_ref_for_calling,
+            clairs_model,
+            ch_bed_for_processing,
+            vep_cache
+        )
+
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+            .mix(CLAIRS_TO_CALLING.out.vcf_vep)
+
+        ch_versions = ch_versions
+            .mix(CLAIRS_TO_CALLING.out.versions)
+
+    } else {
+        ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
+    }
 
     ch_vcf_subchrom = ch_vcf_subchrom
         .mix(CLAIR3_CALLING.out.vcf_snpeff)
@@ -437,9 +449,6 @@ workflow CFDNA {
     ch_binsizes = ch_binsize_qdnaseq
         .mix(ch_binsize_subchrom)
         .mix(ch_binsize_delly)
-
-    ch_snp_to_process = CLAIR3_CALLING.out.vcf_vep
-        .mix(CLAIRS_TO_CALLING.out.vcf_vep)
 
     VARIANT_PROCESS (
         ch_bam_to_process,
@@ -490,7 +499,6 @@ workflow CFDNA {
         .mix(CNV_CALLING.out.versions)
         .mix(ICHORCNA_CALLING.out.versions)
         .mix(CLAIR3_CALLING.out.versions)
-        .mix(CLAIRS_TO_CALLING.out.versions)
         .mix(READS_FILTER.out.versions)
         .mix(SV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
