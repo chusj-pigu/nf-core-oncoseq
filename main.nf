@@ -139,9 +139,6 @@ params {
     // Batch size for basecalling
     batch: String?
 
-    // Base path for illumina genomes to pull from AWS, typically not changed
-    igenomes_base: String = 's3://ngi-igenomes/igenomes/'
-
     // Option for finetuning time ressources allocation for minimap2. Set to false if a big genome is to be aligned (human whole genome 30X)
     mapping_small: Boolean = true
 
@@ -248,7 +245,7 @@ params {
     ref_cache: Path?
 
     // Human genome assembly identifier
-    genome: String = 'GRCh38'
+    genome: String = 'hg38'
 
     // Use gpu to run Clair3
     clair3_gpu: Boolean

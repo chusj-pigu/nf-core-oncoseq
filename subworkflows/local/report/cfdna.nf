@@ -73,7 +73,7 @@ workflow CFDNA_REPORT {
                 def meta = table.name.replace('_cfdna_stats.tsv', '')
                 tuple(id:meta,table)
             }
-            
+
         ch_stats_split =  ch_cramino_txt.split
             .collectFile { table ->
                 def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
@@ -105,7 +105,37 @@ workflow CFDNA_REPORT {
 
         ch_quarto_table = ch_quarto_table_full
             .mix(ch_quarto_table_split)
-            
+
+    } else if (params.skip_mapping) {
+
+        ch_cramino_txt = ch_cramino
+            .map { meta, table ->
+                def lines = table.readLines()
+                def nreads = (lines[3].tokenize('\t')[1].toDouble() / 1000000).toString()
+                def nbases = lines[4].tokenize('\t')[1]
+                def cov = lines[5].tokenize('\t')[1]
+                def n50 = lines[7].tokenize('\t')[1]
+                tuple(meta.id, nreads, nbases, cov, n50)
+            }
+            .collectFile { table ->
+                def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
+                '\t' + table[4]].join('\n')
+                return [ "${table[0]}_cfdna_stats.tsv", content + '\n' ]
+            }
+            .map { table ->
+                def meta = table.name.replace('_cfdna_stats.tsv', '')
+                tuple(id:meta,table)
+            }
+
+        ch_quarto_table = ch_cramino_txt
+            .map { meta, table ->
+                def caption = "Stats of filtered and aligned reads"
+                def col_names = "N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases faligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
+                def section = "QC"
+                def process = "stats_qc-${meta.id}"
+                tuple(meta, table, caption, col_names, section, process)
+            }
+
     } else {
 
         ch_cramino_txt = ch_cramino
@@ -145,7 +175,7 @@ workflow CFDNA_REPORT {
         ch_quarto_table = ch_stats
             .map { meta, table ->
                 def caption = "Stats of filtered and aligned reads"
-                def col_names = "N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases faligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
+                def col_names = "N reads aligned (M), N bases aligned (GB), Coverage (X), N50 reads aligned"
                 def section = "QC"
                 def process = "stats_qc-${meta.id}"
                 tuple(meta, table, caption, col_names, section, process)
