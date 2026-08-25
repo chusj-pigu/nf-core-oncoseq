@@ -86,7 +86,6 @@ workflow CLAIR3_CALLING {
     BCFTOOLS_COUNT(ch_clair3_out)
 
     ch_count_variant = BCFTOOLS_COUNT.out.vcf
-        .view()
         .branch { meta, vcf ->
             positive: vcf.size() > 0
                 return meta
@@ -95,7 +94,6 @@ workflow CLAIR3_CALLING {
         }
 
     ch_vep = ch_count_variant.positive
-        .view()
         .join(ch_clair3_out)
         .join(ch_ref_type)
         .branch { meta, vcf, genome ->

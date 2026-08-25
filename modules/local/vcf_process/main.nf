@@ -47,53 +47,17 @@ process SV_PROCESS {
         emit: versions
 
     script:
+    def realtime = params.realtime?.toInteger()
+    def support = params.cfdna
+        ? 2
+        : (realtime != null && realtime <= 6 ? 0 : 3)
     """
     generate_sv_filt_regions.R \\
         --target ${gene_list} \\
         --exclude ${blacklist} \\
-        --panel ${bed}
+        --panel ${bed} \\
+        --min_support ${support}
 
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        R: \$(R --version | head -1)
-
-    END_VERSIONS
-    """
-}
-
-process STELLERATOR_PROCESS {
-
-    //TODO: SET FIXED VERSION WHEN PIPELINE IS STABLE
-    container 'ghcr.io/chusj-pigu/tidyverse:006154f90a8b1b1c8647a246a76cb0562517da61'
-    label 'local'
-    label 'process_low'
-    label 'process_single_cpu'
-    label 'process_very_low_memory'
-
-    tag "$meta.id"
-
-    input:
-    tuple val(meta),
-        path(tables)
-
-    output:
-    tuple val(meta),
-        path("*table_fusions.tsv"),
-        emit: tsv
-    tuple val(meta),
-        path("*fusions.txt"),
-        emit: figeno
-    path "versions.yml",
-        emit: versions
-
-    script:
-    def support = params.cfdna
-        ? 2
-        : (params.realtime != null && params.realtime <= 6 ? 0 : 3)
-    """
-    generate_sv_filt_regions_stellerator.R \\
-        -m ${support}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -175,6 +139,14 @@ process ENSEMBL_VEP_TABLE {
     def pass_filter = prefix.contains('germline') ? '&& \$6 == "PASS"' : ''   // Keep Nonsomatic variants for somatic vcf
     """
     awk -F'\t' '
+        function norm_allele(ref, alt,    r) {
+            # VEP right-trims the REF anchor base(s) shared with ALT.
+            if (length(ref) <= length(alt) && substr(alt, 1, length(ref)) == ref) {
+                r = substr(alt, length(ref) + 1)
+                return (r == "" ? "-" : r)
+            }
+            return alt
+        }
         BEGIN {
             OFS=","
             print "CHROM,POS,REF,ALT,QUAL,FILTER,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,SIFT,PolyPhen,gnomADe_AF,Read_depth (DP),Variant_depth (AD),VAF (%)"
@@ -185,16 +157,16 @@ process ENSEMBL_VEP_TABLE {
             split(\$9, ad_vals, ",")
             split(\$4, alts, ",")
             split(\$7, transcripts, ",")
-
             for (i = 1; i <= length(transcripts); i++) {
                 split(transcripts[i], f, "|")
-
                 if (f[1] != "" && f[1] != "-") {
-                    # Allele is explicit: single match by value
+                    # Allele is explicit: match by literal value OR normalized (trimmed) value
                     alt_allele = f[1]
                     alt_idx = 0
                     for (a = 1; a <= length(alts); a++) {
-                        if (alts[a] == alt_allele) { alt_idx = a; break }
+                        if (alts[a] == alt_allele || norm_allele(\$3, alts[a]) == alt_allele) {
+                            alt_idx = a; break
+                        }
                     }
                     ad_alt = (alt_idx > 0 ? ad_vals[alt_idx + 1]+0 : 0)
                     vaf = sprintf("%.2f", ad_alt / dp * 100)
@@ -205,8 +177,7 @@ process ENSEMBL_VEP_TABLE {
                             dp,ad_alt,vaf
                     }
                 } else {
-                    # Allele is "-": VEP collapsed all ALTs into one annotation,
-                    # so emit one row per ALT each with its own AD depth
+                    # unchanged "-" collapsed branch
                     for (a = 1; a <= length(alts); a++) {
                         ad_alt = ad_vals[a + 1]+0
                         vaf = sprintf("%.2f", ad_alt / dp * 100)

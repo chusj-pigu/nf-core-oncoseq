@@ -35,11 +35,6 @@
                     "fa_icon": "fas fa-envelope",
                     "help_text": "Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`) then you don't need to specify this on the command line for every run.",
                     "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"
-                },
-                "multiqc_title": {
-                    "type": "string",
-                    "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
-                    "fa_icon": "fas fa-file-signature"
                 }
             }
         },
@@ -127,18 +122,46 @@
                     "fa_icon": "fas fa-remove-format",
                     "hidden": true
                 },
-                "max_multiqc_email_size": {
-                    "type": "string",
-                    "description": "File size limit when attaching MultiQC reports to summary emails.",
-                    "pattern": "^\\d+(\\.\\d+)?\\.?\\s*(K|M|G|T)?B$",
-                    "default": "25.MB",
-                    "fa_icon": "fas fa-file-upload",
-                    "hidden": true
-                },
                 "monochrome_logs": {
                     "type": "boolean",
                     "description": "Do not use coloured log outputs.",
                     "fa_icon": "fas fa-palette",
+                    "hidden": true
+                },
+                "help_full": {
+                    "type": "boolean",
+                    "description": "Display full help information.",
+                    "fa_icon": "fas fa-question-circle",
+                    "hidden": true
+                },
+                "pipeline_doi": {
+                    "type": "string",
+                    "description": "DOI for the pipeline, used in the help message.",
+                    "fa_icon": "fas fa-book",
+                    "hidden": true
+                },
+                "before_text": {
+                    "type": "string",
+                    "description": "Text to display before the help message.",
+                    "fa_icon": "fas fa-question-circle",
+                    "hidden": true
+                },
+                "after_text": {
+                    "type": "string",
+                    "description": "Text to display after the help message.",
+                    "fa_icon": "fas fa-question-circle",
+                    "hidden": true
+                },
+                "pipeline_version": {
+                    "type": "string",
+                    "description": "Version of the pipeline, used in the help message.",
+                    "fa_icon": "fas fa-book",
+                    "hidden": true
+                },
+                "": {
+                    "type": "boolean",
+                    "description": "Show hidden parameters in the help message.",
+                    "fa_icon": "fas fa-eye-slash",
                     "hidden": true
                 },
                 "hook_url": {
@@ -147,24 +170,6 @@
                     "fa_icon": "fas fa-people-group",
                     "help_text": "Incoming hook URL for messaging service. Currently, MS Teams and Slack are supported.",
                     "hidden": true
-                },
-                "multiqc_config": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Custom config file to supply to MultiQC.",
-                    "fa_icon": "fas fa-cog",
-                    "hidden": true
-                },
-                "multiqc_logo": {
-                    "type": "string",
-                    "description": "Custom logo file to supply to MultiQC. File name must also be set in the MultiQC config file",
-                    "fa_icon": "fas fa-image",
-                    "hidden": true
-                },
-                "multiqc_methods_description": {
-                    "type": "string",
-                    "description": "Custom MultiQC yaml file containing HTML including a methods description.",
-                    "fa_icon": "fas fa-cog"
                 },
                 "validate_params": {
                     "type": "boolean",
@@ -237,14 +242,6 @@
             "default": true,
             "description": "Option for finetuning time ressources allocation for minimap2. Set to false if a big genome is to be aligned (human whole genome 30X)"
         },
-        "adaptive": {
-            "type": "boolean",
-            "description": "Run in adaptive sampling mode. Cannot be set with cfdna or wgs mode."
-        },
-        "wgs": {
-            "type": "boolean",
-            "description": "Run in adaptive WGS mode. Cannot be set with cfdna or adaptive mode."
-        },
         "cfdna": {
             "type": "boolean",
             "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling or wgs mode."
@@ -287,11 +284,6 @@
             "default": "4h",
             "description": "Maximum amount of time any process can take"
         },
-        "reference_cache_dir": {
-            "type": "string",
-            "description": "Optional directory where resolved reference assets are linked and Dorado models are downloaded during pipeline initialisation.",
-            "default": "/workspaces/nf-core-oncoseq"
-        },
         "time_series": {
             "type": "boolean"
         },
@@ -307,7 +299,7 @@
             "type": "string"
         },
         "realtime": {
-            "type": "integer",
+            "type": ["string", "number"],
             "description": "Use number of sequencing hour to activate real time mode"
         },
         "subchrom_binsize": {
@@ -372,7 +364,7 @@
         },
         "vep_cache": {
             "type": "string",
-            "description": "Path to cache used by ensembl VEP"
+            "description": "Optional root directory for Ensembl VEP caches. The selected version and genome assembly are downloaded automatically on the Nextflow launch host when absent; that host must have internet access."
         },
         "vep_version": {
             "type": "integer",

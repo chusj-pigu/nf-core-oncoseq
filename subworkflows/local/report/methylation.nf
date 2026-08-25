@@ -18,8 +18,8 @@ include { QUARTO_TABLE_TABS     } from '../../../modules/local/quarto/main.nf'
 // Reusable closure to filter calls by cutoff or fall back to max
 def applyFilter(flatCalls, cutoff, scoreField) {
     flatCalls
-        .sort { a, b -> scoreField(a) <=> scoreField(b) }  // ascending first
-        .reverse()                                          // then reverse to get descending
+        .sort { a, b -> scoreField.call(a) <=> scoreField.call(b) }  // ascending first
+        .reverse()                                                    // then reverse to get descending
         .take(5)
 }
 
@@ -38,7 +38,7 @@ def makeCallChannel(ch, typeName, modelConfig, cutoffMap) {
 
             def rows = topCalls.collect { call ->
                 def f      = config.fields(call)
-                def status = scoreField(call) >= cutoff ? "PASS" : "FAIL"
+                def status = scoreField.call(call) >= cutoff ? "PASS" : "FAIL"
                 [meta.id, f[0], f[1], f[2], f[3], status, type.flatten().first()]
             }
             // Return as single tuple with all rows — don't flatMap yet

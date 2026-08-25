@@ -14,7 +14,9 @@ option_list <- list(
   make_option(c("-e", "--exclude"), type = "character",
               help = "Path blacklist of artefact", metavar = "file"),
   make_option(c("-p", "--panel"), type = "character",
-              help = "Path adaptive panel", metavar = "file")
+              help = "Path adaptive panel", metavar = "file"),
+  make_option(c("-m", "--min_support"), type = "character",
+              help = "Minimum support reads for filtering", metavar = "file")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -24,7 +26,7 @@ target_list <- opt$target
 sample_id <- unique(sub("_sv_(severus|sniffles|stellerator)\\.vcf$","",basename(input)))
 blacklist <- opt$exclude
 panel <- opt$panel
-
+min_support <- as.numeric(opt$min_support)
 # -----------------------------
 # Helper Functions
 # -----------------------------
@@ -124,7 +126,8 @@ process_vcf <- function(vcf) {
       strand2 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", V8), pattern = "", i = 2)
     ) %>%
     filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
-    filter(SOURCE == "stellerator" | str_detect(GENE, pattern_start) | str_detect(GENE, pattern_end))
+    filter(SOURCE == "stellerator" | str_detect(GENE, pattern_start) | str_detect(GENE, pattern_end)) %>%
+    filter(SUPPORT > min_support)
   return(df)
 }
 

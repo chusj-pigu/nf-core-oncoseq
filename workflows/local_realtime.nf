@@ -68,6 +68,7 @@ workflow LOCAL_REALTIME {
 
     ch_versions = channel.empty()
     ch_sections = channel.empty()
+    def realtime = params.realtime?.toInteger()
 
     // Process bed
 
@@ -157,8 +158,7 @@ workflow LOCAL_REALTIME {
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet,
-                ref
+                demux_samplesheet
             )
 
             // Map basecalled reads to reference
@@ -197,7 +197,7 @@ workflow LOCAL_REALTIME {
         ch_classy_in = MAPPING.out.bam
     }
 
-    if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
+    if (realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
         if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
 
@@ -262,7 +262,7 @@ workflow LOCAL_REALTIME {
         ch_versions = ch_versions
             .mix(CLASSY.out.versions)
 
-    } else if (params.realtime >=6 & params.realtime < 72 ) {
+    } else if (realtime >=6 & realtime < 72 ) {
 
         // Placeholder vcf for subcrhom as it's not run at this timepoint
 
@@ -323,7 +323,7 @@ workflow LOCAL_REALTIME {
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
 
-    } else if (params.realtime == 72) {
+    } else if (realtime == 72) {
 
         COVERAGE_SEPARATE(
             MAPPING.out.bam,
