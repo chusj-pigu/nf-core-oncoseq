@@ -244,7 +244,12 @@
         },
         "cfdna": {
             "type": "boolean",
-            "description": "Run in cell-free DNA mode. Cannot be set with adaptive sampling or wgs mode."
+            "description": "Run in cell-free DNA mode."
+        },
+        "wgs": {
+            "type": "boolean",
+            "default": false,
+            "description": "When used in non adaptive WGS mode predicted to be ~30X, use --wgs to increase resources allocation for basecalling."
         },
         "huge": {
             "type": "boolean",
@@ -270,18 +275,15 @@
             "description": "Option to skip basecalling and start with fastq files in the samplesheet input column"
         },
         "max_memory": {
-            "type": "string",
-            "default": "16G",
+            "type": "integer",
             "description": "Maximum memory any process can consume"
         },
         "max_cpus": {
             "type": "integer",
-            "default": 4,
             "description": "Maximum cpus any process can use"
         },
         "max_time": {
-            "type": "string",
-            "default": "4h",
+            "type": "integer",
             "description": "Maximum amount of time any process can take"
         },
         "time_series": {

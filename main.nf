@@ -164,13 +164,13 @@ params {
     skip_basecalling: Boolean
 
     // Maximum memory any process can consume
-    max_memory: String = '16G'
+    max_memory: MemoryUnit
 
     // Maximum cpus any process can use
-    max_cpus: Integer = 4
+    max_cpus: Integer
 
     // Maximum amount of time any process can take
-    max_time: String = '4h'
+    max_time: Duration
 
     time_series: Boolean
 
@@ -325,6 +325,7 @@ params {
     // Show hidden parameters in the help message
     show_hidden: Boolean
 
+    wgs: Boolean
 }
 
 workflow {
