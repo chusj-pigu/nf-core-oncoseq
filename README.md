@@ -43,9 +43,9 @@ nextflow run nf-core/oncoseq \
 
 With `--input` samplesheet:
 
-| sample | input |
-|--------|---------|
-| sample1 | /path/to/input/ |
+| sample | input | tumor_type
+|--------|---------|----------|
+| sample1 | /path/to/input/ | blood |
 
 ## Introduction
 
@@ -73,7 +73,7 @@ The general steps are as follows:
 2. **Read QC** – [Seqkit](https://bioinf.shenwei.me/seqkit/)
 3. **Alignment** – [minimap2](https://lh3.github.io/minimap2/minimap2.html)
    *(Optional: skip using `--skip_mapping` if BAM input is provided)*
-4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan), [Sturgeon](https://github.com/UMCUGenetics/sturgeon)
+4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan), [Sturgeon](https://github.com/UMCUGenetics/sturgeon), [Alma](https://github.com/f-marchi/ALMA-classifier), [Lamprey](https://github.com/princessmaximacenter/Lamprey), [MPACT](https://github.com/kylessmith/MethylVerse) and [Nanomix](https://github.com/Jonbroad15/nanomix)
 5. **Alignment QC** – [Cramino](https://github.com/wdecoster/cramino)
 6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly), [IchorCNA](https://github.com/broadinstitute/ichorCNA)
 7. **Variant calling** – [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3)
@@ -95,7 +95,21 @@ For prospectively run workflows on different timepoints, [Ontime](https://github
 
 #### Tumor Classification
 
-Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Only reads generated in the first hour of sequencing are used, except for `--cfdna` mode, where tumor classification is run on the filtered reads (≤700 bp) if `filter = yes` in the samplesheet.
+Runs on basecalled 5mC/5hmC reads if modified basecalling is used (`--m_bases`) or if methylation tags are found in fastq/bam input. If not run in realtime, only reads generated in the first hour of sequencing are used, except in `--cfdna` mode, where classification is run on the length-filtered reads (≤700 bp) if `filter = yes` in the samplesheet.
+
+Each sample's `type` column value determines which classifier plot(s) are produced in the report:
+
+| `type` value | Classifier run |
+|--------------|-------------------------------|
+| `blood`      | [Alma](https://github.com/f-marchi/ALMA-classifier), [Lamprey](https://github.com/princessmaximacenter/Lamprey), and [Marlin](https://github.com/hovestadt/MARLIN) |
+| `brain`      | [CrossNN Caper](https://gitlab.com/euskirchen-lab/crossNN), [Sturgeon](https://github.com/UMCUGenetics/sturgeon) Brainstem and General, and [MPACT](https://github.com/kylessmith/MethylVerse) |
+| `solid`      | [CrossNN PanCancer](https://gitlab.com/euskirchen-lab/crossNN) and [Tucan](https://github.com/UMCUGenetics/tucan) |
+| `other` | All classifiers |
+
+In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://github.com/Jonbroad15/nanomix) tissue-of-origin plot, regardless of `type`.
+
+> [!NOTE]
+> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Lamprey, Marlin, MPACT, Nanomix, Sturgeon Brainstem, Sturgeon General, Tucan) are generated for **all** samples — the `type` column only controls which plot(s) accompany them in the final report.
 
 > [!WARNING]
 > These classifiers are run within a Rust integration called classy, and use liftovers when `--genome` does not match the program probes. Results may differ from the original programs.
@@ -109,8 +123,6 @@ Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Only reads ge
 - SNP calling if ≥10×: *ClairS-TO*, *Clair3*
 - SubChrom if ≥15×
 
-To run IchorCNA as part of the cfDNA mode, include `-profile ichor_hg38` or `-profile ichor_hg19` depending on your reference genome.
-
 ---
 
 ## Usage
@@ -122,9 +134,9 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
-| sample | input | purity | filter |
+| sample | input | purity | filter | tumor_type |
 |--------|---------|---------|---------|
-| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* |
+| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* | Tumor type category (`blood`, `brain`, `solid`, or `other`). Controls which classifier plot(s) are generated for the report. If not set, will default as `other`. |
 
 Most input can be provided as command line parameters if they are common, but they can also be provided in the samplesheet if they differ between samples:
 
@@ -171,14 +183,14 @@ For more details and further functionality, please refer to the [usage documenta
 |-----------|----------|------|---------|-------------|
 | `--input` | ✅ | `path` | | Path to input samplesheet. |
 | `--outdir` | ✅ | `path` | | Directory where outputs will be published. |
-| `--genome` | | `string` | `hg38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
+| `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
 | `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` subdirectory is used when available. |
 | `--basecall_model` | ✅ | `string` | | Dorado basecalling model (e.g. `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
-| `--m_bases` | ✅* | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification** |
+| `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification.** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
 | `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is BAM files. |
 | `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit` column in samplesheet). |
-| `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer.|
+| `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer. |
 
 ---
 
@@ -197,8 +209,8 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions. *Required for `--adaptive`.* |
-| `--low_fidelity` | | `path` | default | Text file listing low-fidelity genes to exclude from coverage. |
+| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions. |
+| `--low_fidelity` | | `path` | assets/panel_low_fidelity.txt | Text file listing low-fidelity genes to exclude from coverage. |
 
 ---
 
@@ -206,10 +218,10 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--minqs` | | `integer` | `10` | Minimum Phred quality score for read filtering. |
 | `--device` | | `string` | | GPU device(s) for Dorado (e.g. `cuda:0,1`). Auto-detected if not specified. |
-| `--batch` | | `integer` | | Batch size for basecalling. Auto-tuned if not specified. |
+| `--batch` | | `string` | | Batch size for basecalling. Auto-tuned if not specified. |
 | `--mapping_small` | | `boolean` | `true` | Use reduced resources for mapping (recommended for adaptive/cfDNA). |
+| `--clair3_gpu` | | `boolean` | `false` | Use GPU to run Clair3. |
 
 ---
 
@@ -222,9 +234,9 @@ Choose exactly one mode:
 | `--subchrom_binsize` | | `integer` | `500` | Bin size (kb) for SubChrom CNV calling. |
 | `--delly_bin_size` | | `integer` | `50000` | Bin size (bp) for Delly CNV calling. |
 | `--sv_targets` | | `path` | assets/sv-list.csv | CSV file for additional SV visualization of regions often involved in intragenic deletions: columns `GENE`, `pos` (Figeno output). |
-| `--fusion_targets` | | `path` | assets/fusion-list.csv | CSV file containing fusions partners to call with stellerator: First column is the first partner, second column is the second partner. Default is a list of known fusions involved in solid and hematological tumors. |
-| `--sv_exclude` | | `path` | assets/sv_exclude.txt" | Text file listing genes to exclude from SV analysis. The default includes structural variants that come up for the majority of samples and are not clinically known to be relevant. |
-| `--snp_exclude` | | `path` | assets/snp_exclude.txt" | Text file listing genes to exclude from SNP analysis. The default includes variants that are not clinically relevant. |
+| `--fusion_targets` | | `path` | assets/fusion-list.csv | CSV file containing fusion partners to call with stellerator. First column is the first partner, second column is the second partner. Default is a list of known fusions involved in solid and hematological tumors. |
+| `--sv_exclude` | | `path` | assets/sv_exclude.txt | Text file listing genes to exclude from SV analysis. The default includes structural variants that come up for the majority of samples and are not clinically known to be relevant. |
+| `--snp_exclude` | | `path` | assets/snp_exclude.txt | Text file listing genes to exclude from SNP analysis. The default includes variants that are not clinically relevant. |
 
 ---
 
@@ -245,6 +257,11 @@ Choose exactly one mode:
 | `--max_length` | | `integer` | `700` | Maximum read length (bp) for cf-DNA filtering (removes longer reads). |
 | `--ichor_bin_size` | | `integer` | `500000` | Bin size (bp) for IchorCNA CNV calling. |
 | `--min_mapq_ichor` | | `integer` | `20` | Minimum MAPQ threshold for IchorCNA. |
+| `--chr_wig` | | `string` | chr1,chr2,...,chrX,chrY | Comma-separated chromosome list used by `readCounter` to build the IchorCNA wig file. |
+| `--custom_ploidy` | | `string` | `c(2,3)` | Candidate tumour ploidy values passed to IchorCNA (R vector syntax). |
+| `--custom_maxCN` | | `integer` | `5` | Maximum copy number for IchorCNA to consider. |
+| `--genome_style` | | `string` | `UCSC` | Chromosome naming style IchorCNA uses internally (`UCSC` or `Ensembl`). |
+| `--estimate_sc_prevalence` | | `boolean` | `false` | Estimate subclonal prevalence within IchorCNA (slower when enabled). |
 
 ---
 

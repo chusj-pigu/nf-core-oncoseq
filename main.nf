@@ -31,7 +31,8 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
 
     take:
     samplesheet // channel: samplesheet read in from --input
-    demux       // channel: demux_samplesheet read in from --demux_samplesheet
+    demux       // channel: demux_samplesheet read in from samplesheet
+    tumor_type  // channel: tumor type read in from samplesheet
     ref         // channel : reference for mapping, either empty if skipping mapping, or a path
     bed         // channel: from path read from params.bed, bed file used for adaptive sampling
     clairs_model  // channel: model for calling snp with ClairS-TO
@@ -49,6 +50,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
         ADAPTIVE_WGS (
             samplesheet,
             demux,
+            tumor_type,
             ref,
             bed,
             clairs_model,
@@ -60,6 +62,7 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
         LOCAL_REALTIME (
             samplesheet,
             demux,
+            tumor_type,
             ref,
             bed,
             basecall_model,
@@ -74,6 +77,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     take:
     samplesheet         // channel: samplesheet read in from --input
     demux               // channel: demux_samplesheet read in from --demux_samplesheet
+    tumor_type          // channel: tumor type read in from samplesheet
     cfdna_samplesheet   // channel : from demux or samplesheeet
     ref                 // channel : reference for mapping, either empty if skipping mapping, or a path
     max_len
@@ -94,6 +98,7 @@ workflow NFCORE_ONCOSEQ_CFDNA {
     CFDNA (
         samplesheet,
         demux,
+        tumor_type,
         cfdna_samplesheet,
         ref,
         max_len,
@@ -134,9 +139,6 @@ params {
     // Batch size for basecalling
     batch: String?
 
-    // Base path for illumina genomes to pull from AWS, typically not changed
-    igenomes_base: String = 's3://ngi-igenomes/igenomes/'
-
     // Option for finetuning time ressources allocation for minimap2. Set to false if a big genome is to be aligned (human whole genome 30X)
     mapping_small: Boolean = true
 
@@ -159,13 +161,13 @@ params {
     skip_basecalling: Boolean
 
     // Maximum memory any process can consume
-    max_memory: String = '16G'
+    max_memory: MemoryUnit
 
     // Maximum cpus any process can use
-    max_cpus: Integer = 4
+    max_cpus: Integer
 
     // Maximum amount of time any process can take
-    max_time: String = '4h'
+    max_time: Duration
 
     time_series: Boolean
 
@@ -194,6 +196,8 @@ params {
 
     skip_mapping: Boolean
 
+    // -- ichorCNA parameters --------------------------------------------------
+
     // Maximum length (in bases) of reads to include in cfdna analysis (if filter true in samplesheet)
     max_length: Integer = 700
 
@@ -202,6 +206,23 @@ params {
 
     // Bin size to use for IchorCNA (in bases)
     ichor_bin_size: Integer = 500000
+
+    // Comma-separated chromosome list used by readCounter to build the wig file
+    chr_wig: String = "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY"
+
+    // Candidate tumour ploidy values passed to run IchorCNA.R (R vector syntax)
+    custom_ploidy: String = 'c(2,3)'
+
+    // Maximum copy number to consider
+    custom_maxCN: Integer = 5
+
+    // Chromosome naming style ichorCNA should use internally (UCSC or Ensembl)
+    genome_style: String = "UCSC"
+
+    // Estimate subclonal prevalence within IchorCNA (default is false, which is faster)
+    estimate_sc_prevalence: Boolean
+
+    // ---------------------------------------------------------------------------
 
     report_template: Path = "${projectDir}/assets/templates/report_template.qmd"
 
@@ -224,7 +245,7 @@ params {
     ref_cache: Path?
 
     // Human genome assembly identifier
-    genome: String = 'GRCh38'
+    genome: String = 'hg38'
 
     // Use gpu to run Clair3
     clair3_gpu: Boolean
@@ -301,6 +322,7 @@ params {
     // Show hidden parameters in the help message
     show_hidden: Boolean
 
+    wgs: Boolean
 }
 
 workflow {
@@ -361,6 +383,7 @@ workflow {
         NFCORE_ONCOSEQ_CFDNA (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.tumor_type,
             PIPELINE_INITIALISATION.out.cfdna_ch,
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_max_len,
@@ -378,6 +401,7 @@ workflow {
         NFCORE_ONCOSEQ_ADAPTIVE_WGS (
             ch_input,
             PIPELINE_INITIALISATION.out.demux_sheet,
+            PIPELINE_INITIALISATION.out.tumor_type,
             PIPELINE_INITIALISATION.out.ref_ch,
             ch_clairs_model,
             ch_model,

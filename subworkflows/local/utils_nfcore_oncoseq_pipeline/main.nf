@@ -33,7 +33,7 @@ workflow PIPELINE_INITIALISATION {
     take:
     version           // boolean: Display version and exit
     validate_params   // boolean: Boolean whether to validate parameters against the schema at runtime
-    monochrome_logs   // boolean: Do not use coloured log outputs
+    _monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
     input_sheet             //  string: Path to input samplesheet
@@ -100,7 +100,7 @@ workflow PIPELINE_INITIALISATION {
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .combine(ch_ubam)
         .branch {
-            meta, project, input, ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, ubam_ph ->
+            meta, project, input, ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type, ubam_ph ->
             reg: (!ubam && !kit && !barcode)
                 return [ meta, file(input), ubam_ph ]
             resume: (ubam && !kit && !barcode)
@@ -123,7 +123,7 @@ workflow PIPELINE_INITIALISATION {
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .map {
-            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
+            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
             if (project && kit && barcode) {
                 tuple(id:project, meta.id, barcode, kit)
             } else {
@@ -137,7 +137,7 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, _bed, _padding, _low_fidelity, purity, filter ->
+                meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, _bed, _padding, _low_fidelity, purity, filter, _tumor_type ->
                 if(!purity){
                     throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
                 }
@@ -158,7 +158,7 @@ workflow PIPELINE_INITIALISATION {
         .combine(ch_padding)
         .combine(ch_low_fidelity)
         .branch {
-            meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, bed, padding, lf, _purity, _filter, bed_c, padding_c, lf_c ->
+            meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, bed, padding, lf, _purity, _filter, _tumor_type, bed_c, padding_c, lf_c ->
             common: (!bed && !padding && !lf)
                 return [ meta, bed_c, padding_c, lf_c ]
             bed: (bed && !padding && !lf)
@@ -176,6 +176,15 @@ workflow PIPELINE_INITIALISATION {
         .mix(ch_adaptive_branched.bed_diff)
         .set { ch_adaptive }
 
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .map {
+            meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, _bed, _padding, _lf, _purity, _filter, tumor_type ->
+            def tumor_type_resolved = tumor_type ?: "other"
+            tuple(meta, tumor_type_resolved)
+        }
+        .set { ch_tumor_type }
+
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     ERROR MESSAGES
@@ -187,7 +196,7 @@ workflow PIPELINE_INITIALISATION {
         .combine(ch_bed)
         .combine(ch_padding)
         .combine(ch_low_fidelity)
-        .map { meta, project, input, ubam, ref, ref_path ,kit, barcode, bed, padding, low_fidelity, purity, filter, bed_c, padding_c, lf_c ->
+        .map { _meta, _project, _input, _ubam, _ref, _ref_path, _kit, _barcode, bed, padding, _low_fidelity, _purity, _filter, _tumor_type, bed_c, padding_c, _lf_c ->
             if (!padding && padding_c == 20000){
                 log.warn("Using default padding of 20kb padding around ROI")
             }
@@ -221,7 +230,7 @@ workflow PIPELINE_INITIALISATION {
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .combine(ch_ref_cache.ifEmpty([null]))
         .combine(ch_genome.ifEmpty([null]))
-        .map { meta, project, _input, _ubam, sample_genome, ref_path, kit, _barcode, _bed, _padding, _low_fidelity, _purity, _filter, ref_c, genome_c ->
+        .map { meta, _project, _input, _ubam, sample_genome, ref_path, _kit, _barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type, ref_c, genome_c ->
 
             def faExts  = ['.fa', '.fasta', '.fa.gz', '.fasta.gz']
             def faiExts = ['.fa.fai', '.fasta.fai', '.fa.gz.fai', '.fasta.gz.fai']
@@ -230,7 +239,7 @@ workflow PIPELINE_INITIALISATION {
             def rawGenome = sample_genome ?: genome_c
             if (!rawGenome) error "ERROR: No genome provided. Set params.genome or provide genome in samplesheet."
             def genome  = genomeMap[rawGenome] ?: { error "ERROR: Unrecognized genome '${rawGenome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
-            def aliases = genomeMap.findAll { k, v -> v == genome }.keySet()
+            def aliases = genomeMap.findAll { _k, v -> v == genome }.keySet()
 
             def faFinal  = null
             def faiFinal = null
@@ -309,7 +318,7 @@ workflow PIPELINE_INITIALISATION {
         .set { ch_ref }
 
     ch_ref
-        .branch { meta, ref_id_c, faFinal, faiFinal ->        // <-- missing -> fixed
+        .branch { _meta, _ref_id_c, _faFinal, faiFinal ->        // <-- missing -> fixed
             indexed  : faiFinal != null
             to_index : faiFinal == null
         }
@@ -318,20 +327,20 @@ workflow PIPELINE_INITIALISATION {
     // If genome is compressed, always recompress with bgzip otherwise samtools faidx will fail
 
     ch_ref_branched.to_index
-        .branch { meta, ref_id_c, faFinal, faiFinal ->
+        .branch { _meta, _ref_id_c, faFinal, _faiFinal ->
             gzip: faFinal.extension == "gz"
             unzip: (faFinal.extension == "fa" || faFinal.extension == "fasta")
         }
         .set { ch_ref_to_index_branched }
 
     BGZIP_RECOMPRESS(ch_ref_to_index_branched.gzip
-        .map { meta, ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) }
+        .map { meta, _ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) }
         .groupTuple(by: 1)
         )
 
     // Reunite bgzipped FTP files with local files, then index all
     ch_to_index = BGZIP_RECOMPRESS.out.file
-        .mix(ch_ref_to_index_branched.unzip.map { meta, ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) })
+        .mix(ch_ref_to_index_branched.unzip.map { meta, _ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) })
         .transpose()
 
     SAMTOOLS_FAIDX(ch_to_index
@@ -340,7 +349,7 @@ workflow PIPELINE_INITIALISATION {
 
     // Rejoin with ref IDs
     ch_ref_ids = ch_ref
-        .map { meta, ref_id_c, faFinal, faiFinal ->
+        .map { meta, ref_id_c, _faFinal, _faiFinal ->
         tuple(meta, ref_id_c) }
 
     ch_ref_indexed = ch_ref_ids
@@ -414,12 +423,12 @@ workflow PIPELINE_INITIALISATION {
             DORADO_DOWNLOAD_MODEL(ch_in_download)
 
             ch_model = DORADO_DOWNLOAD_MODEL.out.model
-                .filter { type, model -> type == "base" }
-                .map { type, model -> model }
+                .filter { type, _model -> type == "base" }
+                .map { _type, model -> model }
 
             ch_modif = DORADO_DOWNLOAD_MODEL.out.model
-                .filter { type, model -> type == "modif" }
-                .map { type, model -> model }
+                .filter { type, _model -> type == "modif" }
+                .map { _type, model -> model }
 
         // download only model
         } else if (!model_resolved && !params.m_bases) {
@@ -438,7 +447,7 @@ workflow PIPELINE_INITIALISATION {
             DORADO_DOWNLOAD_MODEL(ch_model_to_download)
 
             ch_model = DORADO_DOWNLOAD_MODEL.out.model
-                .map { type, model -> model }
+                .map { _type, model -> model }
 
         // download only modif
         } else if (model_resolved && !modif_resolved && params.m_bases) {
@@ -458,7 +467,7 @@ workflow PIPELINE_INITIALISATION {
             DORADO_DOWNLOAD_MODEL(ch_modif_to_download)
 
             ch_modif = DORADO_DOWNLOAD_MODEL.out.model
-                .map { type, model -> model }
+                .map { _type, model -> model }
         }
     }
 
@@ -512,7 +521,7 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
+                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
                 if (project && kit && !barcode ) {
                     throw new IllegalArgumentException("Please provide barcode for sample ${meta.id ?: meta}")
                 }
@@ -527,7 +536,7 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter ->
+                _meta, _project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
                 if (kit || barcode) {
                     throw new IllegalArgumentException("Please use --demux option for demultiplexing samples")
                 }
@@ -538,6 +547,7 @@ workflow PIPELINE_INITIALISATION {
     bed_sheet   = ch_adaptive
     demux_sheet = ch_demux
     samplesheet = ch_in_samplesheet
+    tumor_type  = ch_tumor_type
     ref_ch      = ch_ref_indexed
     cfdna_ch    = ch_cfdna
     vep_cache   = ch_vep_cache
@@ -746,8 +756,8 @@ def selectLatestModel(model, model_path) {
         // 2) Select latest clean model
         return clean_model_dna
             .sort { a, b ->
-                def va = a.name.split('@v')[-1].tokenize('.').collect { it as int }
-                def vb = b.name.split('@v')[-1].tokenize('.').collect { it as int }
+                def va = a.name.split('@v')[-1].tokenize('.').collect { it -> it as int }
+                def vb = b.name.split('@v')[-1].tokenize('.').collect { it -> it as int }
 
                 int len = Math.max(va.size(), vb.size())
 
@@ -804,8 +814,8 @@ def selectLatestModif(model_path, model, modif) {
         }
         return clean_model_mod
             .sort { a, b ->
-                def va = a.name.split('@v')[-1].tokenize('.').collect { it.toInteger() }.join('').toInteger()
-                def vb = b.name.split('@v')[-1].tokenize('.').collect { it.toInteger() }.join('').toInteger()
+                def va = a.name.split('@v')[-1].tokenize('.').collect { it -> it.toInteger() }.join('').toInteger()
+                def vb = b.name.split('@v')[-1].tokenize('.').collect { it -> it.toInteger() }.join('').toInteger()
                 va <=> vb
             }
             .last()
@@ -815,7 +825,7 @@ def selectLatestModif(model_path, model, modif) {
 def normalizeVersion(versionString) {
     versionString
         .tokenize('.')
-        .collect { String.format('%03d', it as int) }
+        .collect { item -> String.format('%03d', item as int) }
         .join()
 }
 
@@ -829,7 +839,7 @@ def selectModelDownload(chModelsList, modelParam, subfield = null, chParentModel
      */
     if (!subfield) {
         return chParsed
-            .filter { it.key.contains(modelParam) }
+            .filter { it -> it.key.contains(modelParam) }
             .map { entry ->
                 def v = (entry.key =~ /@v([0-9.]+)/)[0][1]
                 tuple(entry.key, normalizeVersion(v))
@@ -837,7 +847,7 @@ def selectModelDownload(chModelsList, modelParam, subfield = null, chParentModel
             .ifEmpty { error "No models found for: ${modelParam}" }
             .toSortedList { a, b -> a[1] <=> b[1] }
             .map { list ->
-                def exact = list.find { it[0] == modelParam }
+                def exact = list.find { item -> item[0] == modelParam }
                 exact ? exact[0] : list[-1][0]
             }
     }
@@ -850,10 +860,10 @@ def selectModelDownload(chModelsList, modelParam, subfield = null, chParentModel
         .filter { entry, parent ->
             entry.key == parent
         }
-        .map { entry, parent ->
+        .map { entry, _parent ->
             (entry.value[subfield] ?: [:]).entrySet()
         }
-        .flatMap { it }
+        .flatMap { entrySet -> entrySet }
         .filter { entry ->
             entry.key.contains(modelParam) || entry.key == modelParam
         }
@@ -864,7 +874,7 @@ def selectModelDownload(chModelsList, modelParam, subfield = null, chParentModel
         .ifEmpty { error "No ${subfield} models found for: ${modelParam}" }
         .toSortedList { a, b -> a[1] <=> b[1] }
         .map { list ->
-            def exact = list.find { it[0] == modelParam }
+            def exact = list.find { item -> item[0] == modelParam }
             exact ? exact[0] : list[-1][0]
         }
 }
