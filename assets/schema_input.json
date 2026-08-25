@@ -118,6 +118,16 @@
                     "no"
                 ],
                 "errorMessage": "Write yes to pre-process reads by filtering out longer reads or no to skip this step"
+            },
+            "tumor_type": {
+                "type": "string",
+                "enum": [
+                    "brain",
+                    "solid",
+                    "blood",
+                    "other"
+                ],
+                "errorMessage": "Valid tumor type must be provided for each sample"
             }
         },
         "required": ["sample", "input"]

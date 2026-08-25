@@ -58,6 +58,7 @@ workflow LOCAL_REALTIME {
     take:
     samplesheet             // channel: samplesheet read in from --input
     demux_samplesheet       // channel: demux samplesheet read in from --demux_samplesheet
+    tumor_type              // channel: tumor type read in from samplesheet
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     basecall_model          // channel: model for basecalling
     bed                     // channel: bed file used for adaptive sampling regions
@@ -197,22 +198,24 @@ workflow LOCAL_REALTIME {
         ch_classy_in = MAPPING.out.bam
     }
 
-    if (realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
-
-        if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
+    if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
 
             CLASSY(
                 ch_classy_in,
-                ref
+                ref,
+                tumor_type
             )
 
             CLASSIFIER_REPORT(
                 CLASSY.out.plot,
-                CLASSY.out.pred
+                CLASSY.out.pred,
+                tumor_type
             )
 
             ch_sections = CLASSIFIER_REPORT.out.sections
         }
+
+    if (realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
         // Placeholder vcf for subcrhom as it's not run at this timepoint
 
@@ -262,9 +265,7 @@ workflow LOCAL_REALTIME {
         ch_versions = ch_versions
             .mix(CLASSY.out.versions)
 
-    } else if (realtime >=6 & realtime < 72 ) {
-
-        // Placeholder vcf for subcrhom as it's not run at this timepoint
+    } else if (realtime >= 6 & realtime < 72 ) {
 
         ch_vcf_subchrom = channel.empty()
 

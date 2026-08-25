@@ -10,9 +10,21 @@
 
 ## Pipeline tools
 
+- [Alma](https://github.com/f-marchi/ALMA-classifier)
+
+> Marchi, F., Shastri, V. M., Marrero, R. J., Nguyen, N. H. K., Öttl, A., Schade, A.-K., Landwehr, M., Krali, O., Nordlund, J., Ghavami, M., Sckaff, F., Mansinghka, V. K., Cao, X., Slayton, W., Starostik, P., Cogle, C. R., Ribeiro, R. C., Rubnitz, J. E., Klco, J., … Lamba, J. K. (2025). Epigenomic diagnosis and prognosis of Acute Myeloid Leukemia. Nature Communications, 16(1), 6961. https://doi.org/10.1038/s41467-025-62005-4
+
 - [Bcftools](https://samtools.github.io/bcftools/bcftools.html)
 
 > Danecek, P., Bonfield, J. K., Liddle, J., Marshall, J., Ohan, V., Pollard, M. O., Whitwham, A., Keane, T., McCarthy, S. A., Davies, R. M., & Li, H. (2021). Twelve years of SAMtools and BCFtools. GigaScience, 10(2), giab008. https://doi.org/10.1093/gigascience/giab008
+
+- [Bedtools](https://bedtools.readthedocs.io/en/stable/)
+
+> Quinlan, A. R., & Hall, I. M. (2010). BEDTools: A flexible suite of utilities for comparing genomic features. Bioinformatics, 26(6), 841–842. https://doi.org/10.1093/bioinformatics/btq033
+
+- [Chopper](https://github.com/wdecoster/chopper/)
+
+> De Coster, W., & Rademakers, R. (2023). NanoPack2: Population-scale evaluation of long-read sequencing data. Bioinformatics, 39(5), btad311. https://doi.org/10.1093/bioinformatics/btad311
 
 - [Clair3](https://github.com/HKU-BAL/Clair3)
 
@@ -40,17 +52,37 @@
 
 > Sollier, E., Heilmann, J., Gerhauser, C., Scherer, M., Plass, C., & Lutsik, P. (2024). Figeno: Multi-region genomic figures with long-read support. Bioinformatics, 40(6), btae354. https://doi.org/10.1093/bioinformatics/btae354
 
-- [minimap2](https://github.com/lh3/minimap2)
+- [IchorCNA](https://github.com/broadinstitute/ichorCNA)
 
-> Li, H. (2021). New strategies to improve minimap2 alignment accuracy. Bioinformatics, 37(23), 4572–4574. https://doi.org/10.1093/bioinformatics/btab705
+> Adalsteinsson, V. A., Ha, G., Freeman, S. S., Choudhury, A. D., Stover, D. G., Parsons, H. A., Gydush, G., Reed, S. C., Rotem, D., Rhoades, J., Loginov, D., Livitz, D., Rosebrock, D., Leshchiner, I., Kim, J., Stewart, C., Rosenberg, M., Francis, J. M., Zhang, C.-Z., … Meyerson, M. (2017). Scalable whole-exome sequencing of cell-free DNA reveals high concordance with metastatic tumors. Nature Communications, 8(1), 1324. https://doi.org/10.1038/s41467-017-00965-y
+
+- [ImageMagick](https://imagemagick.org/#gsc.tab=0)
+
+> ImageMagick Studio LLC. (2024). ImageMagick. Retrieved from https://imagemagick.org
+
+- [Lamprey](https://github.com/princessmaximacenter/Lamprey)
+
+> Achterberg, T., Vermeulen, C., van der Ent, H., Jongmans, M., Cammel, K., de Ruijter, E., Groenewegen, N., Kranenburg, C., van Tuil, M., Waanders, E., Parihar, M., Islam, R., Aijaz, J., Goemans, B., Calkoen, F., van der Sluis, I., den Boer, M. L., Boer, J. M., de Haas, V., … de Ridder, J. (2026). Rapid, Comprehensive Methylation-Based Classification of Hematologic Malignancies by Nanopore Sequencing. medRxiv, 2026.07.02.26356825. https://doi.org/10.64898/2026.07.02.26356825
 
 - [MARLIN](https://github.com/hovestadt/MARLIN)
 
 > Steinicke, T. L., Benfatto, S., Capilla-Guerra, M. R., Monteleone, A. B., Young, J. H., Shankar, S., Michaels, P. D., Tsai, H. K., Good, J. D., Kreso, A., van Galen, P., Schliemann, C., Chen, E. C., Griffin, G. K., & Hovestadt, V. (2025). Rapid epigenomic classification of acute leukemia. Nature Genetics, 57(10), 2456–2467. https://doi.org/10.1038/s41588-025-02321-z
 
+- [minimap2](https://github.com/lh3/minimap2)
+
+> Li, H. (2021). New strategies to improve minimap2 alignment accuracy. Bioinformatics, 37(23), 4572–4574. https://doi.org/10.1093/bioinformatics/btab705
+
+- [modkit](https://nanoporetech.github.io/modkit/)
+
 - [mosdepth](https://github.com/brentp/mosdepth)
 
 > Pedersen, B. S., & Quinlan, A. R. (2018). Mosdepth: Quick coverage calculation for genomes and exomes. Bioinformatics (Oxford, England), 34(5), 867–868. https://doi.org/10.1093/bioinformatics/btx699
+
+- [MPACT](https://github.com/kylessmith/MethylVerse)
+
+> Smith, K. S., Fischer, T. T., Han, K., Kostecka, A., Lin, H., Senfter, D., Soliman, T., Stepien, N., Volz, S., Schwarz, N., Wedig, T., Madlener, S., Haberler, C., Dhanda, S. K., Upadhyaya, S. A., Blackburn, P. R., Schmook, M. T., de Bont, J., Haapasalo, H., … Northcott, P. A. (2026). M-PACT leverages cell-free DNA methylomes to achieve robust classification of pediatric brain tumors. Nature Cancer, 7(4), 667–683. https://doi.org/10.1038/s43018-026-01115-4
+
+- [Nanomix](https://github.com/Jonbroad15/nanomix)
 
 - [ontime](https://github.com/mbhall88/ontime)
 
@@ -66,6 +98,10 @@
 
 > Shen, W., Le, S., Li, Y., Hu, F. (2016). SeqKit: A Cross-Platform and Ultrafast Toolkit for FASTA/Q File Manipulation. PLoS ONE, 11(10), e0163962. https://doi.org/10.1371/journal.pone.0163962
 
+- [Severus](https://github.com/KolmogorovLab/Severus)
+
+> Keskus, A. G., Bryant, A., Ahmad, T., Yoo, B., Aganezov, S., Goretsky, A., Donmez, A., Lansdon, L. A., Rodriguez, I., Park, J., Liu, Y., Cui, X., Gardner, J., McNulty, B., Sacco, S., Shetty, J., Zhao, Y., Tran, B., Narzisi, G., … Kolmogorov, M. (2026). Severus detects somatic structural variation and complex rearrangements in cancer genomes using long-read sequencing. Nature Biotechnology, 44(2), 247–257. https://doi.org/10.1038/s41587-025-02618-8
+
 - [Sniffles](https://github.com/fritzsedlazeck/Sniffles)
 
 > Smolka, M., Paulin, L. F., Grochowski, C. M., Horner, D. W., Mahmoud, M., Behera, S., Kalef-Ezra, E., Gandhi, M., Hong, K., Pehlivan, D., Scholz, S. W., Carvalho, C. M. B., Proukakis, C., & Sedlazeck, F. J. (2024). Detection of mosaic and population-level structural variants with Sniffles2. Nature Biotechnology, 42(10), 1571–1580. https://doi.org/10.1038/s41587-023-02024-y
@@ -74,9 +110,17 @@
 
 > Cingolani, P., Patel, V. M., Coon, M., Nguyen, T., Land, S. J., Ruden, D. M., & Lu, X. (2012). Using Drosophila melanogaster as a Model for Genotoxic Chemical Mutational Studies with a New Program, SnpSift. Frontiers in Genetics, 3, 35. https://doi.org/10.3389/fgene.2012.00035
 
+- [Stellerator](https://github.com/chusj-pigu/stellerator)
+
+- [Sturgeon](https://github.com/UMCUGenetics/sturgeon)
+
+> Vermeulen, C., Pagès-Gallego, M., Kester, L., Kranendonk, M. E. G., Wesseling, P., Verburg, N., de Witt Hamer, P., Kooi, E. J., Dankmeijer, L., van der Lugt, J., van Baarsen, K., Hoving, E. W., Tops, B. B. J., & de Ridder, J. (2023). Ultra-fast deep-learned CNS tumour classification during surgery. Nature, 622(7984), 842–849. https://doi.org/10.1038/s41586-023-06615-2
+
 - [SubChrom](https://github.com/Shaohua-Lei/SubChrom/)
 
 > Lei, S., Jia, S., Takalkar, S., Chang, T.-C., Ma, X., Szlachta, K., Xu, K., Cheng, Z., Hui, Y., Koo, S. C., Mead, P. E., Gao, Q., Kumar, P., Bailey, C. P., Sunny, J., Pappo, A. S., Federico, S. M., Robinson, G. W., Gajjar, A., … Mullighan, C. G. (2025). Genomic profiling of circulating tumor DNA for childhood cancers. Leukemia, 39(2), 420–430. https://doi.org/10.1038/s41375-024-02461-x
+
+- [Tucan](https://github.com/UMCUGenetics/tucan)
 
 - [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
 
@@ -88,13 +132,17 @@
 
 > R Core Team. (2021). R: A Language and Environment for Statistical Computing. R Foundation for Statistical Computing. https://www.R-project.org/
 
+- [jsonlite](https://cran.r-project.org/web/packages/jsonlite/index.html)
+
+> Ooms, J. (2014). The jsonlite Package: A Practical and Consistent Mapping Between JSON Data and R Objects. arXiv:1403.2805 [stat.CO]. https://arxiv.org/abs/1403.2805.
+
 - [optparse](https://CRAN.R-project.org/package=optparse)
 
 > Davis, T. L. (2024). optparse: Command Line Option Parser. https://CRAN.R-project.org/package=optparse
 
 - [QDNAseq](https://www.bioconductor.org/packages/release/bioc/html/QDNAseq.html)
 
-> Scheinin, I., Sie, D., Bengtsson, H., Wiel, M. A. van de, Olshen, A. B., Thuijl, H. F. van, Essen, H. F. van, Eijk, P. P., Rustenburg, F., Meijer, G. A., Reijneveld, J. C., Wesseling, P., Pinkel, D., Albertson, D. G., & Ylstra, B. (2014). DNA copy number analysis of fresh and formalin-fixed specimens by shallow whole-genome sequencing with identification and exclusion of problematic regions in the genome assembly. Genome Research, 24, 2022–2032.
+> Scheinin, I., Sie, D., Bengtsson, H., van de Wiel, M. A., Olshen, A. B., van Thuijl, H. F., van Essen, H. F., Eijk, P. P., Rustenburg, F., Meijer, G. A., Reijneveld, J. C., Wesseling, P., Pinkel, D., Albertson, D. G., & Ylstra, B. (2014). DNA copy number analysis of fresh and formalin-fixed specimens by shallow whole-genome sequencing with identification and exclusion of problematic regions  in the genome assembly. Genome Research, 24(12), 2022–2032. https://doi.org/10.1101/gr.175141.114
 
 - [tidyverse](https://tidyverse.tidyverse.org/articles/paper.html)
 

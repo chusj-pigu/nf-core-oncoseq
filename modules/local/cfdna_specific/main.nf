@@ -20,9 +20,8 @@ process CAT_FASTQ {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def threads = task.cpus
     """
-    cat ${fastq_dir}/* > ${prefix}.fq.gz
+    cat ${fastq_dir} > ${prefix}.fq.gz
     """
 }
 

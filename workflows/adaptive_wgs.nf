@@ -54,6 +54,7 @@ workflow ADAPTIVE_WGS {
     take:
     samplesheet             // channel: samplesheet read in from --input
     demux_samplesheet       // channel: demux samplesheet read in from --demux_samplesheet
+    tumor_type              // channel: tumor type read in from samplesheet
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     clairs_model            // channel: model for ClairS variant calling
     basecall_model          // channel: model for basecalling
@@ -185,12 +186,14 @@ workflow ADAPTIVE_WGS {
 
             CLASSY(
                 ch_bam_classy,
-                ch_ref_for_calling
+                ch_ref_for_calling,
+                tumor_type
             )
 
             CLASSIFIER_REPORT(
                 CLASSY.out.plot,
-                CLASSY.out.pred
+                CLASSY.out.pred,
+                tumor_type
             )
 
             ch_classy_section = CLASSIFIER_REPORT.out.sections
@@ -220,7 +223,8 @@ workflow ADAPTIVE_WGS {
 
             CLASSY(
                 ch_in_classy,
-                ch_ref_for_calling
+                ch_ref_for_calling,
+                tumor_type
             )
 
             ch_versions = ch_versions
@@ -228,7 +232,8 @@ workflow ADAPTIVE_WGS {
 
             CLASSIFIER_REPORT(
                 CLASSY.out.plot,
-                CLASSY.out.pred
+                CLASSY.out.pred,
+                tumor_type
             )
 
             ch_classy_section = CLASSIFIER_REPORT.out.sections
