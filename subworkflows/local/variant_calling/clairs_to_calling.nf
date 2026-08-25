@@ -7,11 +7,10 @@
     processing with BCFtools.
 */
 include { CLAIRS_TO_CALL               } from '../../../modules/local/clairsto/main.nf'
-include { SNPEFF_ANNOTATE              } from '../../../modules/local/snpeff/main.nf'
-include { SNPSIFT_ANNOTATE             } from '../../../modules/local/snpeff/main.nf'
-include { BCFTOOLS_VIEW as BCFTOOLS_COUNT         } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_VIEW as BGZIP_VCF_FINAL        } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_VIEW as BGZIP_VCF_INTER        } from '../../../modules/local/bcftools/main.nf'
+include { SNPEFF_SNPEFF as SNPEFF_HG38 } from '../../../modules/nf-core/snpeff/snpeff'
+include { SNPEFF_SNPEFF as SNPEFF_HG19 } from '../../../modules/nf-core/snpeff/snpeff'
+include { SNPEFF_DOWNLOAD              } from '../../../modules/nf-core/snpeff/download'
+include { HTSLIB_BGZIPTABIX            } from '../../../modules/nf-core/htslib/bgziptabix'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HS1        } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
@@ -20,14 +19,13 @@ include { paramsSummaryMap             } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc         } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText       } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
-include { modifyMetaId                } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
-include { BCFTOOLS_CONCAT               } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_SORT                 } from '../../../modules/local/bcftools/main.nf'
+include { modifyMetaId                 } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { BCFTOOLS_CONCAT               } from '../../../modules/nf-core/bcftools/concat'  // TODO: Convert to nf-core module
+include { BCFTOOLS_SORT                 } from '../../../modules/nf-core/bcftools/sort'
+include { BCFTOOLS_VIEW                 } from '../../../modules/nf-core/bcftools/view'
 include { BCFTOOLS_FILTER_REGION                 } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_SNV   } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_INDEL } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_RAW   } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_SNV   } from '../../../modules/nf-core/bcftools/index'
+include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_INDEL } from '../../../modules/nf-core/bcftools/index'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,9 +87,9 @@ def restoreIndelMeta(meta, vcf, tbx) {
     return tuple(new_meta, vcf, tbx)
 }
 
-def prepareSomaticSnpAnnotation(meta, output, database) {
+def prepareSomaticSnpAnnotation(meta, output, genome) {
     def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_somatic_snp_snpeff')
-    return tuple(new_meta, output, database)
+    return tuple(new_meta, output, genome)
 }
 
 def addSnvSuffix(meta, vcf) {
@@ -125,14 +123,16 @@ workflow CLAIRS_TO_CALLING {
     ch_versions = channel.empty()
 
     // Extract just the reference FASTA and its index from the reference channel
-    ch_ref = ref.map { meta, reference, ref_fasta, ref_fai ->
-        extractRefFiles(meta, reference, ref_fasta, ref_fai) }
+    ch_ref = ref
+        .map { _refid, ref_fasta, ref_fai ->
+            tuple(ref_fasta, ref_fai)
+        }
 
 
     // Prepare input for ClairS-TO by joining BAM with reference and combining with chromosome list and model
     // Format: [meta, bam, bai, ref_fasta, ref_fai, chr_list, model]
     ch_input_clairs = bam
-        .join(ch_ref)          // Join BAM with reference on meta
+        .combine(ch_ref)          // Join BAM with reference on meta
         .combine(model)        // Add model information for platform-specific optimizations
 
     // Run ClairS-TO variant caller on prepared input
@@ -154,12 +154,14 @@ workflow CLAIRS_TO_CALLING {
     BCFTOOLS_INDEX_INDEL(ch_indel_to_index)
 
     // Restore original meta id to join indel with snv together
-    ch_snv_to_concat = BCFTOOLS_INDEX_SNV.out.vcf_tbi
+    ch_snv_to_concat = ch_snv_to_index
+        .join(BCFTOOLS_INDEX_SNV.out.index)
         .map { meta, vcf, tbx ->
             restoreSnvMeta(meta, vcf, tbx)
         }
 
-    ch_indel_to_concat = BCFTOOLS_INDEX_INDEL.out.vcf_tbi
+    ch_indel_to_concat = ch_indel_to_index
+        .join(BCFTOOLS_INDEX_INDEL.out.index)
         .map { meta, vcf, tbx ->
             restoreIndelMeta(meta, vcf, tbx)
         }
@@ -167,10 +169,14 @@ workflow CLAIRS_TO_CALLING {
     // Merge SNV and INDEL together
 
     ch_to_concat =  ch_snv_to_concat
-        .join(ch_indel_to_concat)
+        .mix(ch_indel_to_concat)
+        .groupTuple()
 
     BCFTOOLS_CONCAT(ch_to_concat)
     BCFTOOLS_SORT(BCFTOOLS_CONCAT.out.vcf)
+
+    ch_bcftools_sort_out = BCFTOOLS_SORT.out.vcf
+        .join(BCFTOOLS_SORT.out.index)
 
 // /*
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -178,31 +184,34 @@ workflow CLAIRS_TO_CALLING {
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // */
 
-    BGZIP_VCF_INTER(BCFTOOLS_SORT.out.vcf)
-
-    BCFTOOLS_INDEX_RAW(BGZIP_VCF_INTER.out.vcf)
-    ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
+    ch_in_filter_bcftools = ch_bcftools_sort_out
         .join(bed)
     BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
 
     ch_clairsto_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
+        .join(BCFTOOLS_FILTER_REGION.out.index)
 
-    BCFTOOLS_COUNT(ch_clairsto_out)
+    // Count variants remaining to avoid Ensembl annotation
+    BCFTOOLS_VIEW(
+        ch_clairsto_out,
+        [],
+        [],
+        []
+    )
 
-    ch_count_variant = BCFTOOLS_COUNT.out.vcf
+    ch_bcftools_count = BCFTOOLS_VIEW.out.vcf
         .branch { meta, vcf ->
-            positive: vcf.size() > 0
+            pos: vcf.size() > 0
                 return meta
-            negative: true
+            empty: true
                 return meta
-        }
+            }
 
     ch_ref_type = ref
         .map { meta, refid, _ref_fasta, _ref_fai ->
             tuple(meta, refid) }
 
-
-    ch_vep = ch_count_variant.positive
+    ch_vep = ch_bcftools_count.pos
         .join(ch_clairsto_out)
         .join(ch_ref_type)
         .branch { meta, vcf, genome ->
@@ -214,14 +223,14 @@ workflow CLAIRS_TO_CALLING {
                 return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_somatic_snp_vep'),vcf,[])
             }
 
-    ch_fasta = ch_count_variant.positive
+    ch_fasta = ch_bcftools_count.pos
         .join(ch_clairsto_out)
         .join(ref)
         .branch { meta, _vcf, genome, ref_fasta, _ref_index ->
             hg38: genome == "hg38"
-            return tuple(meta,ref_fasta)
+                return tuple(meta,ref_fasta)
             hg19: genome == "hg19"
-            return tuple(meta,ref_fasta)
+                return tuple(meta,ref_fasta)
             hs1: genome == "hs1"
                 return tuple(meta,ref_fasta)
             }
@@ -267,44 +276,111 @@ workflow CLAIRS_TO_CALLING {
         []
     )
 
-    ch_databases_hg38 = ch_ref_type
-        .filter{meta, refid -> refid == "hg38"}
-        .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
-    ch_databases_hg19 = ch_ref_type
-        .filter{meta, refid -> refid == "h19"}
-        .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
+    // Only run snpeff annotation for available snpeff genome cache.
+    ch_valid_genomes = ch_ref_type
+        .filter { meta, genome -> genome == "hg38" || genome == "hg19" }
 
-    ch_databases_ref = ch_databases_hg38
-        .mix(ch_databases_hg19)
+    ch_snp_annotate = BCFTOOLS_SORT.out.vcf
+        .join(ch_valid_genomes)
+        .map { meta, output, genome ->
+            prepareSomaticSnpAnnotation(meta, output, genome)
+        }
+        .branch { meta, vcf, genome ->
+            hg38: genome == "hg38"
+                return tuple(meta,vcf)
+            hg19: genome == "hg19"
+                return tuple(meta,vcf) }
 
+    // 1. Determine the required SnpEff database per sample, from the reference genome build
+    ch_db_snpeff_in = BCFTOOLS_SORT.out.vcf
+        .join(ch_ref_type)
+        .map { meta, _vcf, genome ->
+            def db = genome == "hg38" ? "GRCh38.p14" :
+                    genome == "hg19" ? "GRCh37.p13" : null
+            tuple(meta, db)
+        }
+        .filter { meta, db -> db != null }
 
-    ch_snp_annotate = BCFTOOLS_SORT.out.vcf.join(ch_databases_ref)
-        .map { meta, output, database ->
-            // Prepare metadata for SNPEff annotation
-            // Add reference genome type to metadata for database selection
-            prepareSomaticSnpAnnotation(meta, output, database)
-            }
+    // 2. Resolve which directory to look in: snpeff_cache wins, else fall back to ref_cache/snpeff_cache
+    def snpeff_cache_dir = null
+    if (params.snpeff_cache) {
+        snpeff_cache_dir = params.snpeff_cache.contains("snpeff_cache")
+            ? file(params.snpeff_cache)
+            : file("${params.snpeff_cache}/snpeff_cache").isDirectory()
+                ? file("${params.snpeff_cache}/snpeff_cache")
+                : file(params.snpeff_cache)
+    } else if (params.ref_cache) {
+        snpeff_cache_dir = file("${params.ref_cache}/snpeff_cache")
+    }
 
-    // -----------------------------------------------------------------------------
+    // 3. Dedup by db name so we don't repeat the disk check / download once per sample
+    ch_db_unique = ch_db_snpeff_in
+        .map { _meta, db -> db }
+        .unique()
+        .map { db -> tuple([id: db], db) }   // synthetic meta keyed by db name, for module I/O
 
-    // Run SNPEff annotation to add functional impact annotations to variants
-    // Adds gene names, transcript IDs, effect predictions, etc.
-    SNPEFF_ANNOTATE(ch_snp_annotate)
+    // 4. Check on disk whether that specific db is already present in the resolved cache dir
+    ch_db_checked = ch_db_unique
+        .map { meta, db ->
+            def present = snpeff_cache_dir \
+                && snpeff_cache_dir.isDirectory() \
+                && file("${snpeff_cache_dir}/${db}").exists()
+            tuple(meta, db, present)
+        }
+        .branch { meta, db, present ->
+            to_download: !present
+                return tuple(meta, db)
+            cached: present
+                return tuple(meta, db, snpeff_cache_dir)
+        }
+
+    // 5. Download only what's missing (once per distinct db)
+    SNPEFF_DOWNLOAD(ch_db_checked.to_download)
+
+    // 6. Unify already-cached dbs with newly-downloaded ones, keyed by db name
+    ch_db_cache_by_name = ch_db_checked.cached
+        .map { _meta, db, cache -> tuple(id:db, cache) }
+        .mix(SNPEFF_DOWNLOAD.out.cache)
+        .branch { meta, db ->
+            hg38: meta.id == "GRCh38.p14"
+            hg19: meta.id == "GRCh37.p13"
+        }
+
+    SNPEFF_HG38(
+        ch_snp_annotate.hg38,
+        "GRCh38.p14",
+        ch_db_cache_by_name.hg38
+    )
+
+    SNPEFF_HG19(
+        ch_snp_annotate.hg19,
+        "GRCh37.p13",
+        ch_db_cache_by_name.hg19
+    )
+
+    ch_snpeff_out = SNPEFF_HG38.out.vcf
+        .mix(SNPEFF_HG19.out.vcf)
 
     // Combine both SNPEff-annotated and SNPSift-annotated VCFs for downstream processing
     // This preserves both annotation sets in separate files
-    ch_vcf_final = SNPEFF_ANNOTATE.out.vcf
+    ch_snpeff_out = ch_snpeff_out
+        .map { meta, vcf ->
+            tuple(meta,vcf,[],[])}
 
     // Compress and index VCF files for efficient storage and querying
     // Two-step process: compress with bgzip, then index with bcftools
 
     // Compress VCF files using bgzip (produces .vcf.gz files)
     // Bgzip creates block-compressed files that enable random access
-    BGZIP_VCF_FINAL(ch_vcf_final)
+    HTSLIB_BGZIPTABIX (
+        ch_snpeff_out,
+        "compress",
+        true,
+        "vcf"
+    )
 
-    // Index compressed VCF files using BCFtools (produces .vcf.gz.tbi files)
-    // Indexing allows fast retrieval of variants in specific genomic regions
-    BCFTOOLS_INDEX_FINAL(BGZIP_VCF_FINAL.out.vcf)
+    ch_vcf_final_tbi = HTSLIB_BGZIPTABIX.out.output
+        .join(HTSLIB_BGZIPTABIX.out.index)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -314,9 +390,26 @@ workflow CLAIRS_TO_CALLING {
         and pipeline provenance tracking. Essential for reproducibility.
     */
     ch_versions = CLAIRS_TO_CALL.out.versions      // Version info from ClairS-TO
-            .mix(SNPEFF_ANNOTATE.out.versions)     // Version info from SNPEff
-            .mix(BGZIP_VCF_FINAL.out.versions)           // Version info from bgzip
-            .mix(BCFTOOLS_INDEX_FINAL.out.versions) // Version info from BCFtools index
+
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+        .mix(topic_versions_string)
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         OUTPUTS
@@ -327,8 +420,8 @@ workflow CLAIRS_TO_CALLING {
     */
 
     emit:
-    vcf_snpeff       = BCFTOOLS_INDEX_FINAL.out.vcf_tbi
+    vcf_snpeff       = ch_vcf_final_tbi
     vcf_vep          = ENSEMBLVEP_FILTERVEP.out.output
-    versions         = ch_versions                          // Output collected version information for MultiQC and reports
+    versions         = ch_collated_versions                       // Output collected version information for MultiQC and reports
 
 }

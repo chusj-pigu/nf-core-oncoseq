@@ -400,11 +400,13 @@ workflow ADAPTIVE_WGS {
 
     ch_cfdna = channel.empty()
 
-    ch_params = ref
-        .join(bed)
+    ch_params = bed
+        .combine(ref)
+        .map { meta, bed_file, padding, lowfid, refid, ref_fasta, ref_index ->
+            tuple(meta, refid, ref_fasta, ref_index, bed_file, padding, lowfid) }
 
-    ch_title = ch_params
-        .map { meta, _refid, _ref_fasta, _ref_index, _bed_file, _padding, _lowfid ->
+    ch_title = MAPPING.out.bam
+        .map { meta, _bam, _bai ->
         tuple(meta, "OncoSeq Workflow Report — ${meta.id}")}
 
     MIDNIGHT_REPORT(

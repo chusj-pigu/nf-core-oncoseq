@@ -16,8 +16,8 @@ include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
-include { SAMTOOLS_FAIDX            } from '../../../modules/local/samtools/main.nf'
-include { BGZIP_RECOMPRESS          } from '../../../modules/local/bcftools/main.nf'
+include { SAMTOOLS_FAIDX                              } from '../../../modules/nf-core/samtools/faidx/main.nf'
+include { HTSLIB_BGZIPTABIX as REF_DECOMPRESS         } from '../../../modules/nf-core/htslib/bgziptabix/main.nf'
 include { DORADO_DOWNLOAD_LIST    } from '../../../modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from '../../../modules/local/dorado/main.nf'
 include { ENSEMBLVEP_DOWNLOAD     } from '../../../modules/nf-core/ensemblvep/download/main.nf'
@@ -226,27 +226,24 @@ workflow PIPELINE_INITIALISATION {
         ? channel.fromPath(params.ref_cache, checkIfExists: true)
         : channel.empty()
 
-    channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+    ch_genome
         .combine(ch_ref_cache.ifEmpty([null]))
-        .combine(ch_genome.ifEmpty([null]))
-        .map { meta, _project, _input, _ubam, sample_genome, ref_path, _kit, _barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type, ref_c, genome_c ->
+        .map { genome, ref_cache ->
 
             def faExts  = ['.fa', '.fasta', '.fa.gz', '.fasta.gz']
             def faiExts = ['.fa.fai', '.fasta.fai', '.fa.gz.fai', '.fasta.gz.fai']
 
-            // Resolve genome: sample-level takes priority over global param
-            def rawGenome = sample_genome ?: genome_c
-            if (!rawGenome) error "ERROR: No genome provided. Set params.genome or provide genome in samplesheet."
-            def genome  = genomeMap[rawGenome] ?: { error "ERROR: Unrecognized genome '${rawGenome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
-            def aliases = genomeMap.findAll { _k, v -> v == genome }.keySet()
+            // Resolve genome
+            if (!genome) error "ERROR: No genome provided. Set params.genome or provide genome in samplesheet."
+            def genomeRes  = genomeMap[genome] ?: { error "ERROR: Unrecognized genome '${genome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
+            def aliases = genomeMap.findAll { k, v -> v == genomeRes }.keySet()
 
             def faFinal  = null
             def faiFinal = null
 
-            // --- Case 1: sample-level ref_path provided ---
-            if (ref_path) {
-                def refFile = ref_path instanceof Path ? ref_path : file(ref_path)
+            // --- Case 1: ref_path provided ---
+            if (ref_cache) {
+                def refFile = ref_cache instanceof Path ? ref_cache: file(ref_cache)
 
                 // --- Case 1a: ref_path is a direct FASTA file ---
                 if (refFile.isFile()) {
@@ -265,7 +262,7 @@ workflow PIPELINE_INITIALISATION {
                     def faFile   = findFaFile(allFiles, aliases, faExts)
                     def faiFile  = findFaFile(allFiles, aliases, faiExts)
 
-                    faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
+                    faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genomeRes}/bigZips/${genomeRes}.fa.gz")
                     faiFinal = faiFile ?: null
 
                     if (!faFile)  log.warn("No FASTA found in ref_path '${refFile}' for '${genome}' — falling back to UCSC FTP")
@@ -275,51 +272,21 @@ workflow PIPELINE_INITIALISATION {
                     error "ERROR: ref_path '${refFile}' does not exist"
                 }
 
-            // --- Case 2: global ref_cache provided ---
-            } else if (ref_c) {
-                def refCacheFile = ref_c instanceof Path ? ref_c : file(ref_c)
-
-                // --- Case 2a: ref_cache is a direct FASTA file ---
-                if (refCacheFile.isFile()) {
-                    if (faExts.any { ext -> refCacheFile.name.endsWith(ext) }) {
-                        faFinal  = refCacheFile
-                        def faiFile = file("${refCacheFile.parent}/${refCacheFile.name}.fai")
-                        faiFinal = faiFile.exists() ? faiFile : null
-                        if (!faiFinal) log.warn("No FAI found next to '${refCacheFile}' — will index")
-                    } else {
-                        error "ERROR: ref_cache '${refCacheFile}' does not look like a FASTA file. Expected extensions: ${faExts}"
-                    }
-
-                // --- Case 2b: ref_cache is a directory ---
-                } else if (refCacheFile.isDirectory()) {
-                    def allFiles = refCacheFile.listFiles() as List
-                    def faFile   = findFaFile(allFiles, aliases, faExts)
-                    def faiFile  = findFaFile(allFiles, aliases, faiExts)
-
-                    faFinal  = faFile  ?: file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
-                    faiFinal = faiFile ?: null
-
-                    if (!faFile)  log.warn("No FASTA found in ref_cache '${refCacheFile}' for '${genome}' — falling back to UCSC FTP")
-                    if (!faiFile) log.warn("No FAI found in ref_cache '${refCacheFile}' for '${genome}' — will index")
-
-                } else {
-                    error "ERROR: ref_cache '${refCacheFile}' does not exist"
-                }
-
-            // --- Case 3: no ref_cache, no ref_path — FTP on demand ---
+            // --- Case 2: no ref_cache, no ref_path — FTP on demand ---
             } else {
                 log.warn("No ref_cache or ref_path provided — staging FTP genome '${genome}' from UCSC")
-                faFinal  = file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genome}/bigZips/${genome}.fa.gz")
+                faFinal  = file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genomeRes}/bigZips/${genomeRes}.fa.gz")
                 faiFinal = null
             }
 
-            tuple(meta, genome, faFinal, faiFinal)
+            tuple(genome, faFinal, faiFinal)
         }
         .set { ch_ref }
 
     ch_ref
-        .branch { _meta, _ref_id_c, _faFinal, faiFinal ->        // <-- missing -> fixed
+        .branch {genome, faFinal, faiFinal ->        // <-- missing -> fixed
             indexed  : faiFinal != null
+                return tuple(id:genome, faFinal, faiFinal)
             to_index : faiFinal == null
         }
         .set { ch_ref_branched }                              // <-- branch result must be .set{}
@@ -327,34 +294,41 @@ workflow PIPELINE_INITIALISATION {
     // If genome is compressed, always recompress with bgzip otherwise samtools faidx will fail
 
     ch_ref_branched.to_index
-        .branch { _meta, _ref_id_c, faFinal, _faiFinal ->
+        .branch { genome, faFinal, _faiFinal ->
             gzip: faFinal.extension == "gz"
+                return tuple(id:genome, faFinal, [], [])
             unzip: (faFinal.extension == "fa" || faFinal.extension == "fasta")
         }
         .set { ch_ref_to_index_branched }
 
-    BGZIP_RECOMPRESS(ch_ref_to_index_branched.gzip
-        .map { meta, _ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) }
-        .groupTuple(by: 1)
-        )
-
-    // Reunite bgzipped FTP files with local files, then index all
-    ch_to_index = BGZIP_RECOMPRESS.out.file
-        .mix(ch_ref_to_index_branched.unzip.map { meta, _ref_id_c, faFinal, _faiFinal -> tuple(meta, faFinal) })
-        .transpose()
-
-    SAMTOOLS_FAIDX(ch_to_index
-        .groupTuple(by: 1)
+    REF_DECOMPRESS(
+        ch_ref_to_index_branched.gzip,
+        "decompress",
+        false,
+        ch_ref_to_index_branched.gzip.map { _genome, faFinal, _faiFinal, _regions ->
+            faFinal.baseName.tokenize('.')[-1]
+        }
     )
 
-    // Rejoin with ref IDs
-    ch_ref_ids = ch_ref
-        .map { meta, ref_id_c, _faFinal, _faiFinal ->
-        tuple(meta, ref_id_c) }
+    // Reunite bgzipped FTP files with local files, then index all
+    ch_to_index = REF_DECOMPRESS.out.output
+        .mix(ch_ref_to_index_branched.unzip.map { genome, faFinal, _faiFinal -> tuple(id:genome, faFinal) })
+        .map { genome, faFinal ->
+            tuple(genome, faFinal, [])
+        }
 
-    ch_ref_indexed = ch_ref_ids
-        .join(SAMTOOLS_FAIDX.out.fasta_index.transpose())
+    SAMTOOLS_FAIDX(
+        ch_to_index,
+        false
+    )
+
+    ch_to_index
+        .map { genome, faFinal, _faiFinal ->
+            tuple(genome, faFinal)
+        }
+        .join(SAMTOOLS_FAIDX.out.fai)
         .mix(ch_ref_branched.indexed)
+        .set { ch_ref_final }
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -547,8 +521,7 @@ workflow PIPELINE_INITIALISATION {
     bed_sheet   = ch_adaptive
     demux_sheet = ch_demux
     samplesheet = ch_in_samplesheet
-    tumor_type  = ch_tumor_type
-    ref_ch      = ch_ref_indexed
+    ref_ch      = ch_ref_final
     cfdna_ch    = ch_cfdna
     vep_cache   = ch_vep_cache
     model_ch    = ch_model

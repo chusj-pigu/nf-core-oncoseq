@@ -10,7 +10,7 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { MINIMAP2_ALIGN                         } from '../../../modules/local/minimap2/main.nf'         // minimap2 alignment
+include { MINIMAP2_ALIGN                         } from '../../../modules/nf-core/minimap2/align/main'         // minimap2 alignment
 include { SAMTOOLS_TOBAM                         } from '../../../modules/local/samtools/main.nf'         // Convert SAM to BAM
 include { SAMTOOLS_SORT as SAMTOOLS_SORT    } from '../../../modules/local/samtools/main.nf'         // Sort BAM
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_SUB  } from '../../../modules/local/samtools/main.nf'         // Index BAM
@@ -42,11 +42,11 @@ workflow MAPPING {
 
 
     main:
-    ch_versions = Channel.empty() // For collecting version info
+    ch_versions = channel.empty() // For collecting version info
 
     ch_ref = ref
-        .map { meta, genome, ref_fasta, _ref_fai ->
-            tuple(meta, genome, ref_fasta) }
+        .map { genome, ref_fasta, _ref_fai ->
+            tuple(genome, ref_fasta) }
 
     // Only expand in_ch if skip_basecalling is true
     if (params.skip_basecalling) {
