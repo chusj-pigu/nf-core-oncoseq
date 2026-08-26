@@ -69,6 +69,7 @@ workflow LOCAL_REALTIME {
 
     ch_versions = channel.empty()
     ch_sections = channel.empty()
+    ch_vcf_subchrom = channel.empty()
     def realtime = params.realtime?.toInteger()
 
     // Process bed
@@ -198,10 +199,33 @@ workflow LOCAL_REALTIME {
         ch_classy_in = MAPPING.out.bam
     }
 
+    CNV_CALLING(
+        MAPPING.out.bam,
+        ch_vcf_subchrom,
+        ref
+    )
+
+    COVERAGE_SEPARATE(
+        MAPPING.out.bam,
+        bed,
+        ch_bed_nopad,
+        ref
+    )
+
+    ch_cov_panel = COVERAGE_SEPARATE.out.coverage_tbl
+        .splitCsv(skip: 1)
+        .map { meta, row ->
+            def cov = row[1].toDouble()
+            tuple(meta, cov) }
+        .view()
+
+    ch_classy_cov = ch_classy_in
+        .join(ch_cov_panel)
+
     if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
 
             CLASSY(
-                ch_classy_in,
+                ch_classy_cov,
                 ref,
                 tumor_type
             )
@@ -217,16 +241,6 @@ workflow LOCAL_REALTIME {
 
     if (realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
-        // Placeholder vcf for subcrhom as it's not run at this timepoint
-
-        ch_vcf_subchrom = channel.empty()
-
-        CNV_CALLING(
-            MAPPING.out.bam,
-            ch_vcf_subchrom,
-            ref
-        )
-
         ch_clair3_phased_placeholder = channel.empty()
 
         SV_UNPHASED(
@@ -234,14 +248,6 @@ workflow LOCAL_REALTIME {
             ref,
             ch_clair3_phased_placeholder,
             vep_cache
-        )
-
-
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed,
-            ch_bed_nopad,
-            ref
         )
 
         // Filter variants to visualize :
@@ -258,31 +264,13 @@ workflow LOCAL_REALTIME {
             ch_clair3_phased_placeholder
         )
 
-        // Placeholders for report
-        ch_subchrom_focal = channel.empty()
-        ch_subchrom_plot = channel.empty()
-
         ch_versions = ch_versions
             .mix(CLASSY.out.versions)
 
     } else if (realtime >= 6 & realtime < 72 ) {
 
-        ch_vcf_subchrom = channel.empty()
-
-        CNV_CALLING(
-            MAPPING.out.bam,
-            ch_vcf_subchrom,
-            ref
-        )
-
         ch_clair3_phased_placeholder = channel.empty()
 
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed,
-            ch_bed_nopad,
-            ref
-        )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
             MAPPING.out.bam,
@@ -316,22 +304,12 @@ workflow LOCAL_REALTIME {
             CNV_CALLING.out.delly_segs,
             CLAIR3_CALLING.out.vcf_vep
         )
-
-        // Placeholders for report
-        ch_subchrom_focal = channel.empty()
-        ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
 
     } else if (realtime == 72) {
 
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed,
-            ch_bed_nopad,
-            ref
-        )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
             MAPPING.out.bam,
@@ -352,12 +330,6 @@ workflow LOCAL_REALTIME {
             vep_cache
         )
 
-        CNV_CALLING(
-            MAPPING.out.bam,
-            CLAIR3_CALLING.out.vcf_snpeff,
-            ref
-        )
-
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
@@ -371,10 +343,6 @@ workflow LOCAL_REALTIME {
             CNV_CALLING.out.delly_segs,
             CLAIR3_CALLING.out.vcf_vep
         )
-
-        ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
-
-        ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
@@ -428,8 +396,8 @@ workflow LOCAL_REALTIME {
         VARIANT_PROCESS.out.targets_plot,
         VARIANT_PROCESS.out.sv_table,
         VARIANT_PROCESS.out.fusion_table,
-        ch_subchrom_plot,
-        ch_subchrom_focal,
+        CNV_CALLING.out.subchrom_plot_wgs,
+        CNV_CALLING.out.subchrom_gene_plot_wgs,
         VARIANT_PROCESS.out.snp_table
     )
 

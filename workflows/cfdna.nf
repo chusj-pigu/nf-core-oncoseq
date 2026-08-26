@@ -293,6 +293,13 @@ workflow CFDNA {
                 }
                 .mix(ch_bed_nopad_timed)
 
+            ch_cov_final = ch_coverage_final
+                .map { meta, table ->
+                    def lines = table.readLines()
+                    def cov = lines[5].tokenize('\t')[1].toDouble()
+                    tuple(meta, cov)
+                }
+
         } else {
             ch_bam_to_process  = ch_bam_for_calling
             ch_cfdna_full      = ch_cfdna_ss
@@ -300,6 +307,13 @@ workflow CFDNA {
             ch_coverage_final  = ch_coverage_table
             ch_seqkit_stats    = channel.empty()
             ch_bed_nopad_final = ch_bed_nopad_timed
+
+            ch_cov_final = ch_coverage_final
+                .map { meta, table ->
+                    def lines = table.readLines()
+                    def cov = lines[5].tokenize('\t')[1].toDouble()
+                    tuple(meta, cov)
+                }
         }
 
     } else {
@@ -315,12 +329,22 @@ workflow CFDNA {
         ch_coverage_final  = MAPPING.out.coverage
         ch_tumor_type      = tumor_type
         ch_seqkit_stats    = READS_FILTER.out.stats
+
+        ch_cov_final = ch_coverage_final
+            .map { meta, table ->
+                def lines = table.readLines()
+                def cov = lines[5].tokenize('\t')[1].toDouble()
+                tuple(meta, cov)
+            }
     }
 
     if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
 
+        ch_bam_toclassify_cov = ch_bam_to_classify
+            .join(ch_cov_final)
+
         CLASSY(
-            ch_bam_to_classify,
+            ch_bam_toclassify_cov,
             ch_ref_for_calling,
             ch_tumor_type
         )
@@ -360,23 +384,15 @@ workflow CFDNA {
 
     ch_vcf_subchrom = channel.empty()
 
-
-    // Run snp calling only for higher coverage samples
-    ch_coverage = MAPPING.out.coverage
-        .map { meta, table ->
-            def lines = table.readLines()
-            def cov = lines[5].tokenize('\t')[1].toDouble()
-            tuple(meta, cov)
-        }
-        .branch {
-            meta, cov ->
+    ch_coverage_branched = ch_cov_final
+        .branch { meta, cov ->
             high: cov >= 10
                 return meta
-            low: cov < 10
+            low: true
                 return meta
-        }
+            }
 
-    ch_high_cov_bam = ch_coverage.high
+    ch_high_cov_bam = ch_coverage_branched.high
         .join(ch_bam_to_process)
 
     CLAIR3_CALLING (
