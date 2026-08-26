@@ -97,7 +97,7 @@ For prospectively run workflows on different timepoints, [Ontime](https://github
 
 Runs on basecalled 5mC/5hmC reads if modified basecalling is used (`--m_bases`) or if methylation tags are found in fastq/bam input. If not run in realtime, only reads generated in the first hour of sequencing are used, except in `--cfdna` mode, where classification is run on the length-filtered reads (≤700 bp) if `filter = yes` in the samplesheet.
 
-Each sample's `type` column value determines which classifier plot(s) are produced in the report:
+Each sample's `type` column value determines which classifier results are parsed in the report:
 
 | `type` value | Classifier run |
 |--------------|-------------------------------|
@@ -109,7 +109,7 @@ Each sample's `type` column value determines which classifier plot(s) are produc
 In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://github.com/Jonbroad15/nanomix) tissue-of-origin plot, regardless of `type`.
 
 > [!NOTE]
-> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Lamprey, Marlin, MPACT, Nanomix, Sturgeon Brainstem, Sturgeon General, Tucan) are generated for **all** samples — the `type` column only controls which plot(s) accompany them in the final report.
+> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Lamprey, Marlin, MPACT, Nanomix, Sturgeon Brainstem, Sturgeon General, Tucan) are generated for **all** samples — the `type` column only controls which models results are presented in the final report.
 
 > [!WARNING]
 > These classifiers are run within a Rust integration called classy, and use liftovers when `--genome` does not match the program probes. Results may differ from the original programs.
@@ -132,11 +132,9 @@ In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://gi
 
 First, prepare a samplesheet with your input data that looks as follows:
 
-`samplesheet.csv`:
-
 | sample | input | purity | filter | tumor_type |
-|--------|---------|---------|---------|
-| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* | Tumor type category (`blood`, `brain`, `solid`, or `other`). Controls which classifier plot(s) are generated for the report. If not set, will default as `other`. |
+|--------|-------|--------|--------|------------|
+| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* | Tumor type category (`blood`, `brain`, `solid`, or `other`). Controls which classifier results are present in the report. If not set, will default as `other`. |
 
 Most input can be provided as command line parameters if they are common, but they can also be provided in the samplesheet if they differ between samples:
 
