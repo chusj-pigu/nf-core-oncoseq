@@ -95,7 +95,11 @@ For prospectively run workflows on different timepoints, [Ontime](https://github
 
 #### Tumor Classification
 
-Runs on basecalled 5mC/5hmC reads if modified basecalling is used (`--m_bases`) or if methylation tags are found in fastq/bam input. If not run in realtime, only reads generated in the first hour of sequencing are used, except in `--cfdna` mode, where classification is run on the length-filtered reads (≤700 bp) if `filter = yes` in the samplesheet.
+**Methylation classification** requires 5mC/5hmC-modified basecalling (`--m_bases`) or existing methylation tags in the input fastq/bam.
+
+**Which reads get used:**
+- **Realtime mode** (`--realtime`): all reads are used, no downsampling.
+- **Non-realtime mode**: only reads from the first hour of sequencing are used — except in `--cfdna` mode with `filter = yes`, which instead uses length-filtered reads (≤700 bp).
 
 Each sample's `type` column value determines which classifier results are parsed in the report:
 
@@ -164,7 +168,6 @@ To run in real time while data is still sequencing, use `--realtime [INT]` where
 | SV calling (Sniffles2, Severus, Stellerator) | ✅ | ✅ | ✅ |
 | Tumor classification (Classy) | ✅ | | |
 | SNP calling (Clair3) | | ✅ | ✅ |
-| cnLOH calling (Subchrom) | | | ✅ |
 
 > [!WARNING]
 > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
@@ -182,9 +185,10 @@ For more details and further functionality, please refer to the [usage documenta
 | `--input` | ✅ | `path` | | Path to input samplesheet. |
 | `--outdir` | ✅ | `path` | | Directory where outputs will be published. |
 | `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
-| `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` subdirectory is used when available. |
+| `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` or `vep_cache/` subdirectory is used when available. |
+| `--vep_cache` | | `path` | | Optional parameter to specify path to vep cache. It's  |
 | `--basecall_model` | ✅ | `string` | | Dorado basecalling model (e.g. `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
-| `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification.** |
+| `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification when basecalling inside workflow.** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
 | `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is BAM files. |
 | `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit` column in samplesheet). |
@@ -282,6 +286,7 @@ Choose exactly one mode:
 | `--max_cpus` | | `integer` | `4` | Maximum CPU cores any single process can use. |
 | `--max_time` | | `string` | `4h` | Maximum execution time for any single process. |
 | `--huge` | | `boolean` | `false` | Scale resource allocations for very large datasets. |
+| `--wgs` | | `boolean` | `false` | Scale basecalling resources when running on a non-adaptive lrWGS. |
 
 ---
 

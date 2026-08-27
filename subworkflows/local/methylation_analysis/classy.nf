@@ -31,6 +31,9 @@ workflow CLASSY {
 
     ch_classy_in = input
         .join(ref)
+        .map { meta, bam, bai, ref_id, ref_fasta, _red_idx ->
+            tuple(meta, bam, bai, ref_id, ref_fasta)
+            }
 
     CLASSY_COMBINED(ch_classy_in)
 
