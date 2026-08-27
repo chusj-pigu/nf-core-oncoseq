@@ -340,11 +340,8 @@ workflow CFDNA {
 
     if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
 
-        ch_bam_toclassify_cov = ch_bam_to_classify
-            .join(ch_cov_final)
-
         CLASSY(
-            ch_bam_toclassify_cov,
+            ch_bam_to_classify,
             ch_ref_for_calling,
             ch_tumor_type
         )

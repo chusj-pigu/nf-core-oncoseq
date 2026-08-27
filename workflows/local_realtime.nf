@@ -212,20 +212,10 @@ workflow LOCAL_REALTIME {
         ref
     )
 
-    ch_cov_panel = COVERAGE_SEPARATE.out.coverage_tbl
-        .splitCsv(skip: 1)
-        .map { meta, row ->
-            def cov = row[1].toDouble()
-            tuple(meta, cov) }
-        .view()
-
-    ch_classy_cov = ch_classy_in
-        .join(ch_cov_panel)
-
     if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
 
             CLASSY(
-                ch_classy_cov,
+                ch_classy_in,
                 ref,
                 tumor_type
             )
