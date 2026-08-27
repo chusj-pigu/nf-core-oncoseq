@@ -95,9 +95,13 @@ For prospectively run workflows on different timepoints, [Ontime](https://github
 
 #### Tumor Classification
 
-Runs on basecalled 5mC/5hmC reads if modified basecalling is used (`--m_bases`) or if methylation tags are found in fastq/bam input. If not run in realtime, only reads generated in the first hour of sequencing are used, except in `--cfdna` mode, where classification is run on the length-filtered reads (≤700 bp) if `filter = yes` in the samplesheet.
+**Methylation classification** requires 5mC/5hmC-modified basecalling (`--m_bases`) or existing methylation tags in the input fastq/bam.
 
-Each sample's `type` column value determines which classifier plot(s) are produced in the report:
+**Which reads get used:**
+- **Realtime mode** (`--realtime`): all reads are used, no downsampling.
+- **Non-realtime mode**: only reads from the first hour of sequencing are used — except in `--cfdna` mode with `filter = yes`, which instead uses length-filtered reads (≤700 bp).
+
+Each sample's `type` column value determines which classifier results are parsed in the report:
 
 | `type` value | Classifier run |
 |--------------|-------------------------------|
@@ -109,7 +113,7 @@ Each sample's `type` column value determines which classifier plot(s) are produc
 In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://github.com/Jonbroad15/nanomix) tissue-of-origin plot, regardless of `type`.
 
 > [!NOTE]
-> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Lamprey, Marlin, MPACT, Nanomix, Sturgeon Brainstem, Sturgeon General, Tucan) are generated for **all** samples — the `type` column only controls which plot(s) accompany them in the final report.
+> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Lamprey, Marlin, MPACT, Nanomix, Sturgeon Brainstem, Sturgeon General, Tucan) are generated for **all** samples — the `type` column only controls which models results are presented in the final report.
 
 > [!WARNING]
 > These classifiers are run within a Rust integration called classy, and use liftovers when `--genome` does not match the program probes. Results may differ from the original programs.
@@ -132,11 +136,9 @@ In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://gi
 
 First, prepare a samplesheet with your input data that looks as follows:
 
-`samplesheet.csv`:
-
 | sample | input | purity | filter | tumor_type |
-|--------|---------|---------|---------|
-| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* | Tumor type category (`blood`, `brain`, `solid`, or `other`). Controls which classifier plot(s) are generated for the report. If not set, will default as `other`. |
+|--------|-------|--------|--------|------------|
+| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* | Tumor type category (`blood`, `brain`, `solid`, or `other`). Controls which classifier results are present in the report. If not set, will default as `other`. |
 
 Most input can be provided as command line parameters if they are common, but they can also be provided in the samplesheet if they differ between samples:
 
@@ -166,7 +168,6 @@ To run in real time while data is still sequencing, use `--realtime [INT]` where
 | SV calling (Sniffles2, Severus, Stellerator) | ✅ | ✅ | ✅ |
 | Tumor classification (Classy) | ✅ | | |
 | SNP calling (Clair3) | | ✅ | ✅ |
-| cnLOH calling (Subchrom) | | | ✅ |
 
 > [!WARNING]
 > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
@@ -184,9 +185,10 @@ For more details and further functionality, please refer to the [usage documenta
 | `--input` | ✅ | `path` | | Path to input samplesheet. |
 | `--outdir` | ✅ | `path` | | Directory where outputs will be published. |
 | `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
-| `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` subdirectory is used when available. |
+| `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` or `vep_cache/` subdirectory is used when available. |
+| `--vep_cache` | | `path` | | Optional parameter to specify path to vep cache. It's  |
 | `--basecall_model` | ✅ | `string` | | Dorado basecalling model (e.g. `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
-| `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification.** |
+| `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification when basecalling inside workflow.** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
 | `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is BAM files. |
 | `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit` column in samplesheet). |
@@ -284,6 +286,7 @@ Choose exactly one mode:
 | `--max_cpus` | | `integer` | `4` | Maximum CPU cores any single process can use. |
 | `--max_time` | | `string` | `4h` | Maximum execution time for any single process. |
 | `--huge` | | `boolean` | `false` | Scale resource allocations for very large datasets. |
+| `--wgs` | | `boolean` | `false` | Scale basecalling resources when running on a non-adaptive lrWGS. |
 
 ---
 

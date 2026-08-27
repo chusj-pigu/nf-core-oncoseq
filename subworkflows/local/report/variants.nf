@@ -408,36 +408,47 @@ workflow FIGENO_REPORT {
     GENES OF INTEREST SECTION
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-    ch_targets_in = ch_targets_figures
-        .combine(ch_targets)
 
-    ch_target_files = ch_targets_in
-        .transpose()
-        .map { meta, file, type ->
-            def support_placeholder = ""
-            def sv_placeholder = ""
-            def program_placeholder = ""
-            tuple(meta, file, type, support_placeholder, sv_placeholder, program_placeholder) }
-        .map { meta, file, type, support_placeholder, sv_placeholder, program_placeholder ->
-            CreateSVInput(meta, file, type, support_placeholder, sv_placeholder, program_placeholder)
+    // Skip if realtime is before 6h :
+    if (params.realtime > 6 || !params.realtime) {
+
+        ch_targets_in = ch_targets_figures
+            .combine(ch_targets)
+
+        ch_target_files = ch_targets_in
+            .transpose()
+            .map { meta, file, type ->
+                def support_placeholder = ""
+                def sv_placeholder = ""
+                def program_placeholder = ""
+                tuple(meta, file, type, support_placeholder, sv_placeholder, program_placeholder) }
+            .map { meta, file, type, support_placeholder, sv_placeholder, program_placeholder ->
+                CreateSVInput(meta, file, type, support_placeholder, sv_placeholder, program_placeholder)
+                }
+
+        QUARTO_FIGURE_TARGETS(
+            ch_target_files
+            )
+
+        ch_section_targets = QUARTO_FIGURE_TARGETS.out.quarto_figure
+
+        ch_section_targets = ch_section_targets
+            .groupTuple()
+            .map { id, section, filePaths ->
+                [id, section[0], filePaths,
+                    'Genes of interest shown in figeno WITHOUT any calls with > 4 reads support and at least one annotation of high or moderate impact. SV with length > 1mb is not included in figeno plots.']
             }
 
-    QUARTO_FIGURE_TARGETS(
-        ch_target_files
+        QUARTO_TARGETS_SECTION (
+            ch_section_targets
         )
 
-    ch_section_targets = QUARTO_FIGURE_TARGETS.out.quarto_figure
+        ch_targets_section_out = QUARTO_TARGETS_SECTION.out.quarto_section
 
-    ch_section_targets = ch_section_targets
-        .groupTuple()
-        .map { id, section, filePaths ->
-            [id, section[0], filePaths,
-                'Genes of interest shown in figeno WITHOUT any calls with > 4 reads support and at least one annotation of high or moderate impact. SV with length > 1mb is not included in figeno plots.']
-        }
+    } else {
 
-    QUARTO_TARGETS_SECTION (
-       ch_section_targets
-    )
+        ch_targets_section_out = channel.empty()
+    }
 
 
 /*
@@ -452,7 +463,7 @@ workflow FIGENO_REPORT {
             def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
             def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
             tuple(meta_final, table, type)}
-        .branch { meta, table, type ->
+        .branch { _meta, table, _type ->
             pos: table.readLines().size() > 1
             empty: true }
 
@@ -486,7 +497,7 @@ workflow FIGENO_REPORT {
 
     ch_snp_exclude = channel.fromPath(params.snp_exclude)
         .splitText()
-        .map { it.trim() }
+        .map { it -> it.trim() }
         .collect()
         .map { list -> list.join(", ") }
 
@@ -509,14 +520,13 @@ workflow FIGENO_REPORT {
     ch_sections = QUARTO_CNV_SECTION.out.quarto_section
         .mix(QUARTO_FUSION_SECTION.out.quarto_section)
         .mix(QUARTO_SV_SECTION.out.quarto_section)
-        .mix(QUARTO_TARGETS_SECTION.out.quarto_section)
+        .mix(ch_targets_section_out)
         .mix(QUARTO_DELLY_SECTION.out.quarto_section)
         .mix(QUARTO_SNP_SECTION.out.quarto_section)
 
     ch_versions = QUARTO_CNV_SECTION.out.versions
         .mix(QUARTO_FUSION_SECTION.out.versions)
         .mix(QUARTO_SV_SECTION.out.versions)
-        .mix(QUARTO_TARGETS_SECTION.out.versions)
         .mix(QUARTO_DELLY_SECTION.out.versions)
         .mix(QUARTO_SNP_SECTION.out.versions)
 
