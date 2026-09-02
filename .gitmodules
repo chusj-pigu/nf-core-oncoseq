@@ -114,3 +114,7 @@
 	path = modules/local/stellerator
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = stellerator
+[submodule "modules/local/nasvar"]
+	path = modules/local/nasvar
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = nasvar
