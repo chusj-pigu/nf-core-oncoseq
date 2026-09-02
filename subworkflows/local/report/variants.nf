@@ -11,6 +11,7 @@ include { QUARTO_SECTION as QUARTO_SV_SECTION           } from '../../../modules
 include { QUARTO_SECTION as QUARTO_FUSION_SECTION       } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_TARGETS_SECTION      } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_SECTION as QUARTO_SNP_SECTION          } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_SECTION as QUARTO_KAR_SECTION          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_QDNASEQ        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_DELLY          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_SV             } from '../../../modules/local/quarto/main.nf'
@@ -18,20 +19,24 @@ include { QUARTO_FIGURE as QUARTO_FIGURE_FUSION         } from '../../../modules
 include { QUARTO_FIGURE as QUARTO_FIGURE_CNLOH          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_FOCAL          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_TARGETS        } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_FIGURE as QUARTO_KARYOTYPE_BAF         } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_TABS as QUARTO_FUSION_TABLES     } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_TABS as QUARTO_SV_TABLES         } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_TABS as QUARTO_SNP_TABLES        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_SV                 } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_FUSION             } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TEXT as QUARTO_TEXT_SNP                } from '../../../modules/local/quarto/main.nf'
+include { QUARTO_TEXT as QUARTO_TEXT_KARYOTYPE          } from '../../../modules/local/quarto/main.nf'
 include { modifyMetaId                                  } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 
-workflow FIGENO_REPORT {
+workflow VARIANT_REPORT {
 
     take:
     ch_circos_figure
     ch_delly_figure
+    ch_karyotype_baf
+    ch_karyotype_json
     ch_bin_sizes          // from params qdnaseq_binsize and subchrom_binsize
     ch_sv_figures
     ch_fusion_figures
@@ -137,7 +142,82 @@ workflow FIGENO_REPORT {
     )
 
 
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    KARYOTYPE NASVAR
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 
+    ch_karyotype_result = ch_karyotype_json
+        .splitJson(path: 'karyotype')
+        .filter { _meta, obj ->
+            obj.key == 'karyotype_string' || obj.key == 'iscn_string' || obj.key == 'blast_ratio'
+        }
+        .map { meta, obj ->
+            tuple(meta, [key: obj.key, value: obj.value.toString()])
+        }
+        .groupTuple()
+        .map { meta, entries ->
+            def lookup = entries.collectEntries { it -> [(it.key): it.value] }
+            tuple(meta, lookup.karyotype_string, lookup.iscn_string, lookup.blast_ratio)
+        }
+        .view()
+
+    ch_karyotype_string = ch_karyotype_result
+            .map { meta, string, _iscn, _blast_ratio ->
+                def text = "Karyotype: ${string}"
+                def section = "Karyotype"
+                def process = "kar-string-${meta.id}"
+                tuple(meta, text, section, process)
+            }
+
+    ch_karyotype_iscn = ch_karyotype_result
+            .map { meta, _string, iscn, _blast_ratio ->
+                def text = "ISCN: ${iscn}"
+                def section = "Karyotype"
+                def process = "kar-iscn-${meta.id}"
+                tuple(meta, text, section, process)
+            }
+
+    ch_karyotype_blast = ch_karyotype_result
+            .map { meta, _string, _iscn, blast_ratio ->
+                def text = "Blast Ratio: ${blast_ratio}"
+                def section = "Karyotype"
+                def process = "kar-blast-${meta.id}"
+                tuple(meta, text, section, process)
+            }
+
+    ch_in_karyotype_text = ch_karyotype_string
+        .mix(ch_karyotype_iscn)
+        .mix(ch_karyotype_blast)
+
+    QUARTO_TEXT_KARYOTYPE(
+        ch_in_karyotype_text
+    )
+
+    ch_baf_files = ch_karyotype_baf
+        .map { meta, file ->
+            def caption = "B-allele frequency plot and karyotype"
+            def section = "Karyotype"
+            def process = "kar-baf-${meta.id}"
+            return [meta, file, caption, section, process ]
+            }
+
+    QUARTO_KARYOTYPE_BAF(
+        ch_baf_files
+    )
+
+    ch_karyotype_section_in = QUARTO_KARYOTYPE_BAF.out.quarto_figure
+        .mix(QUARTO_TEXT_KARYOTYPE.out.quarto_text)
+        .groupTuple()
+        .map { id, section, filePaths ->
+            [id, section[0], filePaths,
+                "Karyotype and B-allele frequency plots by nasvar"]
+        }
+
+    QUARTO_KAR_SECTION(
+        ch_karyotype_section_in
+    )
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -523,12 +603,14 @@ workflow FIGENO_REPORT {
         .mix(ch_targets_section_out)
         .mix(QUARTO_DELLY_SECTION.out.quarto_section)
         .mix(QUARTO_SNP_SECTION.out.quarto_section)
+        .mix(QUARTO_KAR_SECTION.out.quarto_section)
 
     ch_versions = QUARTO_CNV_SECTION.out.versions
         .mix(QUARTO_FUSION_SECTION.out.versions)
         .mix(QUARTO_SV_SECTION.out.versions)
         .mix(QUARTO_DELLY_SECTION.out.versions)
         .mix(QUARTO_SNP_SECTION.out.versions)
+        .mix(QUARTO_KAR_SECTION.out.versions)
 
     emit:
     sections = ch_sections
