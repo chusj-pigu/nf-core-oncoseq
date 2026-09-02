@@ -17,6 +17,7 @@ include { SAMTOOLS_COUNT_READS                 } from '../modules/local/samtools
 include { CLAIR3_CALLING                        } from '../subworkflows/local/variant_calling/clair3_calling.nf'
 include { SV_CALLING as SV_UNPHASED             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { KARYOTYPE                             } from  '../subworkflows/local/variant_calling/nasvar_karyotype.nf'
 
 // Variant processing and visualization subworkflow
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
@@ -33,7 +34,7 @@ include { ONTIME_TIME_RANGE } from '../modules/local/ontime/main.nf'
 include { SAMTOOLS_TOFASTQ as SAMTOOLS_TIME_FASTQ } from '../modules/local/samtools/main.nf'
 include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
 include { CLASSIFIER_REPORT } from '../subworkflows/local/report/methylation.nf'
-include { FIGENO_REPORT     } from '../subworkflows/local/report/variants.nf'
+include { VARIANT_REPORT     } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT   } from '../subworkflows/local/report/adaptive.nf'
 
 // Useful functions to handle time parsing
@@ -240,6 +241,12 @@ workflow LOCAL_REALTIME {
             vep_cache
         )
 
+        KARYOTYPE(
+            MAPPING.out.bam,
+            bed,
+            ref
+        )
+
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
@@ -258,6 +265,12 @@ workflow LOCAL_REALTIME {
             .mix(CLASSY.out.versions)
 
     } else if (realtime >= 6 & realtime < 72 ) {
+
+        KARYOTYPE(
+            MAPPING.out.bam,
+            bed,
+            ref
+        )
 
         ch_clair3_phased_placeholder = channel.empty()
 
@@ -299,6 +312,12 @@ workflow LOCAL_REALTIME {
             .mix(CLAIR3_CALLING.out.versions)
 
     } else if (realtime == 72) {
+
+        KARYOTYPE(
+            MAPPING.out.bam,
+            bed,
+            ref
+        )
 
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
@@ -377,9 +396,11 @@ workflow LOCAL_REALTIME {
         .mix(ch_binsize_subchrom)
         .mix(ch_binsize_delly)
 
-    FIGENO_REPORT(
+    VARIANT_REPORT(
         VARIANT_PROCESS.out.circos_plot,
         VARIANT_PROCESS.out.panchr_plot,
+        KARYOTYPE.out.baf_plot,
+        KARYOTYPE.out.karyotype,
         ch_binsizes,
         VARIANT_PROCESS.out.sv_plot,
         VARIANT_PROCESS.out.fusion_plot,
@@ -400,7 +421,7 @@ workflow LOCAL_REALTIME {
     // Collect sections from all analysis steps
     ch_sections = ch_sections
         .mix(ADAPTIVE_REPORT.out.sections)
-        .mix(FIGENO_REPORT.out.sections)
+        .mix(VARIANT_REPORT.out.sections)
 
 
     // Automatically detect the time stamp

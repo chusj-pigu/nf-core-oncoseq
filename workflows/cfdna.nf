@@ -3,6 +3,7 @@ include { BASECALL_SIMPLEX       } from '../subworkflows/local/basecalling/basec
 include { READS_FILTER           } from '../subworkflows/local/read_processing/reads_filter.nf'
 include { MAPPING                } from '../subworkflows/local/mapping/mapping'
 include { CNV_CALLING            } from '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { KARYOTYPE              } from  '../subworkflows/local/variant_calling/nasvar_karyotype.nf'
 include { SV_CALLING             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CLAIRS_TO_CALLING      } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { CLAIR3_CALLING         } from '../subworkflows/local/variant_calling/clair3_calling.nf'
@@ -21,7 +22,7 @@ include { REMOVE_PADDING                                } from '../modules/local
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
 include { CFDNA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
 include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
-include { FIGENO_REPORT        } from '../subworkflows/local/report/variants.nf'
+include { VARIANT_REPORT        } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT      } from '../subworkflows/local/report/adaptive.nf'
 include { ONTIME_TIME_RANGE    } from '../modules/local/ontime/main.nf'
 
@@ -436,6 +437,12 @@ workflow CFDNA {
         ch_ref_for_calling
     )
 
+    KARYOTYPE(
+        ch_bam_to_process,
+        ch_bed_for_calling,
+        ch_ref_for_calling
+    )
+
     ICHORCNA_CALLING (
         ch_bam_for_calling,
         ch_ref_for_calling,
@@ -479,9 +486,11 @@ workflow CFDNA {
     ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
     ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
-    FIGENO_REPORT(
+    VARIANT_REPORT(
         VARIANT_PROCESS.out.circos_plot,
         VARIANT_PROCESS.out.panchr_plot,
+        KARYOTYPE.out.baf_plot,
+        KARYOTYPE.out.karyotype,
         ch_binsizes,
         VARIANT_PROCESS.out.sv_plot,
         VARIANT_PROCESS.out.fusion_plot,
@@ -515,7 +524,7 @@ workflow CFDNA {
         .mix(READS_FILTER.out.versions)
         .mix(SV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
-        .mix(FIGENO_REPORT.out.versions)
+        .mix(VARIANT_REPORT.out.versions)
         .mix(CFDNA_REPORT.out.versions)
 
     /*
@@ -527,7 +536,7 @@ workflow CFDNA {
     // Collect sections from all analysis steps
     ch_sections = ch_sections
         .mix(CFDNA_REPORT.out.sections)
-        .mix(FIGENO_REPORT.out.sections)
+        .mix(VARIANT_REPORT.out.sections)
 
     // channel id containing only meta
     ch_params = ch_ref_for_calling

@@ -16,6 +16,7 @@ include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/v
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING                            } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { KARYOTYPE                             } from  '../subworkflows/local/variant_calling/nasvar_karyotype.nf'
 
 // Variant processing and visualization subworkflow
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
@@ -34,7 +35,7 @@ include { SUBSAMPLE_TIME                       } from '../subworkflows/local/rea
 
 // Reporting
 include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
-include { FIGENO_REPORT     } from '../subworkflows/local/report/variants.nf'
+include { VARIANT_REPORT     } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT   } from '../subworkflows/local/report/adaptive.nf'
 include { CLASSIFIER_REPORT } from '../subworkflows/local/report/methylation.nf'
 // Utility functions
@@ -242,6 +243,12 @@ workflow ADAPTIVE_WGS {
         }
     }
 
+    KARYOTYPE(
+        MAPPING.out.bam,
+        bed,
+        ref
+    )
+
     // Analyze coverage separation between target and background regions
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
@@ -371,9 +378,11 @@ workflow ADAPTIVE_WGS {
         .mix(ch_binsize_subchrom)
         .mix(ch_binsize_delly)
 
-    FIGENO_REPORT(
+    VARIANT_REPORT(
         VARIANT_PROCESS.out.circos_plot,
         VARIANT_PROCESS.out.panchr_plot,
+        KARYOTYPE.out.baf_plot,
+        KARYOTYPE.out.karyotype,
         ch_binsizes,
         VARIANT_PROCESS.out.sv_plot,
         VARIANT_PROCESS.out.fusion_plot,
@@ -393,7 +402,7 @@ workflow ADAPTIVE_WGS {
 
     // Collect sections from all analysis steps
     ch_sections = ADAPTIVE_REPORT.out.sections
-        .mix(FIGENO_REPORT.out.sections)
+        .mix(VARIANT_REPORT.out.sections)
         .mix(ch_classy_section)
 
     // channel containing parameters used:
