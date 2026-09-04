@@ -184,15 +184,15 @@ For more details and further functionality, please refer to the [usage documenta
 |-----------|----------|------|---------|-------------|
 | `--input` | ✅ | `path` | | Path to input samplesheet. |
 | `--outdir` | ✅ | `path` | | Directory where outputs will be published. |
-| `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
+| `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`/`t2t`). Used when `genome` is not set in the samplesheet. |
 | `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` or `vep_cache/` subdirectory is used when available. |
-| `--vep_cache` | | `path` | | Optional parameter to specify path to vep cache. It's  |
+| `--vep_cache` | | `path` | | Optional parameter to specify path to vep cache if not included in `ref_cache` directory.  |
 | `--basecall_model` | ✅ | `string` | | Dorado basecalling model (e.g. `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
 | `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification when basecalling inside workflow.** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
 | `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is BAM files. |
-| `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit` column in samplesheet). |
-| `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer. |
+| `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `project`, `kit`, and `barcode` column in samplesheet). |
+| `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | panel file used for adaptive sampling in BED format with coordinates matching the selected or provided reference genome. Default is BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer. |
 
 ---
 
@@ -211,7 +211,7 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions. |
+| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions used for adaptive sampling seqeuncing. |
 | `--low_fidelity` | | `path` | assets/panel_low_fidelity.txt | Text file listing low-fidelity genes to exclude from coverage. |
 
 ---
