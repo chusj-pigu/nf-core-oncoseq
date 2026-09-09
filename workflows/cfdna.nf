@@ -113,7 +113,7 @@ workflow CFDNA {
             ch_to_classify = channel.empty()
         }
 
-    } else if (params.skip_basecalling || params.skip_mapping) {
+    } else if (params.skip_basecalling) {
 
         READS_FILTER (
             cfdna_samplesheet,
@@ -130,6 +130,41 @@ workflow CFDNA {
         )
 
         SAMTOOLS_COUNT_READS(MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam)})
+
+        ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
+            .map { meta, txt ->
+                def count = txt.text.trim().toInteger()
+                tuple(meta, count)
+            }
+            .branch { meta, count ->
+                pos:  count > 0
+                    return meta
+                none: true
+                    return meta
+            }
+
+        ch_bam_methylation_counts.none
+            .subscribe { meta ->
+                log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
+            }
+        ch_to_classify = ch_bam_methylation_counts.pos
+        ch_no_methylation_tags = ch_bam_methylation_counts.none
+
+    } else if (params.skip_mapping) {
+
+        MAPPING(
+            samplesheet,
+            ref
+        )
+
+        READS_FILTER (
+            cfdna_samplesheet,
+            MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam) },
+            max_len,
+            minqs
+        )
+
+        SAMTOOLS_COUNT_READS(READS_FILTER.out.reads)
 
         ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
             .map { meta, txt ->
