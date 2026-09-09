@@ -27,6 +27,10 @@
 > [!NOTE]
 > All pipeline tools (Dorado, minimap2, ClairS-TO, etc.) are bundled in per-process containers and pulled automatically — no manual installation needed beyond the above.
 
+## Installation
+
+Refer to Nextflow documentation for installation instructions: [https://www.nextflow.io/docs/latest/getstarted.html](https://www.nextflow.io/docs/latest/getstarted.html)
+
 ## Quick Start
 
 ```bash
@@ -72,8 +76,8 @@ The general steps are as follows:
    *(Optional: Demultiplexing is done if kit and barcode is included in samplesheet*
 2. **Read QC** – [Seqkit](https://bioinf.shenwei.me/seqkit/)
 3. **Alignment** – [minimap2](https://lh3.github.io/minimap2/minimap2.html)
-   *(Optional: skip using `--skip_mapping` if BAM input is provided)*
-4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Tucan](https://github.com/UMCUGenetics/tucan), [Sturgeon](https://github.com/UMCUGenetics/sturgeon), [Alma](https://github.com/f-marchi/ALMA-classifier), [Lamprey](https://github.com/princessmaximacenter/Lamprey), [MPACT](https://github.com/kylessmith/MethylVerse) and [Nanomix](https://github.com/Jonbroad15/nanomix)
+   *(Optional: skip using `--skip_mapping` if genome aligned BAM input is provided)*
+4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Alma](https://github.com/f-marchi/ALMA-classifier), [MPACT](https://github.com/kylessmith/MethylVerse) and [Nanomix](https://github.com/Jonbroad15/nanomix)
 5. **Alignment QC** – [Cramino](https://github.com/wdecoster/cramino)
 6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly), [IchorCNA](https://github.com/broadinstitute/ichorCNA)
 7. **Variant calling** – [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3)
@@ -89,7 +93,7 @@ The general steps are as follows:
 
 #### Time Series Breakdown Analysis
 
-For prospectively run workflows on different timepoints, [Ontime](https://github.com/mbhall88/ontime) is run after the **Alignment** step. To use, specify `--time_series` and `--time_points` (comma-separated list of hours) to downsample the reads to the specified timepoints. The default timepoints are `1,3,6,12,18,24,48,60,72` hours. The downsampled reads are then used for downstream analysis.
+To retrospectively run workflows on different timepoints, [Ontime](https://github.com/mbhall88/ontime) is run after the **Alignment** step. To use, specify `--time_series` and `--time_points` (comma-separated list of hours) to downsample the reads to the specified timepoints. The default timepoints are `1,3,6,12,18,24,48,60,72` hours. The downsampled reads are then used for downstream analysis.
 
 ---
 
@@ -105,18 +109,18 @@ Each sample's `type` column value determines which classifier results are parsed
 
 | `type` value | Classifier run |
 |--------------|-------------------------------|
-| `blood`      | [Alma](https://github.com/f-marchi/ALMA-classifier), [Lamprey](https://github.com/princessmaximacenter/Lamprey), and [Marlin](https://github.com/hovestadt/MARLIN) |
-| `brain`      | [CrossNN Caper](https://gitlab.com/euskirchen-lab/crossNN), [Sturgeon](https://github.com/UMCUGenetics/sturgeon) Brainstem and General, and [MPACT](https://github.com/kylessmith/MethylVerse) |
-| `solid`      | [CrossNN PanCancer](https://gitlab.com/euskirchen-lab/crossNN) and [Tucan](https://github.com/UMCUGenetics/tucan) |
+| `blood`      | [Alma](https://github.com/f-marchi/ALMA-classifier), and [Marlin](https://github.com/hovestadt/MARLIN) |
+| `brain`      | [CrossNN Caper](https://gitlab.com/euskirchen-lab/crossNN) and [MPACT](https://github.com/kylessmith/MethylVerse) |
+| `solid`      | [CrossNN PanCancer](https://gitlab.com/euskirchen-lab/crossNN) |
 | `other` | All classifiers |
 
 In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://github.com/Jonbroad15/nanomix) tissue-of-origin plot, regardless of `type`.
 
 > [!NOTE]
-> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Lamprey, Marlin, MPACT, Nanomix, Sturgeon Brainstem, Sturgeon General, Tucan) are generated for **all** samples — the `type` column only controls which models results are presented in the final report.
+> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Marlin, MPACT, Nanomix) are generated for **all** samples — the `type` column only controls which models results are presented in the final report.
 
 > [!WARNING]
-> These classifiers are run within a Rust integration called classy, and use liftovers when `--genome` does not match the program probes. Results may differ from the original programs.
+> These classifiers are run within a Rust integration called classy, and use liftovers when `--genome` does not match the program probes. Results may differ slightly from the original programs.
 
 ---
 
@@ -130,9 +134,6 @@ In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://gi
 ---
 
 ## Usage
-
-> [!NOTE]
-> If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/usage/installation) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/usage/introduction#how-to-run-a-pipeline) with `-profile test` before running the workflow on actual data.
 
 First, prepare a samplesheet with your input data that looks as follows:
 
@@ -152,6 +153,7 @@ Most input can be provided as command line parameters if they are common, but th
 | `genome` | | `string` | `--genome` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Samplesheet takes priority over `--genome`. Aliases are normalized to their canonical form. |
 | `ref_path` | | `path` | `--ref_cache` | Path to a reference FASTA file (`.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`) or a directory containing one. Samplesheet takes priority over `--ref_cache`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. |
 | `kit` | | `string` | | Barcoding kit for demultiplexing (e.g. `SQK-NBD114-24`). Required alongside `project` and `barcode` when using `--demux`. |
+| `barcode` | | `string` | | Barcode ID for demultiplexing (e.g. `barcode01`). Required alongside `project` and `kit` when using `--demux`. |
 | `bed` | | `path` | `--bed` | BED file for adaptive sampling regions. Samplesheet takes priority over `--bed`. |
 | `padding` | | `integer` | `--padding` | Padding around BED regions (bp). Samplesheet takes priority over `--padding`. |
 | `low_fidelity` | | `path` | `--low_fidelity` | Text file listing low-fidelity genes to exclude from coverage. Samplesheet takes priority over `--low_fidelity`. |
@@ -170,9 +172,7 @@ To run in real time while data is still sequencing, use `--realtime [INT]` where
 | SNP calling (Clair3) | | ✅ | ✅ |
 
 > [!WARNING]
-> Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
-
-For more details and further functionality, please refer to the [usage documentation](https://nf-co.re/oncoseq/usage) and the [parameter documentation](https://nf-co.re/oncoseq/parameters).
+> Please provide pipeline parameters via the CLI or Nextflow `-params-file` option (see [documentation](https://nf-co.re/docs/running/run-pipelines)). Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/running/configuration/configuration-options).
 
 ---
 
@@ -184,15 +184,15 @@ For more details and further functionality, please refer to the [usage documenta
 |-----------|----------|------|---------|-------------|
 | `--input` | ✅ | `path` | | Path to input samplesheet. |
 | `--outdir` | ✅ | `path` | | Directory where outputs will be published. |
-| `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
+| `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`/`t2t`). Used when `genome` is not set in the samplesheet. |
 | `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` or `vep_cache/` subdirectory is used when available. |
-| `--vep_cache` | | `path` | | Optional parameter to specify path to vep cache. It's  |
+| `--vep_cache` | | `path` | | Optional parameter to specify path to vep cache, required if not detected in `--ref_cache`, otherwise the cache for the selected VEP version and reference assembly is downloaded automatically on the Nextflow launch host, which must have internet access. |
 | `--basecall_model` | ✅ | `string` | | Dorado basecalling model (e.g. `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
 | `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification when basecalling inside workflow.** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
-| `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is BAM files. |
+| `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is genome aligned BAM files. |
 | `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit` column in samplesheet). |
-| `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer. |
+| `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | panel file used for adaptive sampling in BED format with coordinates matching the selected or provided reference genome, including any flanking/padding (provided through `--padding` option). Default is BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer. |
 
 ---
 
@@ -211,7 +211,7 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions. |
+| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions used for adaptive sampling seqeuncing. |
 | `--low_fidelity` | | `path` | assets/panel_low_fidelity.txt | Text file listing low-fidelity genes to exclude from coverage. |
 
 ---
@@ -223,7 +223,6 @@ Choose exactly one mode:
 | `--device` | | `string` | | GPU device(s) for Dorado (e.g. `cuda:0,1`). Auto-detected if not specified. |
 | `--batch` | | `string` | | Batch size for basecalling. Auto-tuned if not specified. |
 | `--mapping_small` | | `boolean` | `true` | Use reduced resources for mapping (recommended for adaptive/cfDNA). |
-| `--clair3_gpu` | | `boolean` | `false` | Use GPU to run Clair3. |
 
 ---
 
@@ -236,7 +235,7 @@ Choose exactly one mode:
 | `--subchrom_binsize` | | `integer` | `500` | Bin size (kb) for SubChrom CNV calling. |
 | `--delly_bin_size` | | `integer` | `50000` | Bin size (bp) for Delly CNV calling. |
 | `--sv_targets` | | `path` | assets/sv-list.csv | CSV file for additional SV visualization of regions often involved in intragenic deletions: columns `GENE`, `pos` (Figeno output). |
-| `--fusion_targets` | | `path` | assets/fusion-list.csv | CSV file containing fusion partners to call with stellerator. First column is the first partner, second column is the second partner. Default is a list of known fusions involved in solid and hematological tumors. |
+| `--fusion_targets` | | `path` | assets/fusion-list.txt | Text file containing fusion partners to call with stellerator (gene symbols). First column is the first partner, second column is the second partner. Default is a list of known fusions involved in solid and hematological tumors. |
 | `--sv_exclude` | | `path` | assets/sv_exclude.txt | Text file listing genes to exclude from SV analysis. The default includes structural variants that come up for the majority of samples and are not clinically known to be relevant. |
 | `--snp_exclude` | | `path` | assets/snp_exclude.txt | Text file listing genes to exclude from SNP analysis. The default includes variants that are not clinically relevant. |
 
@@ -246,7 +245,6 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--vep_cache` | | `path` | | Optional path to the VEP cache root. A matching cache in `--vep_cache` or `${ref_cache}/vep` is used; otherwise the cache for the selected VEP version and reference assembly is downloaded automatically on the Nextflow launch host, which must have internet access. |
 | `--vep_version` | | `integer` | `115` | Ensembl VEP version matching your cache. |
 | `--filtervep_expression` | | `string` | IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE | FilterVEP expression for SNV filtering (impacts, frequencies, etc.). |
 
@@ -306,12 +304,12 @@ Choose exactly one mode:
       <td rowspan="2">Reads</td>
       <td><code>reads/{sample}_passed.fq.gz</code></td>
       <td>Merged raw reads passing QS filter ≥ <code>--minqs</code></td>
-      <td><code>--skip_basecalling</code> not used</td>
+      <td>Not generated with <code>--skip_basecalling</code></td>
     </tr>
     <tr>
       <td><code>reads/{sample}_failed.fq.gz</code></td>
       <td>Merged raw reads failing QS filter ≥ <code>--minqs</code></td>
-      <td><code>--skip_basecalling</code> not used</td>
+      <td>Not generated with <code>--skip_basecalling</code></td>
     </tr>
     <tr>
       <td rowspan="2">Alignments</td>
