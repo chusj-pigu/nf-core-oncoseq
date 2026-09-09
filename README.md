@@ -191,7 +191,7 @@ To run in real time while data is still sequencing, use `--realtime [INT]` where
 | `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification when basecalling inside workflow.** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
 | `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is genome aligned BAM files. |
-| `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit` column in samplesheet). |
+| `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit`, `barcode` and `project` column in samplesheet). |
 | `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | panel file used for adaptive sampling in BED format with coordinates matching the selected or provided reference genome, including any flanking/padding (provided through `--padding` option). Default is BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer. |
 
 ---
