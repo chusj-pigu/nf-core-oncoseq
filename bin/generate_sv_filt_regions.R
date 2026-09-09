@@ -56,6 +56,8 @@ extract_gene <- function(x,source) {
     genes <- str_extract_all(x, "(?<=\\|(HIGH|MODERATE)\\|)[^|]+")[[1]]
   }
 
+  genes <- gsub("&", "-", genes)
+
   # dedupe (a gene often appears multiple times across transcripts)
   genes <- unique(genes)
 
