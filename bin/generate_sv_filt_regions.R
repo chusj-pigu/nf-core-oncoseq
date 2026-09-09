@@ -66,6 +66,31 @@ extract_gene <- function(x,source) {
   paste(genes, collapse = "-")
 }
 
+count_genes <- function(genes_str) {
+  ifelse(is.na(genes_str), 0L, str_count(genes_str, "-") + 1L)
+}
+ 
+cap_genes <- function(genes_str, head_n = 5, tail_n = 5) {
+  # For gene-dense SVs, show the first head_n and last tail_n genes and
+  # collapse the middle into a count
+  if (is.na(genes_str)) return(genes_str)
+ 
+  genes <- str_split(genes_str, "-")[[1]]
+  n <- length(genes)
+  if (n <= head_n + tail_n) return(genes_str)
+ 
+  head_genes <- genes[seq_len(head_n)]
+  tail_genes <- genes[(n - tail_n + 1):n]
+  middle_n <- n - head_n - tail_n
+ 
+  paste0(
+    paste(head_genes, collapse = "-"),
+    "-...(", middle_n, "_genes)...-",
+    paste(tail_genes, collapse = "-")
+  )
+}
+
+
 extract_support <- function(x,y,source) {
     if (source == "stellerator") {
         read_support_field <- "SR"
@@ -117,7 +142,7 @@ extract_genes_delins <- function(x) {
 process_vcf <- function(vcf) {
   df <- vcf %>%
     mutate(
-      GENE = map2_chr(V8, SOURCE, extract_gene),
+      GENE_FULL = map2_chr(V8, SOURCE, extract_gene),
       ID = gsub("(_BND\\d+)_\\d+$", "\\1", V3),
       START = as.numeric(V2),
       SUPPORT = as.numeric(pmap_chr(list(V9, V10, SOURCE), extract_support)),
@@ -128,10 +153,16 @@ process_vcf <- function(vcf) {
       strand2 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", V8), pattern = "", i = 2)
     ) %>%
     filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
-    filter(SOURCE == "stellerator" | str_detect(GENE, pattern_start) | str_detect(GENE, pattern_end)) %>%
-    filter(SUPPORT > min_support)
+    filter(SOURCE == "stellerator" | str_detect(GENE_FULL, pattern_start) | str_detect(GENE_FULL, pattern_end)) %>%
+    filter(SUPPORT > min_support) %>%
+    mutate(
+      N_GENES = count_genes(GENE_FULL),
+      GENE = map_chr(GENE_FULL, cap_genes, head_n = 5, tail_n = 5)
+    )
+
   return(df)
 }
+
 
 parse_bnd <- function(df) {
   bnd <- df %>%
