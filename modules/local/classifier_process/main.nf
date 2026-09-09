@@ -25,7 +25,7 @@ process PARSE_JSON_COMBINED {
         emit: pancan
     tuple val(meta),
         path("*lamprey.tsv"),
-        emit: lamprey
+        emit: lamprey, optional: true
     tuple val(meta),
         path("*marlin.tsv"),
         emit: marlin
@@ -37,13 +37,13 @@ process PARSE_JSON_COMBINED {
         emit: nanomix
     tuple val(meta),
         path("*sturgeon_brainstem.tsv"),
-        emit: sturgeon_brainstem
+        emit: sturgeon_brainstem, optional: true
     tuple val(meta),
         path("*sturgeon_general.tsv"),
-        emit: sturgeon_general
+        emit: sturgeon_general, optional: true
     tuple val(meta),
         path("*tucan.tsv"),
-        emit: tucan
+        emit: tucan, optional: true
     path "versions.yml",
         emit: versions
 
