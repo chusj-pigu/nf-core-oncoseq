@@ -204,7 +204,9 @@ parse_other_sv <- function(df) {
       LEN = as.numeric(str_extract(V8, "(?<=SVLEN=)\\d+")),
       TYPE = str_extract(V8, "(?<=SVTYPE=)[^;]+"),
       GENE = ifelse(GENE == "", V1, GENE)) %>%
-    filter(!GENE %in% unwanted_calls)
+    filter(!GENE %in% unwanted_calls) %>%
+    mutate(case_when(is.na(LEN) ~ END - START,
+                     TRUE ~ LEN))
   return(other)
 }
 
