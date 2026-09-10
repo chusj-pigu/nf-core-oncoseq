@@ -3,12 +3,8 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CLASSY_MARLIN           } from '../../../modules/local/classy/main.nf'
-//include { CLASSY_TUCAN            } from '../../../modules/local/classy/main.nf'
-//include { CLASSY_STURGEON_GENERAL } from '../../../modules/local/classy/main.nf'
-include { CLASSY_CROSSNN_PANCAN   } from '../../../modules/local/classy/main.nf'
-include { CLASSY_CROSSNN_CAPER    } from '../../../modules/local/classy/main.nf'
-//include { MODKIT                  } from '../../../modules/local/modkit/main.nf'
+include { CLASSY_COMBINED     } from '../../../modules/local/classy/main.nf'
+include { PARSE_JSON_COMBINED } from '../../../modules/local/classifier_process/main.nf'
 
 def addTypeToChannel(ch, type) {
     ch = ch.map { meta, data -> tuple(meta, data, type) }
@@ -27,47 +23,114 @@ workflow CLASSY {
     take:
     input         // Channel: from mapping workflow
     ref       // Channel: from input samplesheet
+    tumor_types // Channel: from input samplesheet
 
     main:
 
     ch_versions = channel.empty()
 
-    ch_ref = ref
-        .map { meta, ref_id, ref_fasta, _ref_fai ->
-            tuple(meta, ref_id, ref_fasta) }
-
     ch_classy_in = input
-        .join(ch_ref)
+        .join(ref)
+        .map { meta, bam, bai, ref_id, ref_fasta, _red_idx ->
+            tuple(meta, bam, bai, ref_id, ref_fasta)
+            }
 
-    // ch_classy_in = ch_refid
-    //     .join(MODKIT.out.bedmethyl)
+    CLASSY_COMBINED(ch_classy_in)
 
-    CLASSY_MARLIN(ch_classy_in)
-    CLASSY_TUCAN(ch_classy_in)
-    CLASSY_STURGEON_GENERAL(ch_classy_in)
-    CLASSY_CROSSNN_PANCAN(ch_classy_in)
-    CLASSY_CROSSNN_CAPER(ch_classy_in)
+    ch_classy_out_json = CLASSY_COMBINED.out.json_combined
 
-    // Add classifier types report
+    PARSE_JSON_COMBINED(ch_classy_out_json)
 
-    ch_final_plot = addTypeToChannel(CLASSY_MARLIN.out.svg, "Marlin")
-        .mix(addTypeToChannel(CLASSY_CROSSNN_PANCAN.out.svg, "CrossNN PanCancer"))
-        .mix(addTypeToChannel(CLASSY_CROSSNN_CAPER.out.svg, "CrossNN Caper"))
-        .mix(addTypeToChannel(CLASSY_STURGEON_GENERAL.out.svg, "Sturgeon General"))
-        .mix(addTypeToChannel(CLASSY_TUCAN.out.svg, "Tucan"))
+    tumor_types
+        .branch { meta, type ->
+            blood: type == "blood"
+                return meta
+            solid: type == "solid"
+                return meta
+            brain: type == "brain"
+                return meta
+            other: true
+                return meta
+        }
+        .set { ch_tumor_branched }
 
-    ch_final_pred = addTypeToChannel(CLASSY_MARLIN.out.json, "Marlin")
-        .mix(addTypeToChannel(CLASSY_CROSSNN_PANCAN.out.json, "CrossNN PanCancer"))
-        .mix(addTypeToChannel(CLASSY_CROSSNN_CAPER.out.json, "CrossNN Caper"))
-        .mix(addTypeToChannel(CLASSY_STURGEON_GENERAL.out.json, "Sturgeon General"))
-        .mix(addTypeToChannel(CLASSY_TUCAN.out.json, "Tucan"))
+    ch_plot_blood = ch_tumor_branched.blood
+        .join(addTypeToChannel(CLASSY_COMBINED.out.svg_blood, "Blood"))
+
+    ch_plot_brain = ch_tumor_branched.brain
+        .join(addTypeToChannel(CLASSY_COMBINED.out.svg_brain, "Brain"))
+
+    ch_plot_solid = ch_tumor_branched.solid
+        .join(addTypeToChannel(CLASSY_COMBINED.out.svg_solid, "Solid"))
+
+    ch_plot_other = ch_tumor_branched.other.join(addTypeToChannel(CLASSY_COMBINED.out.svg_blood, "Blood"))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(CLASSY_COMBINED.out.svg_brain, "Brain")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(CLASSY_COMBINED.out.svg_solid, "Solid")))
+        .groupTuple()
+        .transpose()
+
+    ch_json_blood = ch_tumor_branched.blood
+        .join(addTypeToChannel(PARSE_JSON_COMBINED.out.alma, "Alma"))
+        .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.lamprey, "Lamprey")))
+        .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.marlin, "Marlin")))
+        .groupTuple()
+        .transpose()
+
+    ch_json_brain = ch_tumor_branched.brain
+        .join(addTypeToChannel(PARSE_JSON_COMBINED.out.capper, "CrossNN Caper"))
+        .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.mpact, "MPACT")))
+        .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_brainstem, "Sturgeon Brainstem")))
+        .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_general, "Sturgeon General")))
+        .groupTuple()
+        .transpose()
+
+    ch_json_solid = ch_tumor_branched.solid
+        .join(addTypeToChannel(PARSE_JSON_COMBINED.out.pancan, "CrossNN PanCancer"))
+        .mix(ch_tumor_branched.solid.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "Tucan")))
+        .groupTuple()
+        .transpose()
+
+    ch_json_other = ch_tumor_branched.other
+        .join(addTypeToChannel(PARSE_JSON_COMBINED.out.alma, "Alma"))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.capper, "CrossNN Caper")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.pancan, "CrossNN PanCancer")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.lamprey, "Lamprey")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.marlin, "Marlin")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.mpact, "MPACT")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_brainstem, "Sturgeon Brainstem")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_general, "Sturgeon General")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "Tucan")))
+        .groupTuple()
+        .transpose()
+
+    if (params.cfdna) {
+        ch_final_plot = ch_plot_blood
+            .mix(ch_plot_brain)
+            .mix(ch_plot_solid)
+            .mix(ch_plot_other)
+            .mix(addTypeToChannel(CLASSY_COMBINED.out.svg_nanomix, "Tissue of origin"))
+
+        ch_final_pred = ch_json_blood
+            .mix(ch_json_brain)
+            .mix(ch_json_solid)
+            .mix(ch_json_other)
+            .mix(addTypeToChannel(PARSE_JSON_COMBINED.out.nanomix, "Nanomix"))
+
+    } else {
+        ch_final_plot = ch_plot_blood
+            .mix(ch_plot_brain)
+            .mix(ch_plot_solid)
+            .mix(ch_plot_other)
+
+        ch_final_pred = ch_json_blood
+            .mix(ch_json_brain)
+            .mix(ch_json_solid)
+            .mix(ch_json_other)
+    }
 
     // Collect versions from all modules
-    ch_versions = CLASSY_MARLIN.out.versions
-        .mix(CLASSY_CROSSNN_CAPER.out.versions)
-        .mix(CLASSY_CROSSNN_PANCAN.out.versions)
-        .mix(CLASSY_STURGEON_GENERAL.out.versions)
-        .mix(CLASSY_TUCAN.out.versions)
+    ch_versions = CLASSY_COMBINED.out.versions
+        .mix(PARSE_JSON_COMBINED.out.versions)
 
     emit:
     plot     = ch_final_plot

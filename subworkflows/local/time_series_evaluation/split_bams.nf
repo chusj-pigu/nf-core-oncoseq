@@ -51,9 +51,10 @@ workflow SPLIT_BAMS_TIME {
         Output: ch_bam_ts (tuple: new_meta, bam, index, from, to)
     */
     def createBamTimeSeriesMeta = { meta, bam, index, from, to ->
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to}h")
-        new_meta.ts = "${from}h_${to}h".toString()
-        tuple(new_meta, bam, index, from, to)
+        def to_stripped = to.replace('"', '')
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to_stripped}h")
+        new_meta.ts = "${from}h_${to_stripped}h".toString()
+        tuple(new_meta, bam, index, from, to_stripped)
     }
 
     ch_bam_ts = ch_bam
@@ -68,8 +69,9 @@ workflow SPLIT_BAMS_TIME {
         Output: ref (tuple: new_meta, refid, ref_fasta, ref_fai)
     */
     def createReferenceTimeSeriesMeta = { meta, refid, ref_fasta, ref_fai, from, to ->
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to}h")
-        new_meta.ts = "${from}h_${to}h".toString()
+        def to_stripped = to.replace('"', '')
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to_stripped}h")
+        new_meta.ts = "${from}h_${to_stripped}h".toString()
         tuple(new_meta, refid, ref_fasta, ref_fai)
     }
 
@@ -93,8 +95,9 @@ workflow SPLIT_BAMS_TIME {
     */
 
     def createBedTimeSeriesMeta = { meta, bedfile, padding, path, from, to ->
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to}h")
-        new_meta.ts = "${from}h_${to}h".toString()
+        def to_stripped = to.replace('"', '')
+        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to_stripped}h")
+        new_meta.ts = "${from}h_${to_stripped}h".toString()
         tuple(new_meta, bedfile, padding, path)
     }
 

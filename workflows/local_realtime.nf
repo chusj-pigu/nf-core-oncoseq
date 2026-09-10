@@ -58,6 +58,7 @@ workflow LOCAL_REALTIME {
     take:
     samplesheet             // channel: samplesheet read in from --input
     demux_samplesheet       // channel: demux samplesheet read in from --demux_samplesheet
+    tumor_type              // channel: tumor type read in from samplesheet
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     basecall_model          // channel: model for basecalling
     bed                     // channel: bed file used for adaptive sampling regions
@@ -68,6 +69,20 @@ workflow LOCAL_REALTIME {
 
     ch_versions = channel.empty()
     ch_sections = channel.empty()
+    ch_vcf_subchrom = channel.empty()
+    def realtime = params.realtime?.toInteger()
+
+    // Process bed
+
+    ch_bed_pad = bed
+        .map { meta,bedfile,padding,_low_fidelity ->
+            tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
+
+    REMOVE_PADDING(ch_bed_pad)
+
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .transpose()
 
     if (params.skip_basecalling) {
 
@@ -145,8 +160,7 @@ workflow LOCAL_REALTIME {
             // Perform multiplex basecalling with demultiplexing
             BASECALL_MULTIPLEX (
                 samplesheet,
-                demux_samplesheet,
-                ref
+                demux_samplesheet
             )
 
             // Map basecalled reads to reference
@@ -185,100 +199,94 @@ workflow LOCAL_REALTIME {
         ch_classy_in = MAPPING.out.bam
     }
 
-    if (params.realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
+    CNV_CALLING(
+        MAPPING.out.bam,
+        ch_vcf_subchrom,
+        ref
+    )
 
-        if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
+    COVERAGE_SEPARATE(
+        MAPPING.out.bam,
+        bed,
+        ch_bed_nopad,
+        ref
+    )
+
+    if (params.m_bases || params.skip_mapping || params.skip_basecalling ) {
 
             CLASSY(
                 ch_classy_in,
-                ref
+                ref,
+                tumor_type
             )
 
             CLASSIFIER_REPORT(
                 CLASSY.out.plot,
-                CLASSY.out.pred
+                CLASSY.out.pred,
+                tumor_type
             )
 
             ch_sections = CLASSIFIER_REPORT.out.sections
         }
 
-        // Placeholder vcf for subcrhom as it's not run at this timepoint
+    if (realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
-        ch_vcf_subchrom = channel.empty()
-
-        CNV_CALLING(
-            MAPPING.out.bam,
-            ch_vcf_subchrom,
-            ref
-        )
+        ch_clair3_phased_placeholder = channel.empty()
 
         SV_UNPHASED(
             MAPPING.out.bam,
-            ref
+            ref,
+            ch_clair3_phased_placeholder,
+            vep_cache
         )
-
-        ch_clair3_out = channel.empty()
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
+            SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
             targets,
             CNV_CALLING.out.delly_cov,
             CNV_CALLING.out.delly_segs,
-            ch_clair3_out
+            ch_clair3_phased_placeholder
         )
-
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed,
-            ref
-        )
-
-        // Placeholders for report
-        ch_subchrom_focal = channel.empty()
-        ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
             .mix(CLASSY.out.versions)
 
-    } else if (params.realtime >=6 & params.realtime < 72 ) {
+    } else if (realtime >= 6 & realtime < 72 ) {
 
-        // Placeholder vcf for subcrhom as it's not run at this timepoint
+        ch_clair3_phased_placeholder = channel.empty()
 
-        ch_vcf_subchrom = channel.empty()
-
-        CNV_CALLING(
-            MAPPING.out.bam,
-            ch_vcf_subchrom,
-            ref
-        )
-
-        SV_UNPHASED(
-            MAPPING.out.bam,
-            ref
-        )
-
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed,
-            ref
-        )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
             MAPPING.out.bam,
             ref,
             basecall_model,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
+            vep_cache
+        )
+
+        SV_UNPHASED(
+            MAPPING.out.bam,
+            ref,
+            CLAIR3_CALLING.out.vcf_vep
+                .map { meta, vcf ->
+                    def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_vep', '', '')
+                tuple(meta_restore, vcf)
+                },
             vep_cache
         )
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
+            SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
             targets,
@@ -286,45 +294,38 @@ workflow LOCAL_REALTIME {
             CNV_CALLING.out.delly_segs,
             CLAIR3_CALLING.out.vcf_vep
         )
-
-        // Placeholders for report
-        ch_subchrom_focal = channel.empty()
-        ch_subchrom_plot = channel.empty()
 
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
 
-    } else if (params.realtime == 72) {
+    } else if (realtime == 72) {
 
-        SV_UNPHASED(
-            MAPPING.out.bam,
-            ref
-        )
-
-        COVERAGE_SEPARATE(
-            MAPPING.out.bam,
-            bed,
-            ref
-        )
         // Germline variant calling using Clair3 (always uses original mapping output)
         CLAIR3_CALLING (
             MAPPING.out.bam,
             ref,
             basecall_model,
-            COVERAGE_SEPARATE.out.split_bed,
+            ch_bed_nopad,
             vep_cache
         )
 
-        CNV_CALLING(
+        SV_UNPHASED(
             MAPPING.out.bam,
-            CLAIR3_CALLING.out.vcf_snpeff,
-            ref
+            ref,
+            CLAIR3_CALLING.out.vcf_vep
+                .map { meta, vcf ->
+                    def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_vep', '', '')
+                tuple(meta_restore, vcf)
+                },
+            vep_cache
         )
 
         // Filter variants to visualize :
         VARIANT_PROCESS (
             MAPPING.out.bam,
+            ch_bed_nopad,
             SV_UNPHASED.out.vcf,
+            SV_UNPHASED.out.stellerator,
             CNV_CALLING.out.qdnaseq_bed,
             CNV_CALLING.out.qdnaseq_segs,
             targets,
@@ -332,10 +333,6 @@ workflow LOCAL_REALTIME {
             CNV_CALLING.out.delly_segs,
             CLAIR3_CALLING.out.vcf_vep
         )
-
-        ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
-
-        ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
         ch_versions = ch_versions
             .mix(CLAIR3_CALLING.out.versions)
@@ -389,8 +386,8 @@ workflow LOCAL_REALTIME {
         VARIANT_PROCESS.out.targets_plot,
         VARIANT_PROCESS.out.sv_table,
         VARIANT_PROCESS.out.fusion_table,
-        ch_subchrom_plot,
-        ch_subchrom_focal,
+        CNV_CALLING.out.subchrom_plot_wgs,
+        CNV_CALLING.out.subchrom_gene_plot_wgs,
         VARIANT_PROCESS.out.snp_table
     )
 
@@ -426,13 +423,14 @@ workflow LOCAL_REALTIME {
         }
 
      // channel id containing only meta
-    ch_id = MAPPING.out.bam
-        .map { meta, _bam, _bai ->
-        meta }
+    ch_params = ref
+        .join(bed)
 
+    ch_cfdna = channel.empty()
 
     MIDNIGHT_REPORT(
-        ch_id,
+        ch_params,
+        ch_cfdna,
         ch_sections,
         ch_versions,
         ch_title

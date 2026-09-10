@@ -45,8 +45,8 @@ workflow MAPPING {
     ch_versions = Channel.empty() // For collecting version info
 
     ch_ref = ref
-        .map { meta, ref, ref_fasta, _ref_fai ->
-            tuple(meta, ref, ref_fasta) }
+        .map { meta, genome, ref_fasta, _ref_fai ->
+            tuple(meta, genome, ref_fasta) }
 
     // Only expand in_ch if skip_basecalling is true
     if (params.skip_basecalling) {
@@ -94,21 +94,23 @@ workflow MAPPING {
                         def bai = dir.listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }
                         def type = bai.size() > 0 ? 'single' : 'to_index'
                         return [tuple(meta, type, bams.flatten(), bai.flatten())]
-                    } else {
+                    }
+                    else {
                         // Case 2: Multiple BAMs → split into chunks of 20 for merging
                         def counter = 0
                         return bams.collate(5).collect { chunk ->
-                            counter++
+                            counter += 1
                             def meta_chunk = modifyMetaId(meta, 'add_suffix', '', '', "_chunk${counter}")
                             tuple(meta_chunk, 'multi', chunk)
                         }
                     }
-                } else {
+                }
+                else {
                     def bai = "${bams}.bai"
                     def type = bai.size() > 0 ? 'single' : 'to_index'
                     def index = bai.size() > 0 ? bai : 'index'
                     def bam_file = bams
-                    return [tuple(meta, type, bam_file, index)]                   // Only bam file is provided
+                    return [tuple(meta, type, bam_file, index)]   // Only bam file is provided
                 }
             }
             .set { bam_chunks_ch }
@@ -170,8 +172,8 @@ workflow MAPPING {
             // Prepare mapping input: clean up meta.id and join with reference
             ch_mapping_in = in_ch
                 .join(ch_ref)
-                .map { meta, fastq, ref, ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${ref}")
+                .map { meta, fastq, genome, ref_fasta ->
+                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${genome}")
                     tuple(meta_ref, fastq, ref_fasta)
                     }
 
@@ -187,8 +189,8 @@ workflow MAPPING {
             // Restore meta ID by removing ref id
 
             ch_ref_id = ch_ref
-                .map { meta, ref, _ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${ref}")
+                .map { meta, genome, _ref_fasta ->
+                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${genome}")
                     tuple(meta_ref, meta.id) }
 
             bam_ch = SAMTOOLS_INDEX_FULL.out.bamfile_index

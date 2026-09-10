@@ -11,64 +11,52 @@ process SV_PROCESS {
 
     input:
     tuple val(meta),
-        path(filt_vcf),
+        path(sniffles_vcf),
+        path(severus_vcf),
+        path(stellerator_vcf),
+        path(bed),
         path(gene_list),
         path(blacklist)
 
     output:
     tuple val(meta),
-        path("*filt.tsv"),
-        emit: filt_tsv
-    tuple val(meta),
-        path("*ids.txt"),
-        emit: filt_ids
-    tuple val(meta),
         path("*region_fusions.txt"),
         emit: fusion_txt,
         optional:true
     tuple val(meta),
-        path("*region_indel.txt"),
-        emit: indel_txt,
+        path("*region_other.txt"),
+        emit: other_txt,
         optional:true
     tuple val(meta),
         path("*table_fusions.tsv"),
         emit: fusion_tsv,
         optional:true
     tuple val(meta),
-        path("*table_indel.tsv"),
-        emit: indel_tsv,
+        path("*table_other.tsv"),
+        emit: other_tsv,
         optional:true
     tuple val(meta),
         path("*targets_nohit.txt"),
         emit: targets,
         optional:true
+    tuple val(meta),
+        path("*table_figeno.tsv"),
+        emit: figeno_table,
+        optional:true
     path "versions.yml",
         emit: versions
 
     script:
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    def realtime = params.realtime?.toInteger()
+    def support = params.cfdna
+        ? 2
+        : (realtime != null && realtime <= 6 ? 0 : 3)
     """
-    # Process only high and moderate effect mutations
-    grep -E \\
-        'HIGH|MODERATE' \\
-        "${filt_vcf}" > \\
-        "${prefix}_filt.tsv" || :
-
-    # Save their IDs for filtering (Sniffles2.* patterns)
-    grep -oE \
-        'Sniffles2\\.[A-Z]+\\.[A-Za-z0-9_]+' \\
-        "${prefix}_filt.tsv" > \\
-        "${prefix}_filt_ids.txt" || :
-
-    # Ensure placeholders exist if empty
-    [ -f "${prefix}_filt.tsv" ] || touch "${prefix}_filt.tsv"
-    [ -f "${prefix}_filt_ids.txt" ] || touch "${prefix}_filt_ids.txt"
-
-    # Transform into figeno region input file
     generate_sv_filt_regions.R \\
-        --input "${prefix}_filt.tsv" \\
         --target ${gene_list} \\
-        --exclude ${blacklist}
+        --exclude ${blacklist} \\
+        --panel ${bed} \\
+        --min_support ${support}
 
 
     cat <<-END_VERSIONS > versions.yml
@@ -134,7 +122,8 @@ process ENSEMBL_VEP_TABLE {
 
     input:
     tuple val(meta),
-        path(bed)
+        path(bed),
+        path(list_exclude)
 
     output:
     tuple val(meta),
@@ -146,26 +135,62 @@ process ENSEMBL_VEP_TABLE {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def read_depth_threshold = params.cfdna ? '' : "&& \$8 > 20" // Only apply read depth filter for non-cfdna samples
+    def read_depth_threshold = params.cfdna ? '' : "&& dp >= 20" // Only apply read depth filter for non-cfdna samples
+    def pass_filter = prefix.contains('germline') ? '&& \$6 == "PASS"' : ''   // Keep Nonsomatic variants for somatic vcf
     """
-        awk -F'\t' '
+    awk -F'\t' '
+        function norm_allele(ref, alt,    r) {
+            # VEP right-trims the REF anchor base(s) shared with ALT.
+            if (length(ref) <= length(alt) && substr(alt, 1, length(ref)) == ref) {
+                r = substr(alt, length(ref) + 1)
+                return (r == "" ? "-" : r)
+            }
+            return alt
+        }
         BEGIN {
             OFS=","
-            print "CHROM,POS,REF,ALT,QUAL,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,SIFT,PolyPhen,gnomADe_AF,Read_depth (DP),Variant_depth (AD)"
+            print "CHROM,POS,REF,ALT,QUAL,FILTER,SYMBOL,Consequence,IMPACT,CLIN_SIG,Feature,RefSeq_ID,HGVSc,HGVSp,Existing_variation,SIFT,PolyPhen,gnomADe_AF,Read_depth (DP),Variant_depth (AD),VAF (%)"
         }
+        /^#/ { next }
         {
-            split(\$7, transcripts, ",")
+            dp = \$8+0
             split(\$9, ad_vals, ",")
-            ad_alt = (length(ad_vals) >= 2 ? ad_vals[2]+0 : 0)
-            for (i in transcripts) {
+            split(\$4, alts, ",")
+            split(\$7, transcripts, ",")
+            for (i = 1; i <= length(transcripts); i++) {
                 split(transcripts[i], f, "|")
-                if (ad_alt > 5 ${read_depth_threshold} && \$6 == "PASS") {
-                    print \$1,\$2,\$3,\$4,\$5, \
-                    f[4],f[2],f[3],f[72],f[7],f[27], \
-                    f[11],f[12],f[18],f[37],f[38],f[49], \
-                    \$8,ad_alt
+                if (f[1] != "" && f[1] != "-") {
+                    # Allele is explicit: match by literal value OR normalized (trimmed) value
+                    alt_allele = f[1]
+                    alt_idx = 0
+                    for (a = 1; a <= length(alts); a++) {
+                        if (alts[a] == alt_allele || norm_allele(\$3, alts[a]) == alt_allele) {
+                            alt_idx = a; break
+                        }
+                    }
+                    ad_alt = (alt_idx > 0 ? ad_vals[alt_idx + 1]+0 : 0)
+                    vaf = sprintf("%.2f", ad_alt / dp * 100)
+                    if (ad_alt >= 5 ${read_depth_threshold} ${pass_filter}) {
+                        print \$1,\$2,\$3,alt_allele,\$5,\$6,
+                            f[4],f[2],f[3],f[72],f[7],f[27],
+                            f[11],f[12],f[18],f[38],f[39],f[49],
+                            dp,ad_alt,vaf
+                    }
+                } else {
+                    # unchanged "-" collapsed branch
+                    for (a = 1; a <= length(alts); a++) {
+                        ad_alt = ad_vals[a + 1]+0
+                        vaf = sprintf("%.2f", ad_alt / dp * 100)
+                        if (ad_alt >= 5 ${read_depth_threshold} ${pass_filter}) {
+                            print \$1,\$2,\$3,alts[a],\$5,\$6,
+                                f[4],f[2],f[3],f[72],f[7],f[27],
+                                f[11],f[12],f[18],f[38],f[39],f[49],
+                                dp,ad_alt,vaf
+                        }
+                    }
                 }
             }
-        }' ${bed} > ${prefix}_filt.csv
+        }
+    ' ${bed} | grep -vF -f ${list_exclude} > ${prefix}_filt.csv
     """
 }

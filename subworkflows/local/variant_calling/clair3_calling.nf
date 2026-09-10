@@ -6,8 +6,9 @@
 include { CLAIR3_CALL                             } from '../../../modules/local/clair3/main.nf'
 include { SNPEFF_ANNOTATE                         } from '../../../modules/local/snpeff/main.nf'
 include { BCFTOOLS_FILTER_REGION                  } from '../../../modules/local/bcftools/main.nf'
-include { BGZIP_VCF as BGZIP_VCF_FINAL            } from '../../../modules/local/bcftools/main.nf'
-include { BGZIP_VCF as BGZIP_VCF_INTER            } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BCFTOOLS_COUNT         } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BGZIP_VCF_FINAL        } from '../../../modules/local/bcftools/main.nf'
+include { BCFTOOLS_VIEW as BGZIP_VCF_INTER        } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_FINAL  } from '../../../modules/local/bcftools/main.nf'
 include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_RAW    } from '../../../modules/local/bcftools/main.nf'
 include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38       } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
@@ -74,19 +75,26 @@ workflow CLAIR3_CALLING {
 
     // Filter for regions inside adaptive bed file
 
-    if (params.bed != "${projectDir}/assets/NO_BED") {
+    BCFTOOLS_INDEX_RAW(CLAIR3_CALL.out.vcf)
+    ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
+        .join(bed)
+    BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
 
-        BCFTOOLS_INDEX_RAW(CLAIR3_CALL.out.vcf)
-        ch_in_filter_bcftools = BCFTOOLS_INDEX_RAW.out.vcf_tbi
-            .join(bed)
-        BCFTOOLS_FILTER_REGION(ch_in_filter_bcftools)
+    ch_clair3_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
 
-        ch_clair3_out = BCFTOOLS_FILTER_REGION.out.filt_vcf
-    } else {
-        ch_clair3_out = CLAIR3_CALL.out.vcf
-    }
+    // Only run vep if vcf still contains variants
+    BCFTOOLS_COUNT(ch_clair3_out)
 
-    ch_vep = ch_clair3_out
+    ch_count_variant = BCFTOOLS_COUNT.out.vcf
+        .branch { meta, vcf ->
+            positive: vcf.size() > 0
+                return meta
+            negative: true
+                return meta
+        }
+
+    ch_vep = ch_count_variant.positive
+        .join(ch_clair3_out)
         .join(ch_ref_type)
         .branch { meta, vcf, genome ->
             hg38: genome == "hg38"
@@ -97,7 +105,8 @@ workflow CLAIR3_CALLING {
                 return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_germline_snp_vep'),vcf,[])
             }
 
-    ch_fasta = ch_clair3_out
+    ch_fasta = ch_count_variant.positive
+        .join(ch_clair3_out)
         .join(ref)
         .branch { meta, _vcf, genome, ref_fasta, _ref_index ->
             hg38: genome == "hg38"
@@ -174,11 +183,11 @@ workflow CLAIR3_CALLING {
 
     if (!params.realtime && !params.cfdna) {
         BGZIP_VCF_INTER(ch_vcf_final)
-        ch_vcf_zip = BGZIP_VCF_INTER.out.vcf_gz
+        ch_vcf_zip = BGZIP_VCF_INTER.out.vcf
         ch_versions = BGZIP_VCF_INTER.out.versions
     } else {
         BGZIP_VCF_FINAL(ch_vcf_final)
-        ch_vcf_zip = BGZIP_VCF_FINAL.out.vcf_gz
+        ch_vcf_zip = BGZIP_VCF_FINAL.out.vcf
         ch_versions = BGZIP_VCF_FINAL.out.versions
     }
 

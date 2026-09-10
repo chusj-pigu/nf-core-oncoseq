@@ -15,6 +15,7 @@ include { QUARTO_TABLE_COLNAMES                } from '../../../modules/local/qu
 workflow CFDNA_REPORT {
 
     take:
+    ch_cfdna
     ch_seqkit
     ch_cramino
     ch_ichor_fig
@@ -27,82 +28,165 @@ workflow CFDNA_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ch_cramino_txt = ch_cramino
-        .map { meta, table ->
-            def lines = table.readLines()
-            def nreads = (lines[3].tokenize('\t')[1].toDouble() / 1000000).toString()
-            def nbases = lines[4].tokenize('\t')[1]
-            def cov = lines[5].tokenize('\t')[1]
-            def n50 = lines[7].tokenize('\t')[1]
-            tuple(meta.id, nreads, nbases, cov, n50)
-        }
+    // Branch out channels for split bams in time series:
 
-    ch_stats = ch_seqkit
-        .map { meta, table ->
-            //Read the file content as a list of lines
-            def lines = table.readLines()
-            // Second line and 4th column, in million of reads
-            def n_reads = (lines[1].tokenize('\t')[3].toDouble() / 1000000) .toString()
-            // In billion of bases
-            def n_bases = (lines[1].tokenize('\t')[4].toDouble() / 1000000000) .toString()
-            def n50 =  lines[1].tokenize('\t')[12]
-            tuple(meta.id, n_reads, n_bases, n50) }
-        .join(ch_cramino_txt)
-        .map { meta, nreads_filt, nbases_filt, n50_filt, nreads_al, nbases_al, cov, n50_al->
-            tuple(meta, nreads_filt, nreads_al, nbases_filt, nbases_al, cov, n50_filt, n50_al) }
-        .collectFile { table ->
-            def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
-             '\t' + table[4] + '\t' + table[5] + '\t' + table[6] + '\t' +
-             table[7]].join('\n')
-            return [ "${table[0]}_cfdna_stats.tsv", content + '\n' ]
-        }
-        .map { table ->
-            def meta = table.name.replace('_cfdna_stats.tsv', '')
-            tuple(id:meta,table)
-            }                                                             // Add back meta to the new table
+    if (params.time_series) {
 
-    ch_quarto_table = ch_stats
-        .map { meta, table ->
-            def caption = "Stats of filtered and aligned reads"
-            def col_names = "N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases faligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
-            def section = "QC"
-            def process = "stats_qc-${meta.id}"
-            tuple(meta, table, caption, col_names, section, process)
-        }
+        ch_seqkit_timed = ch_seqkit
+            .branch { meta, table ->
+            full: meta.id.endsWith('_FULL')
+            split: true }
+
+        ch_cramino_txt = ch_cramino
+            .map { meta, table ->
+                def lines = table.readLines()
+                def nreads = (lines[3].tokenize('\t')[1].toDouble() / 1000000).toString()
+                def nbases = lines[4].tokenize('\t')[1]
+                def cov = lines[5].tokenize('\t')[1]
+                def n50 = lines[7].tokenize('\t')[1]
+                tuple(meta.id, nreads, nbases, cov, n50)
+            }
+            .branch { meta, nreads, nbases, cov, n50 ->
+                full: meta.endsWith('_FULL')
+                split: true }
+
+        ch_stats_full = ch_seqkit_timed.full
+            .map { meta, table ->
+                //Read the file content as a list of lines
+                def lines = table.readLines()
+                // Second line and 4th column, in million of reads
+                def n_reads = (lines[1].tokenize('\t')[3].toDouble() / 1000000) .toString()
+                // In billion of bases
+                def n_bases = (lines[1].tokenize('\t')[4].toDouble() / 1000000000) .toString()
+                def n50 =  lines[1].tokenize('\t')[12]
+                tuple(meta.id, n_reads, n_bases, n50) }
+            .join(ch_cramino_txt.full)
+            .map { meta, nreads_filt, nbases_filt, n50_filt, nreads_al, nbases_al, cov, n50_al->
+                tuple(meta, nreads_filt, nreads_al, nbases_filt, nbases_al, cov, n50_filt, n50_al) }
+            .collectFile { table ->
+                def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
+                '\t' + table[4] + '\t' + table[5] + '\t' + table[6] + '\t' +
+                table[7]].join('\n')
+                return [ "${table[0]}_cfdna_stats.tsv", content + '\n' ]
+            }
+            .map { table ->
+                def meta = table.name.replace('_cfdna_stats.tsv', '')
+                tuple(id:meta,table)
+            }
+
+        ch_stats_split =  ch_cramino_txt.split
+            .collectFile { table ->
+                def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
+                '\t' + table[4]].join('\n')
+                return [ "${table[0]}_cfdna_stats.tsv", content + '\n' ]
+            }
+            .map { table ->
+                def meta = table.name.replace('_cfdna_stats.tsv', '')
+                tuple(id:meta,table)
+            }
+
+        ch_quarto_table_full = ch_stats_full
+            .map { meta, table ->
+                def caption = "Stats of filtered and aligned reads"
+                def col_names = "N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases faligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
+                def section = "QC"
+                def process = "stats_qc-${meta.id}"
+                tuple(meta, table, caption, col_names, section, process)
+            }
+
+        ch_quarto_table_split = ch_stats_split
+            .map { meta, table ->
+                def caption = "Stats of filtered and aligned reads"
+                def col_names = "N reads aligned (M), N bases aligned (GB), Coverage (X), N50 reads aligned"
+                def section = "QC"
+                def process = "stats_qc-${meta.id}"
+                tuple(meta, table, caption, col_names, section, process)
+            }
+
+        ch_quarto_table = ch_quarto_table_full
+            .mix(ch_quarto_table_split)
+
+    } else if (params.skip_mapping) {
+
+        ch_cramino_txt = ch_cramino
+            .map { meta, table ->
+                def lines = table.readLines()
+                def nreads = (lines[3].tokenize('\t')[1].toDouble() / 1000000).toString()
+                def nbases = lines[4].tokenize('\t')[1]
+                def cov = lines[5].tokenize('\t')[1]
+                def n50 = lines[7].tokenize('\t')[1]
+                tuple(meta.id, nreads, nbases, cov, n50)
+            }
+            .collectFile { table ->
+                def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
+                '\t' + table[4]].join('\n')
+                return [ "${table[0]}_cfdna_stats.tsv", content + '\n' ]
+            }
+            .map { table ->
+                def meta = table.name.replace('_cfdna_stats.tsv', '')
+                tuple(id:meta,table)
+            }
+
+        ch_quarto_table = ch_cramino_txt
+            .map { meta, table ->
+                def caption = "Stats of filtered and aligned reads"
+                def col_names = "N reads aligned (M), N bases aligned (GB), Coverage (X), N50 reads aligned"
+                def section = "QC"
+                def process = "stats_qc-${meta.id}"
+                tuple(meta, table, caption, col_names, section, process)
+            }
+
+    } else {
+
+        ch_cramino_txt = ch_cramino
+            .map { meta, table ->
+                def lines = table.readLines()
+                def nreads = (lines[3].tokenize('\t')[1].toDouble() / 1000000).toString()
+                def nbases = lines[4].tokenize('\t')[1]
+                def cov = lines[5].tokenize('\t')[1]
+                def n50 = lines[7].tokenize('\t')[1]
+                tuple(meta.id, nreads, nbases, cov, n50)
+            }
+
+        ch_stats = ch_seqkit
+            .map { meta, table ->
+                //Read the file content as a list of lines
+                def lines = table.readLines()
+                // Second line and 4th column, in million of reads
+                def n_reads = (lines[1].tokenize('\t')[3].toDouble() / 1000000) .toString()
+                // In billion of bases
+                def n_bases = (lines[1].tokenize('\t')[4].toDouble() / 1000000000) .toString()
+                def n50 =  lines[1].tokenize('\t')[12]
+                tuple(meta.id, n_reads, n_bases, n50) }
+            .join(ch_cramino_txt)
+            .map { meta, nreads_filt, nbases_filt, n50_filt, nreads_al, nbases_al, cov, n50_al->
+                tuple(meta, nreads_filt, nreads_al, nbases_filt, nbases_al, cov, n50_filt, n50_al) }
+            .collectFile { table ->
+                def content = [table[1] + '\t' + table[2] + '\t' + table[3] +
+                '\t' + table[4] + '\t' + table[5] + '\t' + table[6] + '\t' +
+                table[7]].join('\n')
+                return [ "${table[0]}_cfdna_stats.tsv", content + '\n' ]
+            }
+            .map { table ->
+                def meta = table.name.replace('_cfdna_stats.tsv', '')
+                tuple(id:meta,table)
+                }                                                             // Add back meta to the new table
+
+        ch_quarto_table = ch_stats
+            .map { meta, table ->
+                def caption = "Stats of filtered and aligned reads"
+                def col_names = "N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases aligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
+                def section = "QC"
+                def process = "stats_qc-${meta.id}"
+                tuple(meta, table, caption, col_names, section, process)
+            }
+
+    }
 
     QUARTO_TABLE_COLNAMES(
         ch_quarto_table
     )
 
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    CONSTRUCT QUARTO FIGURE FOR MPGI COVERAGE PLOT
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-    // ch_qc_files = ch_nanoplot_fig
-    //     .map { meta, fig ->
-    //         def filtered = fig.find { it.name.endsWith('WeightedLogTransformed_HistogramReadlength.svg') }
-    //         tuple(meta, filtered)
-    //     }
-    //     .map { tuple ->
-    //         // Extract the existing values from the tuple
-    //         def (meta, file) = tuple
-
-    //         // Transform chrom into two new variables
-    //         def caption = "Read length distribution for ${meta.id}"
-    //         def section = "QC"
-    //         def process = "length-plot-${meta.id}"
-
-    //         // Return a new tuple with the additional variables
-    //         return [meta, file, caption, section, process ]
-    //     }
-
-
-    // QUARTO_FIGURE_QC(
-    //     ch_qc_files
-    // )
 
     ch_section_qc = QUARTO_TABLE_COLNAMES.out.quarto_table
     //     .mix(QUARTO_FIGURE_QC.out.quarto_figure)
@@ -142,8 +226,10 @@ workflow CFDNA_REPORT {
 
     ch_section_cnv = QUARTO_FIGURE_CNV.out.quarto_figure
         .groupTuple()
-        .map { id, section, filePaths ->
-            [id, section[0], filePaths, "IchorCNA"]
+        .join(ch_cfdna)
+        .map { id, section, filePaths, purity, _filter ->
+            def purity_perc = purity * 100
+            [id, section[0], filePaths, "IchorCNA call using cell-free DNA purity estimate of ${purity_perc}%"]
         }
 
     QUARTO_SECTION_CNV(

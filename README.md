@@ -15,6 +15,22 @@
 
 [![Get help on Slack](http://img.shields.io/badge/slack-nf--core%20%23oncoseq-4A154B?labelColor=000000&logo=slack)](https://nfcore.slack.com/channels/oncoseq)[![Follow on Twitter](http://img.shields.io/badge/twitter-%40nf__core-1DA1F2?labelColor=000000&logo=twitter)](https://twitter.com/nf_core)[![Follow on Mastodon](https://img.shields.io/badge/mastodon-nf__core-6364ff?labelColor=FFFFFF&logo=mastodon)](https://mstdn.science/@nf_core)[![Watch on YouTube](http://img.shields.io/badge/youtube-nf--core-FF0000?labelColor=000000&logo=youtube)](https://www.youtube.com/c/nf-core)
 
+## Dependencies
+
+- [Nextflow](https://www.nextflow.io/) (version >= 26.04.0)
+- One of the following container engines:
+  - [Docker](https://www.docker.com/)
+  - [Singularity](https://sylabs.io/docs/)
+  - [Apptainer](https://apptainer.org/)
+- [Java](https://www.oracle.com/java/technologies/downloads/) (required by Nextflow — see [Nextflow's Java requirements](https://www.nextflow.io/docs/latest/install.html) for the version matching your Nextflow release)
+
+> [!NOTE]
+> All pipeline tools (Dorado, minimap2, ClairS-TO, etc.) are bundled in per-process containers and pulled automatically — no manual installation needed beyond the above.
+
+## Installation
+
+Refer to Nextflow documentation for installation instructions: [https://www.nextflow.io/docs/latest/getstarted.html](https://www.nextflow.io/docs/latest/getstarted.html)
+
 ## Quick Start
 
 ```bash
@@ -24,7 +40,6 @@ nextflow run nf-core/oncoseq \
    --ref_cache /path/to/reference/cache \
    --basecall_model 'sup' \
    --m_bases '5mCG_5hmCG' \
-   --adaptive | --wgs | --cfdna \
    [--realtime INT] \
    [--skip_basecalling] \
    [--skip_mapping]
@@ -32,9 +47,9 @@ nextflow run nf-core/oncoseq \
 
 With `--input` samplesheet:
 
-| sample | input |
-|--------|---------|
-| sample1 | /path/to/input/ |
+| sample | input | tumor_type
+|--------|---------|----------|
+| sample1 | /path/to/input/ | blood |
 
 ## Introduction
 
@@ -48,7 +63,7 @@ With `--input` samplesheet:
 > | hg19 | GRCh37 |
 > | hs1  | CHM13  |
 
-![nf-core-oncoseq summary of full workflow](assets/nf-core-oncoseq_schema.jpg)
+![nf-core-oncoseq summary of full workflow](assets/pipeline_adaptive.svg)
 
 ---
 
@@ -61,53 +76,51 @@ The general steps are as follows:
    *(Optional: Demultiplexing is done if kit and barcode is included in samplesheet*
 2. **Read QC** – [Seqkit](https://bioinf.shenwei.me/seqkit/)
 3. **Alignment** – [minimap2](https://lh3.github.io/minimap2/minimap2.html)
-   *(Optional: skip using `--skip_mapping` if BAM input is provided)*
-4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN)
+   *(Optional: skip using `--skip_mapping` if genome aligned BAM input is provided)*
+4. **Tumor Classification** – [Marlin](https://github.com/hovestadt/MARLIN), [CrossNN](https://gitlab.com/euskirchen-lab/crossNN), [Alma](https://github.com/f-marchi/ALMA-classifier), [MPACT](https://github.com/kylessmith/MethylVerse) and [Nanomix](https://github.com/Jonbroad15/nanomix)
 5. **Alignment QC** – [Cramino](https://github.com/wdecoster/cramino)
-6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly)
+6. **CNV/cnLOH calling** – [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom), [Delly](https://github.com/dellytools/delly), [IchorCNA](https://github.com/broadinstitute/ichorCNA)
 7. **Variant calling** – [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO), [Clair3](https://github.com/HKU-BAL/Clair3)
-8. **Structural variants** – [Sniffles2](https://github.com/fritzsedlazeck/Sniffles)
+8. **Structural variants** – [Sniffles2](https://github.com/fritzsedlazeck/Sniffles), [Severus](https://github.com/KolmogorovLab/Severus) and [Stellerator](https://github.com/chusj-pigu/stellerator)
 9. **VCF Annotation** – [SnpEff](https://pcingola.github.io/SnpEff/) and [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html)
-10. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/) (`--adaptive` and `--wgs` only)
+10. **Phasing** – [WhatsHap](https://whatshap.readthedocs.io/) (excluded in `--cfdna` mode)
 11. **Reporting** – [Quarto](https://quarto.org/) report summarizing coverage, variants, and methylation-based tumor classification
 
 > [!WARNING]
-> [QDNAseq](https://www.bioconductor.org/packages/QDNAseq) and [SubChrom](https://github.com/Shaohua-Lei/SubChrom) do not support the CHM13/hs1 reference genome and will be automatically skipped when `--genome hs1` is used.
-
----
-
-#### Adaptive specific
-
-When `--adaptive` is used, additional steps are included for region-specific coverage:
-
-1. **Coverage calculation** – [mosdepth](https://github.com/brentp/mosdepth)
-2. **Visualization and reporting** – [R](https://www.r-project.org/)
+> [QDNAseq](https://www.bioconductor.org/packages/QDNAseq), [SubChrom](https://github.com/Shaohua-Lei/SubChrom) and [IchorCNA](https://github.com/broadinstitute/ichorCNA) do not support the CHM13/hs1 reference genome and will be automatically skipped when `--genome hs1` is used.
 
 ---
 
 #### Time Series Breakdown Analysis
 
-For prospectively run workflows on different timepoints, [Ontime](https://github.com/mbhall88/ontime) is run after the **Alignment** step.
+To retrospectively run workflows on different timepoints, [Ontime](https://github.com/mbhall88/ontime) is run after the **Alignment** step. To use, specify `--time_series` and `--time_points` (comma-separated list of hours) to downsample the reads to the specified timepoints. The default timepoints are `1,3,6,12,18,24,48,60,72` hours. The downsampled reads are then used for downstream analysis.
 
 ---
 
 #### Tumor Classification
 
-Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Downsampling (`Ontime`) rules:
+**Methylation classification** requires 5mC/5hmC-modified basecalling (`--m_bases`) or existing methylation tags in the input fastq/bam.
 
-- `--adaptive` / `--wgs`: downsample to **1h**
-- `--cfdna`: downsample to **8h** (if ≥10×)
-- `--adaptive` / `--wgs`: downsample to **1h**
-- `--cfdna`: downsample to **8h** (if ≥10×)
+**Which reads get used:**
+- **Realtime mode** (`--realtime`): all reads are used, no downsampling.
+- **Non-realtime mode**: only reads from the first hour of sequencing are used — except in `--cfdna` mode with `filter = yes`, which instead uses length-filtered reads (≤700 bp).
 
-| Classifier | Best for |
-|---|---|
-| [MARLIN](https://github.com/hovestadt/MARLIN) | Leukemia |
-| [crossNN](https://gitlab.com/euskirchen-lab/crossNN) Caper | CNS tumors |
-| [crossNN](https://gitlab.com/euskirchen-lab/crossNN) Pancancer | Pan-cancer |
+Each sample's `type` column value determines which classifier results are parsed in the report:
+
+| `type` value | Classifier run |
+|--------------|-------------------------------|
+| `blood`      | [Alma](https://github.com/f-marchi/ALMA-classifier), and [Marlin](https://github.com/hovestadt/MARLIN) |
+| `brain`      | [CrossNN Caper](https://gitlab.com/euskirchen-lab/crossNN) and [MPACT](https://github.com/kylessmith/MethylVerse) |
+| `solid`      | [CrossNN PanCancer](https://gitlab.com/euskirchen-lab/crossNN) |
+| `other` | All classifiers |
+
+In `--cfdna` mode, every sample **additionally** receives a [Nanomix](https://github.com/Jonbroad15/nanomix) tissue-of-origin plot, regardless of `type`.
+
+> [!NOTE]
+> Prediction outputs (Alma, CrossNN Caper, CrossNN PanCancer, Marlin, MPACT, Nanomix) are generated for **all** samples — the `type` column only controls which models results are presented in the final report.
 
 > [!WARNING]
-> These classifiers are run within a Rust integration called classy, and use liftovers when `--genome` does not match the program probes. Results may differ from the original programs.
+> These classifiers are run within a Rust integration called classy, and use liftovers when `--genome` does not match the program probes. Results may differ slightly from the original programs.
 
 ---
 
@@ -118,24 +131,15 @@ Runs on basecalled 5mC/5hmC reads if modified basecalling is used. Downsampling 
 - SNP calling if ≥10×: *ClairS-TO*, *Clair3*
 - SubChrom if ≥15×
 
-To run IchorCNA as part of the cfDNA mode, include `-profile ichor_hg38` or `-profile ichor_hg19` depending on your reference genome.
-
-![nf-core-oncoseq summary of workflow with `--cfdna`](assets/nf-core-oncoseq_schema_cfdna.jpg)
-
 ---
 
 ## Usage
 
-> [!NOTE]
-> If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/usage/installation) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/usage/introduction#how-to-run-a-pipeline) with `-profile test` before running the workflow on actual data.
-
 First, prepare a samplesheet with your input data that looks as follows:
 
-`samplesheet.csv`:
-
-| sample | input | purity | filter |
-|--------|---------|---------|---------|
-| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* |
+| sample | input | purity | filter | tumor_type |
+|--------|-------|--------|--------|------------|
+| sample1 | /path/to/input/ | *`--cfdna` only* | *`--cfdna` only* | Tumor type category (`blood`, `brain`, `solid`, or `other`). Controls which classifier results are present in the report. If not set, will default as `other`. |
 
 Most input can be provided as command line parameters if they are common, but they can also be provided in the samplesheet if they differ between samples:
 
@@ -149,47 +153,26 @@ Most input can be provided as command line parameters if they are common, but th
 | `genome` | | `string` | `--genome` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Samplesheet takes priority over `--genome`. Aliases are normalized to their canonical form. |
 | `ref_path` | | `path` | `--ref_cache` | Path to a reference FASTA file (`.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`) or a directory containing one. Samplesheet takes priority over `--ref_cache`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. |
 | `kit` | | `string` | | Barcoding kit for demultiplexing (e.g. `SQK-NBD114-24`). Required alongside `project` and `barcode` when using `--demux`. |
+| `barcode` | | `string` | | Barcode ID for demultiplexing (e.g. `barcode01`). Required alongside `project` and `kit` when using `--demux`. |
 | `bed` | | `path` | `--bed` | BED file for adaptive sampling regions. Samplesheet takes priority over `--bed`. |
 | `padding` | | `integer` | `--padding` | Padding around BED regions (bp). Samplesheet takes priority over `--padding`. |
 | `low_fidelity` | | `path` | `--low_fidelity` | Text file listing low-fidelity genes to exclude from coverage. Samplesheet takes priority over `--low_fidelity`. |
 | `purity` | | `float` | | Tumor purity estimate (0–1) for cf-DNA analysis. Required when using `--cfdna`. |
 | `filter` | | `string` | | Whether to filter reads longer than `--max_length` for cf-DNA (`yes`/`no`). |
 
-Now, you can run the pipeline using:
-
-```bash
-nextflow run nf-core/oncoseq \
-   --input samplesheet.csv \
-   --outdir results \
-   --ref_cache /path/to/reference/cache \
-   --basecall_model 'sup' \
-   --m_bases '5mCG_5hmCG' \
-   --adaptive | --wgs | --cfdna \
-   [--realtime INT] \
-   [--skip_basecalling] \
-   [--skip_mapping]
-```
-
-Workflow mode has to be provided, with either `--adaptive`, `--wgs` or`--cfdna`
-
 If your input is already basecalled, use `--skip_basecalling` and provide the path to fastq files as input. If your input is already mapped with minimap2, use `--skip_mapping` and provide the path to bam files as input.
 
-To run in real time while data is still sequencing, use `--realtime [INT]` where you must provide the sequencing time as an integer (hours). **This is only available for adaptive mode.**
-
-![nf-core-oncoseq when run in real time](assets/nf-core-oncoseq_schema_realtime.jpg)
+To run in real time while data is still sequencing, use `--realtime [INT]` where you must provide the sequencing time as an integer (hours).
 
 | Process | 1h to 6h | 6h to 71h | 72h |
 |-----------|----------|------|---------|
 | CNV calling (Delly and QDNAseq) | ✅ | ✅ | ✅ |
-| SV calling (Sniffles2) | ✅ | ✅ | ✅ |
+| SV calling (Sniffles2, Severus, Stellerator) | ✅ | ✅ | ✅ |
 | Tumor classification (Classy) | ✅ | | |
 | SNP calling (Clair3) | | ✅ | ✅ |
-| cnLOH calling (Subchrom) | | | ✅ |
 
 > [!WARNING]
-> Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
-
-For more details and further functionality, please refer to the [usage documentation](https://nf-co.re/oncoseq/usage) and the [parameter documentation](https://nf-co.re/oncoseq/parameters).
+> Please provide pipeline parameters via the CLI or Nextflow `-params-file` option (see [documentation](https://nf-co.re/docs/running/run-pipelines)). Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/running/configuration/configuration-options).
 
 ---
 
@@ -201,13 +184,15 @@ For more details and further functionality, please refer to the [usage documenta
 |-----------|----------|------|---------|-------------|
 | `--input` | ✅ | `path` | | Path to input samplesheet. |
 | `--outdir` | ✅ | `path` | | Directory where outputs will be published. |
-| `--genome` | | `string` | `hg38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`). Used when `genome` is not set in the samplesheet. |
-| `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. If a `vep/` subdirectory is present, `--vep_cache` is not required. |
+| `--genome` | | `string` | `GRCh38` | Reference genome ID (`hg38`/`GRCh38`, `hg19`/`GRCh37`, `hs1`/`CHM13`/`t2t`). Used when `genome` is not set in the samplesheet. |
+| `--ref_cache` | | `path` | | Path to a reference FASTA file or directory. Accepts `.fa`, `.fasta`, `.fa.gz`, `.fasta.gz`. If no `.fai` index is found, it will be generated automatically. If no FASTA is found for the resolved genome, it will be downloaded from UCSC FTP. A matching VEP cache in its `vep/` or `vep_cache/` subdirectory is used when available. |
+| `--vep_cache` | | `path` | | Optional parameter to specify path to vep cache, required if not detected in `--ref_cache`, otherwise the cache for the selected VEP version and reference assembly is downloaded automatically on the Nextflow launch host, which must have internet access. |
 | `--basecall_model` | ✅ | `string` | | Dorado basecalling model (e.g. `sup`, `hac`, `fast`). Supports version pinning with `@v`. |
-| `--m_bases` | ✅* | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification** |
+| `--m_bases` | | `string` | | Basecalling modification model (e.g. `5mCG_5hmCG`, `5mC`). **Required to enable tumor classification when basecalling inside workflow.** |
 | `--skip_basecalling` | | `boolean` | `false` | Skip basecalling; input is FASTQ files. |
-| `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is BAM files. |
-| `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit` column in samplesheet). |
+| `--skip_mapping` | | `boolean` | `false` | Skip basecalling and mapping; input is genome aligned BAM files. |
+| `--demux` | | `boolean` | `false` | Enable demultiplexing (requires `kit`, `barcode` and `project` column in samplesheet). |
+| `--bed` | ✅* | `path` | v2.0.1-pre-merge-panel-20kb-pad.bed | panel file used for adaptive sampling in BED format with coordinates matching the selected or provided reference genome, including any flanking/padding (provided through `--padding` option). Default is BED file with 657 regions of interest, including regions for known germline and somatic variants in cancer. |
 
 ---
 
@@ -217,10 +202,8 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--adaptive` | | `boolean` | `false` | Adaptive sampling mode (requires `--bed` and `--padding`). |
-| `--wgs` | | `boolean` | `false` | Whole Genome Sequencing mode. |
-| `--cfdna` | | `boolean` | `false` | cf-DNA sequencing mode *(in development)*. |
-| `--realtime` | | `integer` | | Real-time mode duration in hours. *Adaptive mode only*. |
+| `--cfdna` | | `boolean` | `false` | cf-DNA sequencing mode. |
+| `--realtime` | | `integer` | | Real-time mode duration in hours. |
 
 ---
 
@@ -228,9 +211,8 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--bed` | ✅* | `path` | v1.0.6-pre-merge-panel-20kb-pad.bed | BED file with target regions. *Required for `--adaptive`.* |
-| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions. *Required for `--adaptive`.* |
-| `--low_fidelity` | | `path` | default | Text file listing low-fidelity genes to exclude from coverage. |
+| `--padding` | ✅* | `integer` | `20000` | Padding (bp) around target regions used for adaptive sampling seqeuncing. |
+| `--low_fidelity` | | `path` | assets/panel_low_fidelity.txt | Text file listing low-fidelity genes to exclude from coverage. |
 
 ---
 
@@ -238,9 +220,8 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--minqs` | | `integer` | `10` | Minimum Phred quality score for read filtering. |
 | `--device` | | `string` | | GPU device(s) for Dorado (e.g. `cuda:0,1`). Auto-detected if not specified. |
-| `--batch` | | `integer` | | Batch size for basecalling. Auto-tuned if not specified. |
+| `--batch` | | `string` | | Batch size for basecalling. Auto-tuned if not specified. |
 | `--mapping_small` | | `boolean` | `true` | Use reduced resources for mapping (recommended for adaptive/cfDNA). |
 
 ---
@@ -253,8 +234,10 @@ Choose exactly one mode:
 | `--qdnaseq_binsize` | | `integer` | `500` | Bin size (kb) for QDNAseq CNV calling. |
 | `--subchrom_binsize` | | `integer` | `500` | Bin size (kb) for SubChrom CNV calling. |
 | `--delly_bin_size` | | `integer` | `50000` | Bin size (bp) for Delly CNV calling. |
-| `--sv_targets` | | `path` | `NOCSV` | CSV file for SV visualization: columns `GENE`, `pos` (Figeno output). |
-| `--sv_exclude` | | `path` | default | Text file listing genes to exclude from SV analysis. |
+| `--sv_targets` | | `path` | assets/sv-list.csv | CSV file for additional SV visualization of regions often involved in intragenic deletions: columns `GENE`, `pos` (Figeno output). |
+| `--fusion_targets` | | `path` | assets/fusion-list.txt | Text file containing fusion partners to call with stellerator (gene symbols). First column is the first partner, second column is the second partner. Default is a list of known fusions involved in solid and hematological tumors. |
+| `--sv_exclude` | | `path` | assets/sv_exclude.txt | Text file listing genes to exclude from SV analysis. The default includes structural variants that come up for the majority of samples and are not clinically known to be relevant. |
+| `--snp_exclude` | | `path` | assets/snp_exclude.txt | Text file listing genes to exclude from SNP analysis. The default includes variants that are not clinically relevant. |
 
 ---
 
@@ -262,7 +245,6 @@ Choose exactly one mode:
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--vep_cache` | ✅* | `path` | | Path to VEP cache directory. *Required for annotation unless a `vep/` subdirectory exists in `--ref_cache`.* |
 | `--vep_version` | | `integer` | `115` | Ensembl VEP version matching your cache. |
 | `--filtervep_expression` | | `string` | IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE | FilterVEP expression for SNV filtering (impacts, frequencies, etc.). |
 
@@ -275,7 +257,11 @@ Choose exactly one mode:
 | `--max_length` | | `integer` | `700` | Maximum read length (bp) for cf-DNA filtering (removes longer reads). |
 | `--ichor_bin_size` | | `integer` | `500000` | Bin size (bp) for IchorCNA CNV calling. |
 | `--min_mapq_ichor` | | `integer` | `20` | Minimum MAPQ threshold for IchorCNA. |
-| `--rca` | | `boolean` | `false` | Enable rolling circle amplification mode (runs TideHunter). |
+| `--chr_wig` | | `string` | chr1,chr2,...,chrX,chrY | Comma-separated chromosome list used by `readCounter` to build the IchorCNA wig file. |
+| `--custom_ploidy` | | `string` | `c(2,3)` | Candidate tumour ploidy values passed to IchorCNA (R vector syntax). |
+| `--custom_maxCN` | | `integer` | `5` | Maximum copy number for IchorCNA to consider. |
+| `--genome_style` | | `string` | `UCSC` | Chromosome naming style IchorCNA uses internally (`UCSC` or `Ensembl`). |
+| `--estimate_sc_prevalence` | | `boolean` | `false` | Estimate subclonal prevalence within IchorCNA (slower when enabled). |
 
 ---
 
@@ -298,13 +284,11 @@ Choose exactly one mode:
 | `--max_cpus` | | `integer` | `4` | Maximum CPU cores any single process can use. |
 | `--max_time` | | `string` | `4h` | Maximum execution time for any single process. |
 | `--huge` | | `boolean` | `false` | Scale resource allocations for very large datasets. |
+| `--wgs` | | `boolean` | `false` | Scale basecalling resources when running on a non-adaptive lrWGS. |
 
 ---
 
 ## Pipeline output
-
-To see the results of an example test run with a full size dataset refer to the [results](https://nf-co.re/oncoseq/results) tab on the nf-core website pipeline page.
-For more details about the output files and reports, please refer to the [output documentation](https://nf-co.re/oncoseq/output).
 
 <table>
   <thead>
@@ -320,38 +304,55 @@ For more details about the output files and reports, please refer to the [output
       <td rowspan="2">Reads</td>
       <td><code>reads/{sample}_passed.fq.gz</code></td>
       <td>Merged raw reads passing QS filter ≥ <code>--minqs</code></td>
-      <td><code>--skip_basecalling</code> not used</td>
+      <td>Not generated with <code>--skip_basecalling</code></td>
     </tr>
     <tr>
       <td><code>reads/{sample}_failed.fq.gz</code></td>
       <td>Merged raw reads failing QS filter ≥ <code>--minqs</code></td>
-      <td><code>--skip_basecalling</code> not used</td>
+      <td>Not generated with <code>--skip_basecalling</code></td>
     </tr>
     <tr>
       <td rowspan="2">Alignments</td>
-      <td><code>alignments/{sample}.indexed.bam</code><br><code>alignments/{sample}.indexed.bam.bai</code></td>
+      <td>
+        <code>alignments/{sample}.indexed.bam</code><br>
+        <code>alignments/{sample}.indexed.bam.bai</code>
+      </td>
       <td>Aligned and sorted BAM with index</td>
       <td>Always</td>
     </tr>
     <tr>
-      <td><code>phasing/{sample}_haplotagged.bam</code><br><code>phasing/{sample}_haplotagged.bam.bai</code></td>
+      <td>
+        <code>phasing/{sample}_haplotagged.bam</code><br>
+        <code>phasing/{sample}_haplotagged.bam.bai</code>
+      </td>
       <td>Phased BAM with HP tags from <a href="https://whatshap.readthedocs.io/">WhatsHap</a></td>
-      <td><code>--adaptive</code> or <code>--wgs</code> only</td>
+      <td>Excluded from<code>--cfdna</code></td>
     </tr>
     <tr>
-      <td rowspan="7">Variants</td>
-      <td><code>variants/{sample}_snp_somatic_phased.vcf.gz</code><br><code>variants/{sample}_snp_somatic_vep.vcf.gz</code></td>
+      <td rowspan="8">Variants</td>
+      <td>
+        <code>variants/{sample}_snp_somatic_phased.vcf.gz</code><br>
+        <code>variants/{sample}_snp_somatic_vep.vcf.gz</code>
+      </td>
       <td>Phased somatic SNV/indels from <a href="https://github.com/HKU-BAL/ClairS-TO">ClairS-TO</a></td>
-      <td><code>--adaptive</code> or <code>--wgs</code>, or <code>--cfdna</code> ≥10×</td>
+      <td>For <code>--cfdna</code>, only if coverage ≥10×</td>
     </tr>
     <tr>
-      <td><code>variants/{sample}_snp_germline_phased.vcf.gz</code><br><code>variants/{sample}_snp_germline_vep.vcf.gz</code></td>
+      <td>
+        <code>variants/{sample}_snp_germline_phased.vcf.gz</code><br>
+        <code>variants/{sample}_snp_germline_vep.vcf.gz</code>
+      </td>
       <td>Phased germline SNV/indels from <a href="https://github.com/HKU-BAL/Clair3">Clair3</a></td>
-      <td><code>--adaptive</code> or <code>--wgs</code>, or <code>--cfdna</code> ≥10×</td>
+      <td>For <code>--cfdna</code>, only if coverage ≥10×</td>
     </tr>
     <tr>
       <td><code>variants/{sample}_sv.vcf.gz</code></td>
       <td>Phased SVs from <a href="https://github.com/fritzsedlazeck/Sniffles">Sniffles2</a></td>
+      <td>Always</td>
+    </tr>
+    <tr>
+      <td><code>variants/{sample}_sv_severus.vcf.gz</code></td>
+      <td>Phased structural variants found by <a href="https://github.com/KolmogorovLab/Severus">Severus</a> and annotated by EnsemblVep</td>
       <td>Always</td>
     </tr>
     <tr>
@@ -367,12 +368,12 @@ For more details about the output files and reports, please refer to the [output
     <tr>
       <td><code>variants/subchrom/{sample}_cnv_calls.vcf</code></td>
       <td>CNVs from <a href="https://github.com/Shaohua-Lei/SubChrom">SubChrom</a></td>
-      <td><code>--adaptive</code> or <code>--wgs</code> always; <code>--cfdna</code> ≥10× only</td>
+      <td>For <code>--cfdna</code>, only if coverage ≥10×</td>
     </tr>
     <tr>
       <td><code>phasing/{sample}.haploblocks.gtf</code></td>
       <td>Phase block GTF file</td>
-      <td><code>--adaptive</code> or <code>--wgs</code> only</td>
+      <td>For <code>--cfdna</code>, only if coverage ≥10×</td>
     </tr>
     <tr>
       <td rowspan="5">Report</td>
@@ -386,7 +387,10 @@ For more details about the output files and reports, please refer to the [output
       <td>Always</td>
     </tr>
     <tr>
-      <td><code>reports/seqkit/{sample}_pass.tsv</code><br><code>reports/{sample}_fail.tsv</code></td>
+      <td>
+        <code>reports/seqkit/{sample}_pass.tsv</code><br>
+        <code>reports/{sample}_fail.tsv</code>
+      </td>
       <td>Read QC stats (passed/failed)</td>
       <td>Always</td>
     </tr>

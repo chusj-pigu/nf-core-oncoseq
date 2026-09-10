@@ -7,7 +7,7 @@ process REMOVE_PADDING {
     label 'process_single_cpu'
     label 'process_very_low_memory'
 
-    tag 'bed'
+    tag "$meta.id"
 
     input:
     tuple val(meta),

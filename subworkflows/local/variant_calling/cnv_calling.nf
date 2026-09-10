@@ -43,24 +43,35 @@ workflow CNV_CALLING {
     DELLY_CNV(ch_in_delly)
     BCFTOOLS_QUERY_CNV(DELLY_CNV.out.bcf)
 
-    ch_ref_subchrom = ref
-        .map { meta, ref_id, ref_fasta, _ref_fai ->
-            tuple(meta, ref_id, ref_fasta) }
+    if (!params.realtime) {
+        ch_ref_subchrom = ref
+            .map { meta, ref_id, ref_fasta, _ref_fai ->
+                tuple(meta, ref_id, ref_fasta) }
 
-    ch_in_subchrom_wgs = vcf
-        .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('_germline_snp_snpeff') }       // Only keep the snp file created by clair3 annotated with SnpEff
-        .map { meta, vcf_file, _vcf_tbi ->
-            def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')       // Restore meta to be sample id only to join with ref
-                tuple(meta_restore, vcf_file)
-                }
-        .join(ch_ref_subchrom)
+        ch_in_subchrom_wgs = vcf
+            .filter { meta, _vcf_file, _vcf_tbi -> meta.id.endsWith('_germline_snp_snpeff') }       // Only keep the snp file created by clair3 annotated with SnpEff
+            .map { meta, vcf_file, _vcf_tbi ->
+                def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')       // Restore meta to be sample id only to join with ref
+                    tuple(meta_restore, vcf_file)
+                    }
+            .join(ch_ref_subchrom)
 
-    SUBCHROM_CALL_WGS(ch_in_subchrom_wgs)
+        SUBCHROM_CALL_WGS(ch_in_subchrom_wgs)
+
+        ch_subchrom_png = SUBCHROM_CALL_WGS.out.cnv_png
+        ch_subchrom_focal = SUBCHROM_CALL_WGS.out.focal_png
+        ch_subchrom_versions = SUBCHROM_CALL_WGS.out.versions
+
+    } else {
+        ch_subchrom_png = channel.empty()
+        ch_subchrom_focal = channel.empty()
+        ch_subchrom_versions = channel.empty()
+    }
 
     ch_versions = QDNASEQ_CALL.out.versions
         .mix(DELLY_CNV.out.versions)
         .mix(BCFTOOLS_QUERY_CNV.out.versions)
-        .mix(SUBCHROM_CALL_WGS.out.versions)
+        .mix(ch_subchrom_versions)
 
     emit:
     qdnaseq_plot           = QDNASEQ_CALL.out.cov_png
@@ -68,8 +79,8 @@ workflow CNV_CALLING {
     qdnaseq_segs           = QDNASEQ_CALL.out.segs_bed
     delly_segs             = BCFTOOLS_QUERY_CNV.out.bed
     delly_cov              = DELLY_CNV.out.cov
-    subchrom_plot_wgs      = SUBCHROM_CALL_WGS.out.cnv_png
-    subchrom_gene_plot_wgs = SUBCHROM_CALL_WGS.out.focal_png
+    subchrom_plot_wgs      = ch_subchrom_png
+    subchrom_gene_plot_wgs = ch_subchrom_focal
     versions               = ch_versions
 
 }

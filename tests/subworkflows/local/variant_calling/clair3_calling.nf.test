@@ -14,21 +14,27 @@ nextflow_workflow {
             workflow {
                 """
                 // define inputs of the workflow here. Example:
-                ch_bam = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/input/HG003_chr20_demo.bam")
-                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/input/HG003_chr20_demo.bam.bai")
+                ch_bam = Channel.fromPath("${projectDir}/test.bam")
+                ch_bai = Channel.fromPath("${projectDir}/test.bam.bai")
                 ch_input0 = ch_bam
                     .combine(ch_bai)
                     .map { bam, bai ->
                         tuple(id:'HG003',bam,bai)}
 
                 input[0] = ch_input0
-                input[1] = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/ref/GRCh38_no_alt_chr20.fa.gz*")
-                    .toSortedList()
+                ref = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/ref/GRCh38_no_alt_chr20.fa.gz")
+                ref_index = Channel.fromPath("${projectDir}/test_data/variant_calling/clair3/ref/GRCh38_no_alt_chr20.fa.gz.fai")
+                input[1] = ref
+                    .combine(ref_index)
                     .map { ref, ref_fai ->
-                        tuple(id:"HG003", "GRCh38", ref, ref_fai) }
+                        tuple(id:"HG003", "hg38", ref, ref_fai) }
                 input[2] = Channel.of('fast')
                 // Too big for github, to upload from ncbi
-                input[3] = Channel.fromPath("${projectDir}/test_data/realistic_data/hg38_clinvar.vcf.{gz,gz.tbi}")
+                ch_bed = channel.fromPath("${projectDir}/assets/v2.0.1-pre-merge-panel-20kb-pad.bed")
+                    .map { bed ->
+                        tuple(id:"HG003", bed)}
+                input[3] = ch_bed
+                input[4] = channel.fromPath("${projectDir}/test_data/realistic_data/vep")
                 """
             }
         }

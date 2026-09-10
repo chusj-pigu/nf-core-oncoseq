@@ -49,11 +49,12 @@ include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.
 // 1. Skip basecalling: Start from pre-basecalled FASTQ files
 // 2. Full pipeline: Perform basecalling (simplex or multiplex) followed by analysis
 //
-workflow ADAPTIVE {
+workflow ADAPTIVE_WGS {
 
     take:
     samplesheet             // channel: samplesheet read in from --input
     demux_samplesheet       // channel: demux samplesheet read in from --demux_samplesheet
+    tumor_type              // channel: tumor type read in from samplesheet
     ref                     // channel: reference for mapping, either empty if skipping mapping, or a path
     clairs_model            // channel: model for ClairS variant calling
     basecall_model          // channel: model for basecalling
@@ -69,6 +70,18 @@ workflow ADAPTIVE {
     //
 
     ch_versions = channel.empty()
+
+    // Process bed
+
+    ch_bed_pad = bed
+        .map { meta,bedfile,padding,_low_fidelity ->
+            tuple(meta,bedfile,padding) }
+        .groupTuple(by:[1,2])
+
+    REMOVE_PADDING(ch_bed_pad)
+
+    ch_bed_nopad = REMOVE_PADDING.out.bed
+        .transpose()
 
     // Branch 1: Skip basecalling - start from pre-basecalled FASTQ files
     if (params.skip_basecalling || params.skip_mapping) {
@@ -161,6 +174,8 @@ workflow ADAPTIVE {
             .map { meta,bedfile,padding,low_fidelity ->
                 tuple(id:meta.id,bedfile,padding,low_fidelity)}
 
+        ch_versions = ch_versions
+                .mix(SPLIT_BAMS_TIME.out.versions)
 
         if (params.m_bases) {
             ch_bam_1h = ch_bam_for_calling
@@ -171,14 +186,14 @@ workflow ADAPTIVE {
 
             CLASSY(
                 ch_bam_classy,
-                ch_ref_for_calling
+                ch_ref_for_calling,
+                tumor_type
             )
-            ch_versions = ch_versions
-                .mix(SUBSAMPLE_TIME.out.versions)
 
             CLASSIFIER_REPORT(
                 CLASSY.out.plot,
-                CLASSY.out.pred
+                CLASSY.out.pred,
+                tumor_type
             )
 
             ch_classy_section = CLASSIFIER_REPORT.out.sections
@@ -208,7 +223,8 @@ workflow ADAPTIVE {
 
             CLASSY(
                 ch_in_classy,
-                ch_ref_for_calling
+                ch_ref_for_calling,
+                tumor_type
             )
 
             ch_versions = ch_versions
@@ -216,7 +232,8 @@ workflow ADAPTIVE {
 
             CLASSIFIER_REPORT(
                 CLASSY.out.plot,
-                CLASSY.out.pred
+                CLASSY.out.pred,
+                tumor_type
             )
 
             ch_classy_section = CLASSIFIER_REPORT.out.sections
@@ -229,6 +246,7 @@ workflow ADAPTIVE {
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
         ch_bed,
+        ch_bed_nopad,
         ch_ref_for_calling
     )
 
@@ -237,7 +255,7 @@ workflow ADAPTIVE {
         ch_bam_for_calling,
         ch_ref_for_calling,
         clairs_model,
-        COVERAGE_SEPARATE.out.split_bed,
+        ch_bed_nopad,
         vep_cache
     )
 
@@ -246,7 +264,7 @@ workflow ADAPTIVE {
         ch_bam_for_calling,
         ch_ref_for_calling,
         basecall_model,
-        COVERAGE_SEPARATE.out.split_bed,
+        ch_bed_nopad,
         vep_cache
     )
 
@@ -269,11 +287,16 @@ workflow ADAPTIVE {
         PHASING_GERMLINE.out.haptag_bam
             .map { meta, bamfile, bai ->
             // Restore original sample ID for output naming
-            def meta_restore = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff_phased', '', '')
-            meta_restore = modifyMetaId(meta_restore, 'replace', '_germline_snp_snpeff_phased', '', '')
+                def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff_phased', '', '')
             tuple(meta_restore, bamfile, bai)
             },
-        ch_ref_for_calling
+        ch_ref_for_calling,
+        PHASING_GERMLINE.out.phased_vcf
+            .map { meta, vcf ->
+                def meta_restore = modifyMetaId(meta, 'replace', '_germline_snp_snpeff_phased', '', '')
+            tuple(meta_restore, vcf)
+            },
+        vep_cache
     )
 
     // Copy number variant calling
@@ -289,7 +312,9 @@ workflow ADAPTIVE {
     // Filter variants to visualize :
     VARIANT_PROCESS (
         ch_bam_for_calling,
+        ch_bed_nopad,
         SV_CALLING.out.vcf,
+        SV_CALLING.out.stellerator,
         CNV_CALLING.out.qdnaseq_bed,
         CNV_CALLING.out.qdnaseq_segs,
         targets,
@@ -371,17 +396,20 @@ workflow ADAPTIVE {
         .mix(FIGENO_REPORT.out.sections)
         .mix(ch_classy_section)
 
-    // channel id containing only meta
-    ch_id = ch_bam_for_calling
-        .map { meta, bam, bai ->
-        meta}
+    // channel containing parameters used:
 
-    ch_title = ch_id
-        .map { meta ->
-        tuple(meta, "OncoSeq Adaptive Sampling Report — ${meta.id}")}
+    ch_cfdna = channel.empty()
+
+    ch_params = ref
+        .join(bed)
+
+    ch_title = ch_params
+        .map { meta, _refid, _ref_fasta, _ref_index, _bed_file, _padding, _lowfid ->
+        tuple(meta, "OncoSeq Workflow Report — ${meta.id}")}
 
     MIDNIGHT_REPORT(
-        ch_id,
+        ch_params,
+        ch_cfdna,
         ch_sections,
         ch_versions,
         ch_title

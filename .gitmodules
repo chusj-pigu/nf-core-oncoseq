@@ -78,14 +78,6 @@
 	path = modules/local/ichorcna
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = ichorcna
-[submodule "modules/local/tidehunter"]
-	path = modules/local/tidehunter
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = tidehunter
-[submodule "modules/local/sturgeon"]
-	path = modules/local/sturgeon
-	url = https://github.com/chusj-pigu/wf-modules
-	branch = sturgeon
 [submodule "modules/local/modkit"]
 	path = modules/local/modkit
 	url = https://github.com/chusj-pigu/wf-modules
@@ -106,3 +98,11 @@
 	path = modules/local/classy
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = classy
+[submodule "modules/local/severus"]
+	path = modules/local/severus
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = severus
+[submodule "modules/local/stellerator"]
+	path = modules/local/stellerator
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = stellerator
