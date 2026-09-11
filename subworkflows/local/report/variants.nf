@@ -241,7 +241,7 @@ workflow FIGENO_REPORT {
             def tuples = []
             table.readLines().each { line ->
                 def cols = line.split('\t')
-                def gene = cols[1]
+                def gene = cols[1].replaceAll(/\.\.\.\(/, '').replaceAll(/\)\.\.\./, '')
                 def support = cols[6]
                 def type = cols[2]
                 def new_meta = meta.id + '_' + gene
