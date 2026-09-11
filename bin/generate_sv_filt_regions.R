@@ -201,12 +201,11 @@ parse_other_sv <- function(df) {
     filter(!str_detect(ID, "BND")) %>%
     mutate(
       END = as.numeric(str_extract(V8, "(?<=END=)\\d+")),
-      LEN = as.numeric(str_extract(V8, "(?<=SVLEN=)\\d+")),
+      LEN = abs(as.numeric(str_extract(V8, "(?<=SVLEN=)-?\\d+"))),
       TYPE = str_extract(V8, "(?<=SVTYPE=)[^;]+"),
       GENE = ifelse(GENE == "", V1, GENE)) %>%
     filter(!GENE %in% unwanted_calls) %>%
-    mutate(case_when(is.na(LEN) ~ END - START,
-                     TRUE ~ LEN))
+    mutate(LEN = case_when(is.na(LEN) ~ abs(END - START), TRUE ~ LEN))
   return(other)
 }
 
@@ -257,6 +256,9 @@ region_figeno_other <- function(other) {
       LEN  = END - START
     ) %>%
     filter(LEN <= 1000000) %>%
+    mutate(GENE = gsub("\\.\\.\\.\\(", "", GENE),
+      GENE = gsub("\\)\\.\\.\\.", "", GENE)
+    ) %>%
     select(GENE,pos)
   return(figeno_other)
 }
