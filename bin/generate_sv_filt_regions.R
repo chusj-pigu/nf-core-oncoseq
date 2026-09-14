@@ -235,7 +235,7 @@ region_figeno_bnd <- function(bnd) {
       FUSION = paste(sample_id, FUSION, sep = "_")
     ) %>%
     mutate(FUSION = gsub("\\.\\.\\.\\(", "", FUSION),
-      FUSION = gsub("\\)\\.\\.\\.", "", FUSION)
+      FUSION = gsub("\\)\\.\\.\\.", "", FUSION)) %>%
     select(FUSION, pos, pos2)
   return(figeno_bnd)
 }
