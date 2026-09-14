@@ -69,20 +69,20 @@ extract_gene <- function(x,source) {
 count_genes <- function(genes_str) {
   ifelse(is.na(genes_str), 0L, str_count(genes_str, "-") + 1L)
 }
- 
+
 cap_genes <- function(genes_str, head_n = 5, tail_n = 5) {
   # For gene-dense SVs, show the first head_n and last tail_n genes and
   # collapse the middle into a count
   if (is.na(genes_str)) return(genes_str)
- 
+
   genes <- str_split(genes_str, "-")[[1]]
   n <- length(genes)
   if (n <= head_n + tail_n) return(genes_str)
- 
+
   head_genes <- genes[seq_len(head_n)]
   tail_genes <- genes[(n - tail_n + 1):n]
   middle_n <- n - head_n - tail_n
- 
+
   paste0(
     paste(head_genes, collapse = "-"),
     "-...(", middle_n, "_genes)...-",
@@ -234,6 +234,8 @@ region_figeno_bnd <- function(bnd) {
       pos2 = paste0(CHR2, ":", clamp0(BREAKPOINT2 - 30000), "-", clamp0(BREAKPOINT2 + 30000)),
       FUSION = paste(sample_id, FUSION, sep = "_")
     ) %>%
+    mutate(FUSION = gsub("\\.\\.\\.\\(", "", FUSION),
+      FUSION = gsub("\\)\\.\\.\\.", "", FUSION)
     select(FUSION, pos, pos2)
   return(figeno_bnd)
 }
