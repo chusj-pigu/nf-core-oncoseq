@@ -891,7 +891,7 @@ def getVepCacheDetails(genome) {
     def assemblies = [
         hg38: [assembly: 'GRCh38', species: 'homo_sapiens'],
         hg19: [assembly: 'GRCh37', species: 'homo_sapiens'],
-        hs1 : [assembly: 'CHM13', species: 'homo_sapiens']
+        hs1 : [assembly: 'T2T-CHM13v2.0', species: 'homo_sapiens_gca009914755v4']
     ]
 
     def aliases = [

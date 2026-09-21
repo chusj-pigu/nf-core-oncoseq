@@ -250,8 +250,8 @@ workflow CLAIRS_TO_CALLING {
 
     ENSEMBLVEP_HS1(
         ch_vep.hs1,
-        "CHM13",
-        "homo_sapiens",
+        "T2T-CHM13v2.0",
+        "homo_sapiens_gca009914755v4",
         params.vep_version,
         vep_cache_resolved,
         ch_fasta.hs1,
