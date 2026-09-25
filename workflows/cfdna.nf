@@ -25,6 +25,7 @@ include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.
 include { VARIANT_REPORT        } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT      } from '../subworkflows/local/report/adaptive.nf'
 include { ONTIME_TIME_RANGE    } from '../modules/local/ontime/main.nf'
+include { SAMTOOLS_TOFASTQ as SAMTOOLS_TIME_FASTQ } from '../modules/local/samtools/main.nf'
 
 // Useful functions to handle time parsing
 def parseToInstant(str) {
@@ -578,6 +579,19 @@ workflow CFDNA {
         .join(ch_bed_for_calling)
 
     if (params.realtime) {
+
+        ch_bam = MAPPING.out.bam
+                .map { meta, bam, _bai ->
+                    tuple(meta,bam) }
+
+        if (params.skip_mapping) {
+            // We have to convert bam to fastq when bam input is from MinKnow :
+            SAMTOOLS_TIME_FASTQ(ch_bam)
+
+            ONTIME_TIME_RANGE(SAMTOOLS_TIME_FASTQ.out.fq)
+        } else {
+            ONTIME_TIME_RANGE(ch_bam)
+        }
         ch_bam = MAPPING.out.bam
             .map { meta, bam, _bai ->
                 tuple(meta,bam) }
