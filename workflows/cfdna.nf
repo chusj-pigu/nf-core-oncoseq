@@ -589,14 +589,10 @@ workflow CFDNA {
             SAMTOOLS_TIME_FASTQ(ch_bam)
 
             ONTIME_TIME_RANGE(SAMTOOLS_TIME_FASTQ.out.fq)
+
         } else {
             ONTIME_TIME_RANGE(ch_bam)
         }
-        ch_bam = MAPPING.out.bam
-            .map { meta, bam, _bai ->
-                tuple(meta,bam) }
-
-        ONTIME_TIME_RANGE(ch_bam)
 
         // Automatically detect the time stamp
 
