@@ -25,8 +25,9 @@ include { VARIANT_PROCESS                       } from  '../subworkflows/local/v
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
 
 //
-include { REMOVE_PADDING        } from '../modules/local/adaptive_specific/main.nf'
-include { modifyMetaId          } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+include { REMOVE_PADDING         } from '../modules/local/adaptive_specific/main.nf'
+include { modifyMetaId           } from '../subworkflows/local/utils_nfcore_oncoseq_pipeline/main.nf'
+include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 
 // Reporting
 include { ONTIME_TIME_RANGE } from '../modules/local/ontime/main.nf'
@@ -231,7 +232,9 @@ workflow LOCAL_REALTIME {
 
     if (realtime < 6) {                 // Before 6h of realtime sequencing, include CNV calling with QDNAseq, SV calling and Marlin
 
-        ch_clair3_phased_placeholder = channel.empty()
+        ch_clair3_phased_placeholder = MAPPING.out.bam
+            .map { meta, _bam, _bai ->
+                tuple(meta, [])}
 
         SV_UNPHASED(
             MAPPING.out.bam,
@@ -423,16 +426,43 @@ workflow LOCAL_REALTIME {
         }
 
      // channel id containing only meta
-    ch_params = ref
-        .join(bed)
+    ch_params = bed
 
     ch_cfdna = channel.empty()
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        Collect software version information from all processes for inclusion in reports
+        and pipeline provenance tracking. Essential for reproducibility.
+    */
+
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+        .mix(topic_versions_string)
 
     MIDNIGHT_REPORT(
         ch_params,
         ch_cfdna,
         ch_sections,
-        ch_versions,
+        ch_collated_versions,
         ch_title
     )
 
