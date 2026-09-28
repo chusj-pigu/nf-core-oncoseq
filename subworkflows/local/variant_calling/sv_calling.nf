@@ -3,19 +3,17 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SNIFFLES_CALL                     } from '../../../modules/local/sniffles/main.nf'
-include { SNPEFF_ANNOTATE                   } from '../../../modules/local/snpeff/main.nf'
-include { SEVERUS_TUMOR_PHASED              } from '../../../modules/local/severus/main.nf'
-include { SEVERUS_TUMOR_UNPHASED            } from '../../../modules/local/severus/main.nf'
+include { SNIFFLES                          } from '../../../modules/nf-core/sniffles'
+include { BCFTOOLS_INDEX                    } from '../../../modules/nf-core/bcftools/index'
+include { SEVERUS_TUMOR                     } from '../../../modules/local/severus/main.nf'
+include { HTSLIB_BGZIPTABIX as BGZIP_INTER  } from '../../../modules/nf-core/htslib/bgziptabix'
+
+include { BCFTOOLS_VIEW                     } from '../../../modules/nf-core/bcftools/view'
+include { SNPEFF_ANNOTATE                   } from '../../../modules/local/snpeff'
 include { STELLERATOR                       } from '../../../modules/local/stellerator/main.nf'
-include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38 } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
-include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19 } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
-include { ENSEMBLVEP_VEP as ENSEMBLVEP_HS1  } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
+include { ENSEMBLVEP_VEP                    } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
 include { ENSEMBLVEP_FILTERVEP              } from '../../../modules/nf-core/ensemblvep/filtervep/main.nf'
-include { BCFTOOLS_SORT                     } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX                    } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_VIEW as BCFTOOLS_COUNT   } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_VIEW as BGZIP_VCF        } from '../../../modules/local/bcftools/main.nf'
+include { HTSLIB_BGZIPTABIX as BGZIP_FINAL  } from '../../../modules/nf-core/htslib/bgziptabix'
 include { modifyMetaId                      } from '../utils_nfcore_oncoseq_pipeline'
 
 /*
@@ -34,47 +32,38 @@ workflow SV_CALLING {
 
     main:
 
+    def genomeMap = [
+        'hg38'   : 'GRCh38',
+        'GRCh38' : 'GRCh38',
+        'hg19'   : 'GRCh37',
+        'GRCh37' : 'GRCh37',
+        'hs1'    : 'CHM13',
+        'CHM13'  : 'CHM13',
+        't2t'    : 'CHM13'
+    ]
+
+    ch_vcf_annotated = channel.empty()
+
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      SNIFLLES2
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
 
-    // Sniffles2
-    ch_in_sniffles = bam
-        .join(ref)
+    ch_ref = ref
+        .map { genome, ref_fasta, _ref_faidx ->
+            tuple(genome,ref_fasta)}
 
-    SNIFFLES_CALL(ch_in_sniffles)
+    SNIFFLES(
+        bam,
+        ch_ref,
+        [[],[]],
+        true,
+        false
 
-    BCFTOOLS_SORT(SNIFFLES_CALL.out.vcf)
+    )
 
-    ch_ref_type = ref
-        .map { meta, refid, _ref_fasta, _ref_fai ->
-            tuple(meta, refid) }
-
-    // Branch ref channel to create database channel
-    ch_databases = ch_ref_type.branch {
-        hg38: { _meta, refid -> refid.matches('hg38|GRCh38') }
-        hg19: { _meta, refid -> refid.matches('hg19|GRCh37') }
-        other: true
-            return 'Error'
-    }
-
-    ch_databases_hg38 = ch_databases.hg38
-        .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
-    ch_databases_hg19 = ch_databases.hg19
-        .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
-
-    ch_databases_ref = ch_databases_hg38
-        .mix(ch_databases_hg19)
-
-    ch_sv_annotate = BCFTOOLS_SORT.out.vcf
-        .join(ch_databases_ref)
-        .map { meta, output, database ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_sv_sniffles')
-            tuple(new_meta, output, database) }
-
-    SNPEFF_ANNOTATE(ch_sv_annotate)
+    BCFTOOLS_INDEX(SNIFFLES.out.vcf)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -82,108 +71,25 @@ workflow SV_CALLING {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
 
-    if (params.realtime || params.cfdna) {
+    ch_vcf_snp = snp_vcf
+        .map { meta, vcf_file ->
+            def new_meta = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')
+            tuple(new_meta, vcf_file) }
 
-        ch_severus_in = bam
-            .join(ch_ref_type)
-        SEVERUS_TUMOR_UNPHASED(ch_severus_in)
-        ch_vcf_severus = SEVERUS_TUMOR_UNPHASED.out.vcf
-        ch_severus_versions = SEVERUS_TUMOR_UNPHASED.out.versions
-    } else {
+    ch_severus_in = bam
+        .join(ch_vcf_snp)
+        .combine(ch_ref)
+        .map { meta, bamfile, bai, vcf, genome, _ref_fasta ->
+            def vcf_phased = vcf ?: []
+            tuple(meta,bamfile,bai,vcf_phased,genome.id)}
 
-        ch_vcf_snp = snp_vcf
-            .map { meta, vcf_file ->
-                def new_meta = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')
-                tuple(new_meta, vcf_file) }
+    SEVERUS_TUMOR(ch_severus_in)
 
-        ch_severus_in = bam
-            .join(ch_vcf_snp)
-            .join(ch_ref_type)
-
-        SEVERUS_TUMOR_PHASED(ch_severus_in)
-        ch_vcf_severus = SEVERUS_TUMOR_PHASED.out.vcf
-        ch_severus_versions = SEVERUS_TUMOR_PHASED.out.versions
-    }
-
-    BCFTOOLS_COUNT(ch_vcf_severus)
-
-    ch_count_variant = BCFTOOLS_COUNT.out.vcf
-        .branch { meta, vcf ->
-            positive: vcf.size() > 0
-                return meta
-            negative: true
-                return meta
-        }
-
-    ch_severus_empty = ch_count_variant.negative
-        .join(ch_vcf_severus)
-        .map { meta, vcf ->
-            tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf)
-        }
-
-    ch_vep = ch_vcf_severus
-        .join(ch_count_variant.positive)
-        .join(ch_ref_type)
-        .branch { meta, vcf, genome ->
-            hg38: genome == "hg38"
-            return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf,[])
-            hg19: genome == "hg19"
-            return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf,[])
-            hs1: genome == "hs1"
-                return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf,[])
-            }
-
-    ch_fasta = ch_vcf_severus
-        .join(ch_count_variant.positive)
-        .join(ref)
-        .branch { meta, _vcf, genome, ref_fasta, _ref_index ->
-            hg38: genome == "hg38"
-            return tuple(meta,ref_fasta)
-            hg19: genome == "hg19"
-            return tuple(meta,ref_fasta)
-            hs1: genome == "hs1"
-                return tuple(meta,ref_fasta)
-            }
-
-    def vep_cache_resolved = vep_cache ? vep_cache : []
-
-    ENSEMBLVEP_HG38(
-        ch_vep.hg38,
-        "GRCh38",
-        "homo_sapiens",
-        params.vep_version,
-        vep_cache_resolved,
-        ch_fasta.hg38,
-        []
-    )
-
-    ENSEMBLVEP_HG19(
-        ch_vep.hg19,
-        "GRCh37",
-        "homo_sapiens",
-        params.vep_version,
-        vep_cache_resolved,
-        ch_fasta.hg19,
-        []
-    )
-
-    ENSEMBLVEP_HS1(
-        ch_vep.hs1,
-        "CHM13",
-        "homo_sapiens",
-        params.vep_version,
-        vep_cache_resolved,
-        ch_fasta.hs1,
-        []
-    )
-
-    ch_vep_to_filter = ENSEMBLVEP_HG38.out.vcf
-        .mix(ENSEMBLVEP_HG19.out.vcf)
-        .mix(ENSEMBLVEP_HS1.out.vcf)
-
-    ENSEMBLVEP_FILTERVEP(
-        ch_vep_to_filter,
-        []
+    BGZIP_INTER (
+        SEVERUS_TUMOR.out.vcf.map { meta, vcf -> tuple(meta,vcf, [], [])},
+        "compress",
+        true,
+        "vcf"
     )
 
     /*
@@ -195,7 +101,9 @@ workflow SV_CALLING {
     ch_genes = channel.fromPath(params.fusion_targets, checkIfExists:true)
 
     ch_in_stellerator = bam
-        .join(ch_ref_type)
+        .combine(ch_ref)
+        .map { meta, bamfile, bai, genome, _ref_fasta ->
+            tuple(meta, bamfile, bai, genome.id )}
         .combine(ch_genes)
 
     STELLERATOR(ch_in_stellerator)
@@ -205,24 +113,103 @@ workflow SV_CALLING {
             tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_stellerator'),vcf)
         }
 
-    ch_to_bgzip = SNPEFF_ANNOTATE.out.vcf
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     ANNOTATION
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
+    ch_vcf_to_annotate = SNIFFLES.out.vcf
+        .join(BCFTOOLS_INDEX.out.index)
+        .map { meta, vcf, tbi -> tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_sniffles'),vcf, tbi) }
+        .mix(BGZIP_INTER.out.output.join(BGZIP_INTER.out.index)
+            .map { meta, vcf, tbi -> tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf, tbi) } )
+
+
+    if (params.genome == "hg38" || params.genome == "hg19") {
+        ch_snpeff_db = ch_ref
+            .combine(ch_vcf_to_annotate)
+            .map { genome, _ref_fasta, meta, vcf, _tbi ->
+                def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_snpeff')
+                def db = genome.id == "hg38" ? 'GRCh38.p14' : 'GRCh37.p13'
+                tuple(new_meta, vcf, db) }
+
+        // Annotate VCF
+        SNPEFF_ANNOTATE(ch_snpeff_db)
+
+        ch_vcf_annotated = SNPEFF_ANNOTATE.out.vcf
+    }
+
+
+    // Count variants remaining to avoid Ensembl annotation on empty vcf throwing error
+    BCFTOOLS_VIEW(
+        ch_vcf_to_annotate,
+        [],
+        [],
+        []
+    )
+
+    ch_bcftools_count = BCFTOOLS_VIEW.out.vcf
+        .branch { meta, vcf ->
+            pos: vcf.size() > 0
+                return meta
+            empty: true
+                return meta
+            }
+
+    ch_vcf_empty = ch_bcftools_count.empty
+        .join(ch_vcf_to_annotate)
+
+    ch_vep = ch_bcftools_count.pos
+        .join(ch_vcf_to_annotate)
+        .map { meta, vcf, tbi ->
+           def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_vep')
+           tuple(new_meta, vcf, tbi) }
+
+    def vep_cache_resolved = vep_cache ? vep_cache : []
+
+    ch_ref_resolved_vep = ch_vep
+        .combine(ch_ref)
+        .map { meta, vcf, tbi, genome, ref_fasta ->
+            def genome_res = genomeMap[genome.id]
+            tuple(meta, vcf, tbi, genome_res, ref_fasta) }
+
+    ENSEMBLVEP_VEP(
+        ch_vep,
+        ch_ref_resolved_vep.map { _meta, _vcf, _tbi, genome, _ref_fasta -> genome },
+        "homo_sapiens",
+        params.vep_version,
+        vep_cache_resolved,
+        ch_ref_resolved_vep.map { _meta, _vcf, _tbi, genome, ref_fasta -> tuple(id:genome,ref_fasta) },
+        []
+    )
+
+    ENSEMBLVEP_FILTERVEP(
+        ENSEMBLVEP_VEP.out.vcf,
+        []
+    )
+
+    ch_vcf_annotated_tobgzip = ch_vcf_annotated
         .mix(ENSEMBLVEP_FILTERVEP.out.output)
-        .mix(ch_severus_empty)
+        .mix(ch_vcf_empty)
 
-    BGZIP_VCF(ch_to_bgzip)
-    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf)
+    BGZIP_FINAL (
+        ch_vcf_annotated_tobgzip.map { meta, vcf -> tuple(meta,vcf, [], [])},
+        "compress",
+        true,
+        "vcf"
+    )
+
+    ch_vcf_final = BGZIP_FINAL.out.output
+        .join(BGZIP_FINAL.out.index)
+        .view()
 
 
-    ch_versions = SNIFFLES_CALL.out.versions
-        .mix(SNPEFF_ANNOTATE.out.versions)
-        .mix(BCFTOOLS_SORT.out.versions)
-        .mix(BGZIP_VCF.out.versions)
-        .mix(BCFTOOLS_INDEX.out.versions)
-        .mix(ch_severus_versions)
+    ch_versions = SEVERUS_TUMOR.out.versions
         .mix(STELLERATOR.out.versions)
 
     emit:
-    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
+    vcf              = ch_vcf_final
     stellerator      = ch_out_stellerator
     versions         = ch_versions
 
