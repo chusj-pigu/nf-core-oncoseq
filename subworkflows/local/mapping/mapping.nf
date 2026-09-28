@@ -72,10 +72,10 @@ workflow MAPPING {
                 SEQKIT_STATS(in_ch)
                 ch_seqkit_out = SEQKIT_STATS.out.stats
             } else {
-                ch_seqkit_out = Channel.empty()
+                ch_seqkit_out = channel.empty()
             }
         } else {
-            ch_seqkit_out = Channel.empty()
+            ch_seqkit_out = channel.empty()
         }
 
     // Merge bams if multiple bam are provided when skip_mapping is used
@@ -169,43 +169,24 @@ workflow MAPPING {
 
         } else {
 
-            // Prepare mapping input: clean up meta.id and join with reference
-            ch_mapping_in = in_ch
-                .join(ch_ref)
-                .map { meta, fastq, genome, ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${genome}")
-                    tuple(meta_ref, fastq, ref_fasta)
-                    }
-
             // Run minimap2 alignment
-            MINIMAP2_ALIGN(ch_mapping_in)
+            MINIMAP2_ALIGN(
+                in_ch,
+                ch_ref,
+                true,
+                true,
+                false,
+                false
+            )
 
-            // Convert SAM to BAM
-            SAMTOOLS_TOBAM(MINIMAP2_ALIGN.out.sam)
-            // Sort and index BAM
-            SAMTOOLS_SORT(SAMTOOLS_TOBAM.out.bamfile)
-            SAMTOOLS_INDEX_FULL(SAMTOOLS_SORT.out.sortedbam)
-
-            // Restore meta ID by removing ref id
-
-            ch_ref_id = ch_ref
-                .map { meta, genome, _ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${genome}")
-                    tuple(meta_ref, meta.id) }
-
-            bam_ch = SAMTOOLS_INDEX_FULL.out.bamfile_index
-                .join(ch_ref_id)
-                .map { meta, bam, bai, meta_restore ->
-                    tuple(id:meta_restore, bam, bai) }
+            bam_ch = MINIMAP2_ALIGN.out.bam
+                .join(MINIMAP2_ALIGN.out.index)
 
             // Compute coverage stats
             CRAMINO_STATS(bam_ch)
 
             // Collect versions from all modules
             ch_versions = MINIMAP2_ALIGN.out.versions
-                .mix(SAMTOOLS_TOBAM.out.versions)
-                .mix(SAMTOOLS_SORT.out.versions)
-                .mix(SAMTOOLS_INDEX_FULL.out.versions)
                 .mix(CRAMINO_STATS.out.versions)
         }
 
