@@ -100,7 +100,7 @@ workflow PIPELINE_INITIALISATION {
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .combine(ch_ubam)
         .branch {
-            meta, project, input, ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type, ubam_ph ->
+            meta, project, input, ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type, ubam_ph ->
             reg: (!ubam && !kit && !barcode)
                 return [ meta, file(input), ubam_ph ]
             resume: (ubam && !kit && !barcode)
@@ -123,7 +123,7 @@ workflow PIPELINE_INITIALISATION {
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .map {
-            meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
+            meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
             if (project && kit && barcode) {
                 tuple(id:project, meta.id, barcode, kit)
             } else {
@@ -137,7 +137,7 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, _bed, _padding, _low_fidelity, purity, filter, _tumor_type ->
+                meta, _project, _input, _ubam, _kit, _barcode, _bed, _padding, _low_fidelity, purity, filter, _tumor_type ->
                 if(!purity){
                     throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
                 }
@@ -158,7 +158,7 @@ workflow PIPELINE_INITIALISATION {
         .combine(ch_padding)
         .combine(ch_low_fidelity)
         .branch {
-            meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, bed, padding, lf, _purity, _filter, _tumor_type, bed_c, padding_c, lf_c ->
+            meta, _project, _input, _ubam, _kit, _barcode, bed, padding, lf, _purity, _filter, _tumor_type, bed_c, padding_c, lf_c ->
             common: (!bed && !padding && !lf)
                 return [ meta, bed_c, padding_c, lf_c ]
             bed: (bed && !padding && !lf)
@@ -179,7 +179,7 @@ workflow PIPELINE_INITIALISATION {
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .map {
-            meta, _project, _input, _ubam, _ref, _ref_path ,_kit, _barcode, _bed, _padding, _lf, _purity, _filter, tumor_type ->
+            meta, _project, _input, _ubam, _kit, _barcode, _bed, _padding, _lf, _purity, _filter, tumor_type ->
             def tumor_type_resolved = tumor_type ?: "other"
             tuple(meta, tumor_type_resolved)
         }
@@ -196,7 +196,7 @@ workflow PIPELINE_INITIALISATION {
         .combine(ch_bed)
         .combine(ch_padding)
         .combine(ch_low_fidelity)
-        .map { _meta, _project, _input, _ubam, _ref, _ref_path, _kit, _barcode, bed, padding, _low_fidelity, _purity, _filter, _tumor_type, bed_c, padding_c, _lf_c ->
+        .map { _meta, _project, _input, _ubam, _kit, _barcode, bed, padding, _low_fidelity, _purity, _filter, _tumor_type, bed_c, padding_c, _lf_c ->
             if (!padding && padding_c == 20000){
                 log.warn("Using default padding of 20kb padding around ROI")
             }
@@ -228,7 +228,7 @@ workflow PIPELINE_INITIALISATION {
 
     ch_genome
         .combine(ch_ref_cache.ifEmpty([null]))
-        .map { genome, ref_cache ->
+        .map { genome, ref_dir ->
 
             def faExts  = ['.fa', '.fasta', '.fa.gz', '.fasta.gz']
             def faiExts = ['.fa.fai', '.fasta.fai', '.fa.gz.fai', '.fasta.gz.fai']
@@ -242,7 +242,7 @@ workflow PIPELINE_INITIALISATION {
             def faiFinal = null
 
             // --- Case 1: ref_path provided ---
-            if (ref_cache) {
+            if ( ref_dir ) {
                 def refFile = ref_cache instanceof Path ? ref_cache: file(ref_cache)
 
                 // --- Case 1a: ref_path is a direct FASTA file ---
@@ -495,7 +495,7 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
-                meta, project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
+                meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
                 if (project && kit && !barcode ) {
                     throw new IllegalArgumentException("Please provide barcode for sample ${meta.id ?: meta}")
                 }
@@ -510,7 +510,7 @@ workflow PIPELINE_INITIALISATION {
         channel
             .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
             .map {
-                _meta, _project, _input, _ubam, _ref, _ref_path ,kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
+                _meta, _project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
                 if (kit || barcode) {
                     throw new IllegalArgumentException("Please use --demux option for demultiplexing samples")
                 }
@@ -521,6 +521,7 @@ workflow PIPELINE_INITIALISATION {
     bed_sheet   = ch_adaptive
     demux_sheet = ch_demux
     samplesheet = ch_in_samplesheet
+    tumor_type  = ch_tumor_type
     ref_ch      = ch_ref_final
     cfdna_ch    = ch_cfdna
     vep_cache   = ch_vep_cache
