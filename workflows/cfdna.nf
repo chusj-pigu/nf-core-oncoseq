@@ -3,6 +3,7 @@ include { BASECALL_SIMPLEX       } from '../subworkflows/local/basecalling/basec
 include { READS_FILTER           } from '../subworkflows/local/read_processing/reads_filter.nf'
 include { MAPPING                } from '../subworkflows/local/mapping/mapping'
 include { CNV_CALLING            } from '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { KARYOTYPE              } from  '../subworkflows/local/variant_calling/nasvar_karyotype.nf'
 include { SV_CALLING             } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CLAIRS_TO_CALLING      } from '../subworkflows/local/variant_calling/clairs_to_calling.nf'
 include { CLAIR3_CALLING         } from '../subworkflows/local/variant_calling/clair3_calling.nf'
@@ -21,9 +22,10 @@ include { REMOVE_PADDING                                } from '../modules/local
 include { MIDNIGHT_REPORT      } from '../subworkflows/local/report/final_report.nf'
 include { CFDNA_REPORT         } from '../subworkflows/local/report/cfdna.nf'
 include { CLASSIFIER_REPORT    } from '../subworkflows/local/report/methylation.nf'
-include { FIGENO_REPORT        } from '../subworkflows/local/report/variants.nf'
+include { VARIANT_REPORT        } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT      } from '../subworkflows/local/report/adaptive.nf'
 include { ONTIME_TIME_RANGE    } from '../modules/local/ontime/main.nf'
+include { SAMTOOLS_TOFASTQ as SAMTOOLS_TIME_FASTQ } from '../modules/local/samtools/main.nf'
 
 // Useful functions to handle time parsing
 def parseToInstant(str) {
@@ -112,7 +114,7 @@ workflow CFDNA {
             ch_to_classify = channel.empty()
         }
 
-    } else if (params.skip_basecalling || params.skip_mapping) {
+    } else if (params.skip_basecalling) {
 
         READS_FILTER (
             cfdna_samplesheet,
@@ -129,6 +131,41 @@ workflow CFDNA {
         )
 
         SAMTOOLS_COUNT_READS(MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam)})
+
+        ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
+            .map { meta, txt ->
+                def count = txt.text.trim().toInteger()
+                tuple(meta, count)
+            }
+            .branch { meta, count ->
+                pos:  count > 0
+                    return meta
+                none: true
+                    return meta
+            }
+
+        ch_bam_methylation_counts.none
+            .subscribe { meta ->
+                log.warn "Tumor classification will be skipped for ${meta.id} -- no methylation tags found in bam"
+            }
+        ch_to_classify = ch_bam_methylation_counts.pos
+        ch_no_methylation_tags = ch_bam_methylation_counts.none
+
+    } else if (params.skip_mapping) {
+
+        MAPPING(
+            samplesheet,
+            ref
+        )
+
+        READS_FILTER (
+            cfdna_samplesheet,
+            MAPPING.out.bam.map { meta, bam, _bai -> tuple(meta, bam) },
+            max_len,
+            minqs
+        )
+
+        SAMTOOLS_COUNT_READS(READS_FILTER.out.reads)
 
         ch_bam_methylation_counts = SAMTOOLS_COUNT_READS.out.txt
             .map { meta, txt ->
@@ -436,6 +473,12 @@ workflow CFDNA {
         ch_ref_for_calling
     )
 
+    KARYOTYPE(
+        ch_bam_to_process,
+        ch_bed_for_calling,
+        ch_ref_for_calling
+    )
+
     ICHORCNA_CALLING (
         ch_bam_for_calling,
         ch_ref_for_calling,
@@ -479,9 +522,11 @@ workflow CFDNA {
     ch_subchrom_plot = CNV_CALLING.out.subchrom_plot_wgs
     ch_subchrom_focal = CNV_CALLING.out.subchrom_gene_plot_wgs
 
-    FIGENO_REPORT(
+    VARIANT_REPORT(
         VARIANT_PROCESS.out.circos_plot,
         VARIANT_PROCESS.out.panchr_plot,
+        KARYOTYPE.out.baf_plot,
+        KARYOTYPE.out.karyotype,
         ch_binsizes,
         VARIANT_PROCESS.out.sv_plot,
         VARIANT_PROCESS.out.fusion_plot,
@@ -515,7 +560,7 @@ workflow CFDNA {
         .mix(READS_FILTER.out.versions)
         .mix(SV_CALLING.out.versions)
         .mix(VARIANT_PROCESS.out.versions)
-        .mix(FIGENO_REPORT.out.versions)
+        .mix(VARIANT_REPORT.out.versions)
         .mix(CFDNA_REPORT.out.versions)
 
     /*
@@ -527,18 +572,27 @@ workflow CFDNA {
     // Collect sections from all analysis steps
     ch_sections = ch_sections
         .mix(CFDNA_REPORT.out.sections)
-        .mix(FIGENO_REPORT.out.sections)
+        .mix(VARIANT_REPORT.out.sections)
 
     // channel id containing only meta
     ch_params = ch_ref_for_calling
         .join(ch_bed_for_calling)
 
     if (params.realtime) {
-        ch_bam = MAPPING.out.bam
-            .map { meta, bam, _bai ->
-                tuple(meta,bam) }
 
-        ONTIME_TIME_RANGE(ch_bam)
+        ch_bam = MAPPING.out.bam
+                .map { meta, bam, _bai ->
+                    tuple(meta,bam) }
+
+        if (params.skip_mapping) {
+            // We have to convert bam to fastq when bam input is from MinKnow :
+            SAMTOOLS_TIME_FASTQ(ch_bam)
+
+            ONTIME_TIME_RANGE(SAMTOOLS_TIME_FASTQ.out.fq)
+
+        } else {
+            ONTIME_TIME_RANGE(ch_bam)
+        }
 
         // Automatically detect the time stamp
 

@@ -16,6 +16,7 @@ include { PHASING_VARIANTS as PHASING_SOMATIC   } from  '../subworkflows/local/v
 include { PHASING_VARIANTS as PHASING_GERMLINE  } from  '../subworkflows/local/variant_calling/phasing.nf'
 include { SV_CALLING                            } from  '../subworkflows/local/variant_calling/sv_calling.nf'
 include { CNV_CALLING                           } from  '../subworkflows/local/variant_calling/cnv_calling.nf'
+include { KARYOTYPE                             } from  '../subworkflows/local/variant_calling/nasvar_karyotype.nf'
 
 // Variant processing and visualization subworkflow
 include { VARIANT_PROCESS                       } from  '../subworkflows/local/variant_calling/variant_process.nf'
@@ -34,7 +35,7 @@ include { SUBSAMPLE_TIME                       } from '../subworkflows/local/rea
 
 // Reporting
 include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
-include { FIGENO_REPORT     } from '../subworkflows/local/report/variants.nf'
+include { VARIANT_REPORT     } from '../subworkflows/local/report/variants.nf'
 include { ADAPTIVE_REPORT   } from '../subworkflows/local/report/adaptive.nf'
 include { CLASSIFIER_REPORT } from '../subworkflows/local/report/methylation.nf'
 // Utility functions
@@ -200,47 +201,17 @@ workflow ADAPTIVE_WGS {
         }
 
     } else {
-        // Standard mode: Use the full BAM directly for variant calling
+    // Standard mode: Use the full BAM directly for variant calling
         ch_bam_for_calling = MAPPING.out.bam
         ch_bam_full = MAPPING.out.bam
         ch_ref_for_calling = ref
         ch_bed = bed
 
-        // Downsample to 1h to run methylation classification
-
-        if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
-
-            ch_in_subsample_classy = ch_to_classify
-                .map { meta, bam, index ->
-                tuple(meta, bam, index, 0, 1)
-                }
-
-            SUBSAMPLE_TIME(
-                ch_in_subsample_classy
-            )
-
-            ch_in_classy = SUBSAMPLE_TIME.out.bam
-
-            CLASSY(
-                ch_in_classy,
-                ch_ref_for_calling,
-                tumor_type
-            )
-
-            ch_versions = ch_versions
-                .mix(SUBSAMPLE_TIME.out.versions)
-
-            CLASSIFIER_REPORT(
-                CLASSY.out.plot,
-                CLASSY.out.pred,
-                tumor_type
-            )
-
-            ch_classy_section = CLASSIFIER_REPORT.out.sections
-        } else {
-            ch_classy_section = channel.empty()
-        }
-    }
+    KARYOTYPE(
+        MAPPING.out.bam,
+        bed,
+        ref
+    )
 
     // Analyze coverage separation between target and background regions
     COVERAGE_SEPARATE(
@@ -249,6 +220,57 @@ workflow ADAPTIVE_WGS {
         ch_bed_nopad,
         ch_ref_for_calling
     )
+
+    // Downsample to 1h to run methylation classification
+
+    if (params.m_bases || params.skip_basecalling || params.skip_mapping) {
+
+        ch_coverage_final = COVERAGE_SEPARATE.out.coverage_tbl
+            .map { meta, table ->
+                def lines = table.readLines()
+                def cov = lines[1].tokenize(',')[1].toDouble()
+                tuple(meta, cov)
+            }
+            .branch { meta, cov ->
+                high: cov >= 10
+                    return meta
+                low: true
+                    return meta
+            }
+
+        ch_in_subsample_classy = ch_to_classify
+            .map { meta, bam, index ->
+            tuple(meta, bam, index, 0, 1)
+            }
+            .join(ch_coverage_final.high)
+
+        SUBSAMPLE_TIME(
+            ch_in_subsample_classy
+        )
+
+        ch_in_classy = SUBSAMPLE_TIME.out.bam
+            .mix(ch_to_classify.join(ch_coverage_final.low))
+
+        CLASSY(
+            ch_in_classy,
+            ch_ref_for_calling,
+            tumor_type
+        )
+
+        ch_versions = ch_versions
+            .mix(SUBSAMPLE_TIME.out.versions)
+
+        CLASSIFIER_REPORT(
+            CLASSY.out.plot,
+            CLASSY.out.pred,
+            tumor_type
+        )
+
+        ch_classy_section = CLASSIFIER_REPORT.out.sections
+    } else {
+        ch_classy_section = channel.empty()
+    }
+    }
 
     // Somatic variant calling using ClairS
     CLAIRS_TO_CALLING (
@@ -371,9 +393,11 @@ workflow ADAPTIVE_WGS {
         .mix(ch_binsize_subchrom)
         .mix(ch_binsize_delly)
 
-    FIGENO_REPORT(
+    VARIANT_REPORT(
         VARIANT_PROCESS.out.circos_plot,
         VARIANT_PROCESS.out.panchr_plot,
+        KARYOTYPE.out.baf_plot,
+        KARYOTYPE.out.karyotype,
         ch_binsizes,
         VARIANT_PROCESS.out.sv_plot,
         VARIANT_PROCESS.out.fusion_plot,
@@ -393,7 +417,7 @@ workflow ADAPTIVE_WGS {
 
     // Collect sections from all analysis steps
     ch_sections = ADAPTIVE_REPORT.out.sections
-        .mix(FIGENO_REPORT.out.sections)
+        .mix(VARIANT_REPORT.out.sections)
         .mix(ch_classy_section)
 
     // channel containing parameters used:

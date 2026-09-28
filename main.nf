@@ -186,7 +186,7 @@ params {
     sv_targets: Path = "${projectDir}/assets/sv-list.csv"
 
     // List of important fusions to verify with stellerator
-    fusion_targets: Path = "${projectDir}/assets/fusion-list.csv"
+    fusion_targets: Path = "${projectDir}/assets/fusion-list.txt"
 
     // List of genes to exclude from SV analysis (possible artefacts)
     sv_exclude: Path = "${projectDir}/assets/sv_exclude.txt"

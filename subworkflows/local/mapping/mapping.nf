@@ -106,7 +106,7 @@ workflow MAPPING {
                     }
                 }
                 else {
-                    def bai = "${bams}.bai"
+                    def bai = dir.getParent().listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }
                     def type = bai.size() > 0 ? 'single' : 'to_index'
                     def index = bai.size() > 0 ? bai : 'index'
                     def bam_file = bams

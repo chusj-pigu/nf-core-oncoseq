@@ -130,7 +130,7 @@ workflow CFDNA_REPORT {
         ch_quarto_table = ch_cramino_txt
             .map { meta, table ->
                 def caption = "Stats of filtered and aligned reads"
-                def col_names = "N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases faligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
+                def col_names = "N reads aligned (M), N bases aligned (GB), Coverage (X), N50 reads aligned"
                 def section = "QC"
                 def process = "stats_qc-${meta.id}"
                 tuple(meta, table, caption, col_names, section, process)
@@ -175,7 +175,7 @@ workflow CFDNA_REPORT {
         ch_quarto_table = ch_stats
             .map { meta, table ->
                 def caption = "Stats of filtered and aligned reads"
-                def col_names = "N reads aligned (M), N bases aligned (GB), Coverage (X), N50 reads aligned"
+                def col_names = "N reads filtered (M), N reads aligned (M), N bases filtered (GB), N bases aligned (GB), Coverage (X), N50 reads filtered, N50 reads aligned"
                 def section = "QC"
                 def process = "stats_qc-${meta.id}"
                 tuple(meta, table, caption, col_names, section, process)

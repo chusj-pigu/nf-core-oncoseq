@@ -60,10 +60,6 @@
 
 > ImageMagick Studio LLC. (2024). ImageMagick. Retrieved from https://imagemagick.org
 
-- [Lamprey](https://github.com/princessmaximacenter/Lamprey)
-
-> Achterberg, T., Vermeulen, C., van der Ent, H., Jongmans, M., Cammel, K., de Ruijter, E., Groenewegen, N., Kranenburg, C., van Tuil, M., Waanders, E., Parihar, M., Islam, R., Aijaz, J., Goemans, B., Calkoen, F., van der Sluis, I., den Boer, M. L., Boer, J. M., de Haas, V., … de Ridder, J. (2026). Rapid, Comprehensive Methylation-Based Classification of Hematologic Malignancies by Nanopore Sequencing. medRxiv, 2026.07.02.26356825. https://doi.org/10.64898/2026.07.02.26356825
-
 - [MARLIN](https://github.com/hovestadt/MARLIN)
 
 > Steinicke, T. L., Benfatto, S., Capilla-Guerra, M. R., Monteleone, A. B., Young, J. H., Shankar, S., Michaels, P. D., Tsai, H. K., Good, J. D., Kreso, A., van Galen, P., Schliemann, C., Chen, E. C., Griffin, G. K., & Hovestadt, V. (2025). Rapid epigenomic classification of acute leukemia. Nature Genetics, 57(10), 2456–2467. https://doi.org/10.1038/s41588-025-02321-z
@@ -112,15 +108,9 @@
 
 - [Stellerator](https://github.com/chusj-pigu/stellerator)
 
-- [Sturgeon](https://github.com/UMCUGenetics/sturgeon)
-
-> Vermeulen, C., Pagès-Gallego, M., Kester, L., Kranendonk, M. E. G., Wesseling, P., Verburg, N., de Witt Hamer, P., Kooi, E. J., Dankmeijer, L., van der Lugt, J., van Baarsen, K., Hoving, E. W., Tops, B. B. J., & de Ridder, J. (2023). Ultra-fast deep-learned CNS tumour classification during surgery. Nature, 622(7984), 842–849. https://doi.org/10.1038/s41586-023-06615-2
-
 - [SubChrom](https://github.com/Shaohua-Lei/SubChrom/)
 
 > Lei, S., Jia, S., Takalkar, S., Chang, T.-C., Ma, X., Szlachta, K., Xu, K., Cheng, Z., Hui, Y., Koo, S. C., Mead, P. E., Gao, Q., Kumar, P., Bailey, C. P., Sunny, J., Pappo, A. S., Federico, S. M., Robinson, G. W., Gajjar, A., … Mullighan, C. G. (2025). Genomic profiling of circulating tumor DNA for childhood cancers. Leukemia, 39(2), 420–430. https://doi.org/10.1038/s41375-024-02461-x
-
-- [Tucan](https://github.com/UMCUGenetics/tucan)
 
 - [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
 

@@ -83,7 +83,6 @@ workflow MIDNIGHT_REPORT {
 
     ch_title = ch_id
         .join(ch_title)
-        .view()
 
     if (params.cfdna) {
 

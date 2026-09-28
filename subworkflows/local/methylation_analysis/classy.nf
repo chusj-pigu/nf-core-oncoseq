@@ -92,8 +92,8 @@ workflow CLASSY {
 
     ch_json_other = ch_tumor_branched.other
         .join(addTypeToChannel(PARSE_JSON_COMBINED.out.alma, "Alma"))
-        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "CrossNN Caper")))
-        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "CrossNN PanCancer")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.capper, "CrossNN Caper")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.pancan, "CrossNN PanCancer")))
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.lamprey, "Lamprey")))
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.marlin, "Marlin")))
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.mpact, "MPACT")))
