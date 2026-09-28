@@ -23,7 +23,7 @@ opt <- parse_args(OptionParser(option_list = option_list))
 
 input <- list.files(path = ".", pattern = "\\.vcf$")
 target_list <- opt$target
-sample_id <- unique(sub("_sv_(severus|sniffles|stellerator)\\.vcf$","",basename(input)))
+sample_id <- unique(sub("_sv_(severus|sniffles|stellerator)(_vep|_snpeff)?\\.vcf$", "", basename(input)))
 blacklist <- opt$exclude
 panel <- opt$panel
 min_support <- as.numeric(opt$min_support)
