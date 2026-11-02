@@ -7,7 +7,7 @@ process REMOVE_PADDING {
     label 'process_single_cpu'
     label 'process_very_low_memory'
 
-    tag "$meta.id"
+    tag "$bed.name"
 
     input:
     tuple val(meta),
@@ -30,35 +30,6 @@ process REMOVE_PADDING {
     """
 }
 
-process PIGZ_BED {
-
-    //TODO: FIND A BETTER SOLUTION FOR THIS
-    container 'ghcr.io/chusj-pigu/samtools:latest'
-    label 'process_low'
-    label 'process_low_cpu'
-    label 'process_very_low_memory'
-
-    tag "$meta.id"
-
-    input:
-    tuple val(meta),
-        path(bed)
-
-    output:
-    tuple val(meta),
-        path("*.bed"),
-        emit: bed
-
-    script:
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    def threads = task.cpus
-    """
-    pigz -dc \\
-        -p ${threads} \\
-        ${bed} > ${prefix}.bed
-    """
-}
-
 process COVERAGE_PLOT {
 
     //TODO: SET FIXED VERSION WHEN PIPELINE IS STABLE
@@ -68,7 +39,7 @@ process COVERAGE_PLOT {
     label 'process_single_cpu'
     label 'process_very_low_memory'
 
-    tag 'bed'
+    tag "$meta.id"
 
     input:
     tuple val(meta),
