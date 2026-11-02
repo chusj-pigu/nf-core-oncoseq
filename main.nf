@@ -15,9 +15,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { ADAPTIVE_WGS            } from './workflows/adaptive_wgs'
-include { CFDNA                   } from './workflows/cfdna'
-include { LOCAL_REALTIME          } from './workflows/local_realtime'
+include { ONCOSEQ                 } from './workflows/oncoseq'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { getMinQC                } from './subworkflows/local/utils_nfcore_oncoseq_pipeline'
@@ -25,19 +23,23 @@ include { getMinQC                } from './subworkflows/local/utils_nfcore_onco
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
-
+workflow NF_CORE_ONCOSEQ {
 
 
     take:
-    samplesheet // channel: samplesheet read in from --input
-    demux       // channel: demux_samplesheet read in from samplesheet
-    tumor_type  // channel: tumor type read in from samplesheet
-    ref         // channel : reference for mapping, either empty if skipping mapping, or a path
-    bed         // channel: from path read from params.bed, bed file used for adaptive sampling
-    clairs_model  // channel: model for calling snp with ClairS-TO
-    basecall_model  // channel : basecalling model used with dorado
-    sv_targets              // channel : list of genes with their position to represent in Figeno
+    samplesheet     // channel: samplesheet read in from --input
+    demux           // channel: demux_samplesheet read in from samplesheet
+    tumor_type      // channel: tumor type read in from samplesheet
+    cfdna_ss        // channel: purity and filter directive from samplesheet
+    ref             // channel : reference fasta file
+    ref_fai         // channel : reference fasta file index
+    ref_gzi         // channel : gziped reference fasta file index
+    genome          // variable: standardized genome ID
+    ichor_bin       // cfDNA mode only
+    mapq_wig        // cfDNA mode only
+    basecall_model   // channel: model for basecalling
+    bed             // channel: from path read from params.bed, bed file used for adaptive sampling
+    sv_targets      // channel : list of genes with their position to represent in Figeno
     vep_cache
 
     main:
@@ -45,70 +47,20 @@ workflow NFCORE_ONCOSEQ_ADAPTIVE_WGS {
     //
     // WORKFLOW: Run pipeline
     //
-
-    if (params.realtime == null) {
-        ADAPTIVE_WGS (
-            samplesheet,
-            demux,
-            tumor_type,
-            ref,
-            bed,
-            clairs_model,
-            basecall_model,
-            sv_targets,
-            vep_cache
-        )
-    } else {
-        LOCAL_REALTIME (
-            samplesheet,
-            demux,
-            tumor_type,
-            ref,
-            bed,
-            basecall_model,
-            sv_targets,
-            vep_cache
-        )
-    }
-}
-
-workflow NFCORE_ONCOSEQ_CFDNA {
-
-    take:
-    samplesheet         // channel: samplesheet read in from --input
-    demux               // channel: demux_samplesheet read in from --demux_samplesheet
-    tumor_type          // channel: tumor type read in from samplesheet
-    cfdna_samplesheet   // channel : from demux or samplesheeet
-    ref                 // channel : reference for mapping, either empty if skipping mapping, or a path
-    max_len
-    minqs
-    ichor_bin
-    mapq_wig
-    basecall_model          // channel: model for basecalling
-    clairs_model
-    bed                     // channel: bed file used for adaptive sampling regions
-    targets
-    vep_cache
-
-    main:
-
-    //
-    // WORKFLOW: Run pipeline
-    //
-    CFDNA (
+    ONCOSEQ (
         samplesheet,
         demux,
         tumor_type,
-        cfdna_samplesheet,
+        cfdna_ss,
         ref,
-        max_len,
-        minqs,
+        ref_fai,
+        ref_gzi,
+        genome,
         ichor_bin,
         mapq_wig,
         basecall_model,
-        clairs_model,
         bed,
-        targets,
+        sv_targets,
         vep_cache
     )
 }
@@ -196,6 +148,9 @@ params {
 
     skip_mapping: Boolean
 
+    // Specify a different container for Classy module (default: same as pipeline container)
+    classy_container: String
+
     // -- ichorCNA parameters --------------------------------------------------
 
     // Maximum length (in bases) of reads to include in cfdna analysis (if filter true in samplesheet)
@@ -239,7 +194,7 @@ params {
     vep_version: Integer = 115
 
     // Expression accepted by filtervep for filtering snp
-    filtervep_expression: String = 'IMPACT != LOW and IMPACT != MODIFIER and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE'
+    filtervep_expression: String = '((IMPACT != LOW and IMPACT != MODIFIER) or CLIN_SIG matches pathogenic) and (gnomADe_AF <= 0.01 or not gnomADe_AF) and not CLIN_SIG matches benign and MANE'
 
     // Path to directory containing reference genome
     ref_cache: Path?
@@ -263,7 +218,7 @@ params {
     custom_config_version: String = 'master'
 
     // Base directory for Institutional configs.
-    custom_config_base: String = 'https://raw.githubusercontent.com/nf-core/configs/master'
+    custom_config_base: String = 'https://github.com/nf-core/configs/raw/master/nfcore_custom.config'
 
     // Institutional config name.
     config_profile_name: String?
@@ -322,6 +277,7 @@ params {
     // Show hidden parameters in the help message
     show_hidden: Boolean
 
+    // When used in non adaptive WGS mode predicted to be ~30X, use --wgs to increase resources allocation for basecalling
     wgs: Boolean
 }
 
@@ -343,6 +299,18 @@ workflow {
         params.ref_cache,
         params.vep_cache
     )
+    // Standardize genome nomenclature for all subworkflows:
+    def genomeMap = [
+        'hg38'   : 'hg38',
+        'GRCh38' : 'hg38',
+        'hg19'   : 'hg19',
+        'GRCh37' : 'hg19',
+        'hs1'    : 'hs1',
+        'CHM13'  : 'hs1',
+        't2t'    : 'hs1'
+    ]
+
+    def genome = genomeMap[params.genome]
 
     // Load model channels from parameters:
     if (params.skip_basecalling || params.skip_mapping ) {
@@ -362,54 +330,33 @@ workflow {
         ch_model = PIPELINE_INITIALISATION.out.model_ch
     }
 
-   // channels for SNP calling
-    ch_clairs_model = channel.of(params.clairsto_model)
-
     ch_vep_cache = PIPELINE_INITIALISATION.out.vep_cache
     // channel for sv gene targets
     ch_sv_targets = channel.fromPath(params.sv_targets)
 
     // channels for chopper and IchorCNA (cfDNA)
 
-    ch_max_len    = channel.of(params.max_length)
-    ch_minqs      = ch_model.map { model -> getMinQC(model) }
     ch_ichor_bin  = channel.of(params.ichor_bin_size)
     ch_min_mapq   = channel.of(params.min_mapq_ichor)
 
 
    // WORKFLOW: Run main workflow
-
-   if ( params.cfdna ) {
-        NFCORE_ONCOSEQ_CFDNA (
-            ch_input,
-            PIPELINE_INITIALISATION.out.demux_sheet,
-            PIPELINE_INITIALISATION.out.tumor_type,
-            PIPELINE_INITIALISATION.out.cfdna_ch,
-            PIPELINE_INITIALISATION.out.ref_ch,
-            ch_max_len,
-            ch_minqs,
-            ch_ichor_bin,
-            ch_min_mapq,
-            ch_model,
-            ch_clairs_model,
-            PIPELINE_INITIALISATION.out.bed_sheet,
-            ch_sv_targets,
-            ch_vep_cache
-        )
-
-    } else {
-        NFCORE_ONCOSEQ_ADAPTIVE_WGS (
-            ch_input,
-            PIPELINE_INITIALISATION.out.demux_sheet,
-            PIPELINE_INITIALISATION.out.tumor_type,
-            PIPELINE_INITIALISATION.out.ref_ch,
-            ch_clairs_model,
-            ch_model,
-            PIPELINE_INITIALISATION.out.bed_sheet,
-            ch_sv_targets,
-            ch_vep_cache
-        )
-    }
+    NF_CORE_ONCOSEQ (
+        ch_input,
+        PIPELINE_INITIALISATION.out.demux_sheet,
+        PIPELINE_INITIALISATION.out.tumor_type,
+        PIPELINE_INITIALISATION.out.cfdna_ch,
+        PIPELINE_INITIALISATION.out.ref_fa,
+        PIPELINE_INITIALISATION.out.ref_fai,
+        PIPELINE_INITIALISATION.out.ref_gzi,
+        genome,
+        ch_ichor_bin,
+        ch_min_mapq,
+        ch_model,
+        PIPELINE_INITIALISATION.out.bed_sheet,
+        ch_sv_targets,
+        ch_vep_cache
+    )
 
     //
     // SUBWORKFLOW: Run completion tasks
