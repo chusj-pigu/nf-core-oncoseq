@@ -136,7 +136,7 @@ process ENSEMBL_VEP_TABLE {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     def read_depth_threshold = params.cfdna ? '' : "&& dp >= 20" // Only apply read depth filter for non-cfdna samples
-    def pass_filter = prefix.contains('germline') ? '&& \$6 == "PASS"' : ''   // Keep Nonsomatic variants for somatic vcf
+    def pass_filter = prefix.contains('clairsto') ? "" : '&& \$6 ~ /^(PASS|GERMLINE)$/'
     """
     awk -F'\t' '
         function norm_allele(ref, alt,    r) {
@@ -191,6 +191,6 @@ process ENSEMBL_VEP_TABLE {
                 }
             }
         }
-    ' ${bed} | grep -vF -f ${list_exclude} > ${prefix}_filt.csv
+    ' ${bed} | grep -vF -f ${list_exclude} > ${prefix}.csv
     """
 }
