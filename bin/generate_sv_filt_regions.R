@@ -23,7 +23,11 @@ opt <- parse_args(OptionParser(option_list = option_list))
 
 input <- list.files(path = ".", pattern = "\\.vcf$")
 target_list <- opt$target
-sample_id <- unique(sub("_sv_(severus|sniffles|stellerator)(_vep|_snpeff)?\\.vcf$", "", basename(input)))
+sample_id <- unique(sub("_sv_(severus|sniffles|stellerator).*\\.vcf$", "", basename(input)))
+if (length(sample_id) != 1) {
+  stop("Expected exactly one sample ID but found ", length(sample_id), ": ",
+       paste(sample_id, collapse = ", "))
+}
 blacklist <- opt$exclude
 panel <- opt$panel
 min_support <- as.numeric(opt$min_support)
@@ -139,6 +143,23 @@ extract_genes_delins <- function(x) {
   sub(".*_", "", x)
 }
 
+# Keep stellerator rows only if the same gene / gene-partner pair
+# is seen in at least `min_rows` rows. Other callers are left untouched.
+filter_stellerator_pairs <- function(df, min_rows = 3) {
+  df %>%
+    mutate(
+      .gene1 = str_extract(V8, "(?<=(^|;)GENE1=)[^;]+"),
+      .gene2 = str_extract(V8, "(?<=(^|;)GENE2=)[^;]+"),
+      # order-independent key so A/B and B/A count as the same pair
+      .pair_key = paste(pmin(.gene1, .gene2), pmax(.gene1, .gene2), sep = "|")
+    ) %>%
+    group_by(SOURCE, .pair_key) %>%
+    filter(SOURCE != "stellerator" |
+             (!is.na(.gene1) & !is.na(.gene2) & n() >= min_rows)) %>%
+    ungroup() %>%
+    select(-.gene1, -.gene2, -.pair_key)
+}
+
 process_vcf <- function(vcf) {
   df <- vcf %>%
     mutate(
@@ -155,6 +176,7 @@ process_vcf <- function(vcf) {
     filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
     filter(SOURCE == "stellerator" | str_detect(GENE_FULL, pattern_start) | str_detect(GENE_FULL, pattern_end)) %>%
     filter(SUPPORT > min_support) %>%
+    filter_stellerator_pairs(min_rows = 3) %>%
     mutate(
       N_GENES = count_genes(GENE_FULL),
       GENE = map_chr(GENE_FULL, cap_genes, head_n = 5, tail_n = 5)
