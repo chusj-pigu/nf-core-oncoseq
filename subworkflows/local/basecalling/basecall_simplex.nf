@@ -7,12 +7,10 @@ include { DORADO_BASECALL                           } from '../../../modules/loc
 include { SAMTOOLS_QSFILTER                         } from '../../../modules/local/samtools/main.nf'
 include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_PASS } from '../../../modules/local/samtools/main.nf'
 include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_FAIL } from '../../../modules/local/samtools/main.nf'
-include { SEQKIT_STATS as SEQKIT_STATS_PASS         } from '../../../modules/local/seqkit/main.nf'
-include { SEQKIT_STATS as SEQKIT_STATS_FAIL         } from '../../../modules/local/seqkit/main.nf'
-include { paramsSummaryMap                          } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc                      } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { SEQKIT_STATS as SEQKIT_STATS_PASS         } from '../../../modules/nf-core/seqkit/stats/main'
+include { SEQKIT_STATS as SEQKIT_STATS_FAIL         } from '../../../modules/nf-core/seqkit/stats/main'
+
 include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText                    } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { modifyMetaId                              } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
@@ -81,15 +79,31 @@ workflow BASECALL_SIMPLEX {
         .mix(SAMTOOLS_QSFILTER.out.versions)
         .mix(SAMTOOLS_TOFASTQ_PASS.out.versions)
         .mix(SAMTOOLS_TOFASTQ_FAIL.out.versions)
-        .mix(SEQKIT_STATS_PASS.out.versions)
-        .mix(SEQKIT_STATS_FAIL.out.versions)
 
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
 
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+        .mix(topic_versions_string)
 
     emit:
     fastq          = ch_fastq
     stats_pass     = ch_stats_pass        // TODO: QUARTO REPORT
     stats_fail     = ch_stats_fail        // TODO: QUARTO REPORT
-    versions       = ch_versions
+    versions       = ch_collated_versions
 
 }

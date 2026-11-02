@@ -16,8 +16,6 @@ include { QUARTO_FIGURE as QUARTO_FIGURE_QDNASEQ        } from '../../../modules
 include { QUARTO_FIGURE as QUARTO_FIGURE_DELLY          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_SV             } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_FUSION         } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_FIGURE as QUARTO_FIGURE_CNLOH          } from '../../../modules/local/quarto/main.nf'
-include { QUARTO_FIGURE as QUARTO_FIGURE_FOCAL          } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_FIGURE_TARGETS        } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_FIGURE as QUARTO_KARYOTYPE_BAF         } from '../../../modules/local/quarto/main.nf'
 include { QUARTO_TABLE_TABS as QUARTO_FUSION_TABLES     } from '../../../modules/local/quarto/main.nf'
@@ -43,8 +41,6 @@ workflow VARIANT_REPORT {
     ch_targets_figures
     ch_sv_tables
     ch_fusion_tables
-    ch_subchrom_figure
-    ch_subchrom_focal
     ch_snp_table
 
     main:
@@ -52,8 +48,6 @@ workflow VARIANT_REPORT {
     // channels for type of figures:
     ch_qdnaseq = channel.of("CNV")
     ch_delly = channel.of("PanChr")
-    ch_subchrom = channel.of("CNLOH")
-    ch_focal = channel.of("CNLOH-Focal")
     ch_fusion = channel.of("Fusions")
     ch_sv = channel.of("Structural-Variants")
     ch_targets = channel.of("Important-Genes")
@@ -86,10 +80,13 @@ workflow VARIANT_REPORT {
     )
 
     ch_section_cnv = QUARTO_FIGURE_QDNASEQ.out.quarto_figure
-        .groupTuple()
-        .map { id, section, filePaths ->
-            [id, section[0], filePaths]
-        }
+            .map { id, section, filePaths ->
+                [id, section, filePaths, 'CNV Plots']
+            }
+
+    QUARTO_CNV_SECTION(
+        ch_section_cnv
+    )
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -161,7 +158,6 @@ workflow VARIANT_REPORT {
             def lookup = entries.collectEntries { it -> [(it.key): it.value] }
             tuple(meta, lookup.karyotype_string, lookup.iscn_string, lookup.blast_ratio)
         }
-        .view()
 
     ch_karyotype_string = ch_karyotype_result
             .map { meta, string, _iscn, _blast_ratio ->
@@ -217,69 +213,6 @@ workflow VARIANT_REPORT {
 
     QUARTO_KAR_SECTION(
         ch_karyotype_section_in
-    )
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    CNLOH FIGURES
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-    if (realtime == null || realtime == 72) {
-
-        ch_subtitle_cnloh = ch_bin_sizes
-            .filter { meta, _value ->
-            meta == "Subchrom" }
-            .map { meta, value ->
-            "CNLOH calls by ${meta} with a bin size of ${value} kb" }
-
-        ch_cnloh_in = ch_subchrom_figure
-            .combine(ch_subchrom)
-            .combine(ch_subtitle_cnloh)
-
-        ch_subchrom_files = ch_cnloh_in
-            .map { meta, file, type, text ->
-            CreateFigureCNVInput(meta, file, type, text)
-            }
-
-        QUARTO_FIGURE_CNLOH(
-            ch_subchrom_files
-        )
-
-        ch_subtitle_focal = ch_bin_sizes
-            .filter { meta, _value ->
-            meta == "Subchrom" }
-            .map { meta, value ->
-            "Gene Focal view by ${meta} with a bin size of ${value} kb" }
-
-        ch_focal_in = ch_subchrom_focal
-            .combine(ch_focal)
-            .combine(ch_subtitle_focal)
-
-        ch_focal_files = ch_focal_in
-            .map { meta, file, type, text ->
-            CreateFigureCNVInput(meta, file, type, text)
-            }
-
-        QUARTO_FIGURE_FOCAL(
-            ch_focal_files
-        )
-
-        ch_section_cnv = QUARTO_FIGURE_QDNASEQ.out.quarto_figure
-            .mix(QUARTO_FIGURE_CNLOH.out.quarto_figure)
-            .mix(QUARTO_FIGURE_FOCAL.out.quarto_figure)
-            .groupTuple()
-            .map { id, section, filePaths ->
-                [id, section[0], filePaths, 'CNV Plots']
-            }
-    } else {
-        ch_section_cnv = QUARTO_FIGURE_QDNASEQ.out.quarto_figure
-            .map { id, section, filePaths ->
-                [id, section, filePaths, 'CNV Plots']
-            }
-    }
-
-    QUARTO_CNV_SECTION(
-        ch_section_cnv
     )
 
 /*
@@ -354,7 +287,8 @@ workflow VARIANT_REPORT {
         .map { meta, _tables, types, variants ->
             def variant_uniqe = variants[0]
             def variant_lower = variant_uniqe.toLowerCase()
-            def types_empty = types.size() > 1 ? "${types[0]} or ${types[1]}" : "${types[0]}"
+            def types_sorted = types.unique().sort()          // deterministic order, no duplicates
+            def types_empty  = joinWithOr(types_sorted)
             def text = "No Structural variants called by ${types_empty} remaining after applying filters"  // Placeholder text for empty table
             def section = variant_lower
             def type_multi = types_empty.replace(' ', '-')
@@ -452,8 +386,8 @@ workflow VARIANT_REPORT {
         .map { meta, _tables, types, variants ->
             def variant_uniqe = variants[0]
             def variant_lower = variant_uniqe.toLowerCase()
-            def types_empty = types.size() == 1 ? "${types[0]}" :
-                (types.size() == 2 ? "${types[0]} or ${types[1]}" : "${types[0]}, ${types[1]} or ${types[2]}")
+            def types_sorted = types.unique().sort()          // deterministic order, no duplicates
+            def types_empty  = joinWithOr(types_sorted)
             def text = "No gene fusions called by ${types_empty} remaining after applying filters"  // Placeholder text for empty table
             def section = variant_lower
             def type_multi = types_empty.replace(' ', '-').replace(',', '')
@@ -539,10 +473,9 @@ workflow VARIANT_REPORT {
 
     ch_snp_table = ch_snp_table
         .map { meta,table ->
-            def type = meta.id.contains('somatic') ? 'ClairS-TO' : 'Clair3'
-            def new_meta = modifyMetaId(meta, 'replace', '_somatic_snp_vep', '', '')
-            def meta_final = modifyMetaId(new_meta, 'replace', '_germline_snp_vep', '', '')
-            tuple(meta_final, table, type)}
+            def type = (meta.id =~ /_snp_([^_]+)_vep_filt$/)[0][1]
+            def new_meta = meta.id.replaceFirst(/_snp_[^_]+_vep_filt$/, '')
+            tuple(id:new_meta, table, type)}
         .branch { _meta, table, _type ->
             pos: table.readLines().size() > 1
             empty: true }
@@ -563,11 +496,11 @@ workflow VARIANT_REPORT {
     ch_empty_snp = ch_snp_table.empty
         .groupTuple()
         .map { meta, _tables, types ->
-            def types_empty = types.size() > 1 ? "${types[0]} or ${types[1]}" : "${types[0]}"
-            def text = "No SNPs called by ${types_empty} remaining after applying filter in targeted regions."
+            def types_sorted = types.unique().sort()          // deterministic order, no duplicates
+            def types_empty  = joinWithOr(types_sorted)
+            def text    = "No SNPs called by ${types_empty} remaining after applying filter in targeted regions."
             def section = "SNPs"
-            def type_multi = types_empty.replace(' ', '-')
-            def process = "snp-${type_multi}-empty-${meta.id}"
+            def process = "snp-${types_sorted.join('-')}-empty-${meta.id}"
             tuple(meta, text, section, process)
         }
 
@@ -652,3 +585,7 @@ def CreateSVInput(meta, file, type, support, sv, program) {
     return [new_meta, file, caption, section, process ]
 }
 
+def joinWithOr(List items) {
+    if (items.size() <= 1) return items.join('')
+    return items[0..-2].join(', ') + ' or ' + items[-1]
+}

@@ -9,9 +9,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { ONTIME_RANGE_FILTER } from '../../../modules/local/ontime/main.nf' // Module for filtering/splitting BAMs by time
-include { SAMTOOLS_SORT       } from '../../../modules/local/samtools/main.nf' // Module for sorting BAMs
-include { SAMTOOLS_INDEX      } from '../../../modules/local/samtools/main.nf' // Module for indexing BAMs
-include { modifyMetaId } from '../utils_nfcore_oncoseq_pipeline' // Function for consistent metadata manipulation
+include { SAMTOOLS_SORT       } from '../../../modules/nf-core/samtools/sort/main' // Module for sorting BAMs
+include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { modifyMetaId                              } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 workflow SPLIT_BAMS_TIME {
     /*
@@ -24,7 +24,6 @@ workflow SPLIT_BAMS_TIME {
 
     take:
     ch_bam
-    ref
     bed
 
     main:
@@ -38,9 +37,9 @@ workflow SPLIT_BAMS_TIME {
     */
     def createTimeInterval = { x -> tuple(0, "${x}") }
 
-    timeseries = Channel
+    timeseries = channel
         .from(params.time_points.split(','))
-        .map { it.trim() } // optional: remove surrounding spaces
+        .map { it -> it.trim() } // optional: remove surrounding spaces
         .map(createTimeInterval) // Each tuple: (from, to)
 
     /*
@@ -60,31 +59,6 @@ workflow SPLIT_BAMS_TIME {
     ch_bam_ts = ch_bam
         .combine(timeseries)
         .map(createBamTimeSeriesMeta)
-
-    /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        PROPAGATE TIME SERIES TO REFERENCE DATA
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        For each ref entry, create a new meta for each time interval, updating id/ts.
-        Output: ref (tuple: new_meta, refid, ref_fasta, ref_fai)
-    */
-    def createReferenceTimeSeriesMeta = { meta, refid, ref_fasta, ref_fai, from, to ->
-        def to_stripped = to.replace('"', '')
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${from}h_${to_stripped}h")
-        new_meta.ts = "${from}h_${to_stripped}h".toString()
-        tuple(new_meta, refid, ref_fasta, ref_fai)
-    }
-
-    def extractReferenceFields = { meta, refid, ref_fasta, ref_fai ->
-        tuple(meta, refid, ref_fasta, ref_fai)
-    }
-
-    ts_ref = ref
-        .combine(timeseries)
-        .map(createReferenceTimeSeriesMeta)
-    // Keep only the meta and reference fields
-    ts_ref = ts_ref
-        .map(extractReferenceFields)
 
         /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -124,12 +98,13 @@ workflow SPLIT_BAMS_TIME {
         Output: SAMTOOLS_SORT_INDEX.out.sortedbamidx (sorted BAMs with index)
     */
     SAMTOOLS_SORT(
-        ONTIME_RANGE_FILTER.out.bam
+        ONTIME_RANGE_FILTER.out.bam,
+        [[], [], []],
+        'bai'
     )
 
-    SAMTOOLS_INDEX(
-        SAMTOOLS_SORT.out.sortedbam
-    )
+    ch_bam_sorted = SAMTOOLS_SORT.out.bam
+        .join(SAMTOOLS_SORT.out.index)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -151,17 +126,6 @@ workflow SPLIT_BAMS_TIME {
         ch_bam = ch_bam
             .map(toFullBam)
 
-        // Add FULL to the original ref
-        def toFullReference = { meta, refid, ref_fasta, ref_fai ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
-            new_meta.ts = "FULL"
-            tuple(new_meta, refid, ref_fasta, ref_fai)
-        }
-
-        ref_full = ref.map(toFullReference)
-
-        ch_ref = ts_ref.mix(ref_full)
-
         // Add FULL to the original bed
         def toFullBed = { meta, bedfile, padding, path ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_FULL')
@@ -176,7 +140,6 @@ workflow SPLIT_BAMS_TIME {
 
     } else {
         // If not including full BAMs, just use the time series reference
-        ch_ref = ts_ref
         ch_bed = ts_bed
     }
 
@@ -194,7 +157,7 @@ workflow SPLIT_BAMS_TIME {
 
 
 
-    ch_bam_out = SAMTOOLS_INDEX.out.bamfile_index
+    ch_bam_out = ch_bam_sorted
         .map(extractBamFields)
         .mix(ch_bam)
 
@@ -206,8 +169,27 @@ workflow SPLIT_BAMS_TIME {
         Collects version information from both SAMTOOLS_SORT_INDEX and
         ONTIME_RANGE_FILTER modules for reproducibility.
     */
-    ch_versions = SAMTOOLS_INDEX.out.versions
-    ch_versions.mix(ONTIME_RANGE_FILTER.out.versions)
+    ch_versions = ONTIME_RANGE_FILTER.out.versions
+
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+        .mix(topic_versions_string)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -220,7 +202,6 @@ workflow SPLIT_BAMS_TIME {
 
     emit:
     bam              = ch_bam_out
-    versions         = ch_versions
-    ref              = ch_ref
+    versions         = ch_collated_versions
     bed              = ch_bed
 }

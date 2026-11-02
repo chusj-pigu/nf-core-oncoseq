@@ -19,7 +19,7 @@ def addTypeToChannel(ch, type) {
 workflow CLASSY {
     // Input channels:
     //   fastq_ch: Channel of tuples [meta, reads] (reads can be file or directory)
-    //   ref:      Channel of tuples [meta, ref, ref_fasta, ref_fai]
+    //   ref:      Channel of tuples [meta, ref, ref_fasta]
     take:
     input         // Channel: from mapping workflow
     ref       // Channel: from input samplesheet
@@ -31,9 +31,6 @@ workflow CLASSY {
 
     ch_classy_in = input
         .combine(ref)
-        .map { meta, bam, bai, genome, ref_fasta, _red_idx ->
-            tuple(meta, bam, bai, genome.id, ref_fasta)
-            }
 
     CLASSY_COMBINED(ch_classy_in)
 

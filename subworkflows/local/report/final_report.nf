@@ -29,7 +29,7 @@ workflow MIDNIGHT_REPORT {
 */
 
     ch_id = ch_params
-        .map { meta, bed_file, padding, lowfid ->
+        .map { meta, _bed_file, _padding, _lowfid ->
             meta }
         .unique()
 
@@ -88,7 +88,7 @@ workflow MIDNIGHT_REPORT {
 
         ch_subtitle = ch_params
             .join(ch_cfdna)
-            .map { meta, _ref_index, bed_file, _padding, _lowfid, _purity, filter ->
+            .map { meta, bed_file, _padding, _lowfid, _purity, filter ->
                 def bed = bed_file.name
                 def skip_modes = params.skip_mapping ? "and bam files as input, skipping mapping." :
                     (params.skip_basecalling ? "and fastq files as input, skipping basecalling." :
