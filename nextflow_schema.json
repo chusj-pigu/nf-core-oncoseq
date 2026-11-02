@@ -328,6 +328,11 @@
             "default": "/workspaces/nf-core-oncoseq/assets/snp_exclude.txt",
             "description": "List of genes to exclude from snp analysis"
         },
+        "classy_container": {
+            "type": "string",
+            "default": null,
+            "description": "Specify a different container for Classy module (default: same as pipeline container)"
+        },
         "skip_mapping": {
             "type": "boolean"
         },
