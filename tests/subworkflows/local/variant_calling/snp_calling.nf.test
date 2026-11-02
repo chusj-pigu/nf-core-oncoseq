@@ -1,0 +1,57 @@
+nextflow_workflow {
+
+    name "Test Workflow SNP_CALLING"
+    script "subworkflows/local/variant_calling/snp_calling.nf"
+    workflow "SNP_CALLING"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                // define parameters here. Example:
+                // outdir = "tests/results"
+                realtime = 1
+                clairsto_model = "ont_r10_dorado_sup_5khz_ssrs"
+            }
+            workflow {
+                """
+                ch_bam0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam")
+                ch_bai0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam.bai")
+                ch_bam1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam")
+                ch_bai1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam.bai")
+                ch_input0 = ch_bam0
+                    .combine(ch_bai0)
+                    .map { bam, bai ->
+                        tuple(id:'HCC1395',bam,bai)}
+                ch_input1 = ch_bam1
+                    .combine(ch_bai1)
+                    .map { bam, bai ->
+                        tuple(id:'HG003',bam,bai)}
+
+                input[0] = ch_input0.mix(ch_input1)
+                ref = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa")
+                ref_index = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa.fai")
+                input[1] = ref
+                    .combine(ref_index)
+                    .map { ref, ref_fai ->
+                        tuple(id:"hg38", ref, ref_fai) }
+                input[2] = channel.of('fast')
+                // Too big for github, to upload from ncbi
+                ch_bed0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395.bed")
+                    .map { bed ->
+                        tuple(id:'HCC1395', bed)}
+                ch_bed1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003.bed")
+                    .map { bed ->
+                        tuple(id:'HG003', bed)}
+                input[3] = ch_bed0.mix(ch_bed1)
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}

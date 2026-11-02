@@ -1,0 +1,59 @@
+nextflow_workflow {
+
+    name "Test Workflow READS_FILTER"
+    script "subworkflows/local/read_processing/reads_filter.nf"
+    workflow "READS_FILTER"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                max_length = 700
+            }
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                // input[0] = file("test-file.txt")
+                // ch_bam0 = channel.fromPath("${projectDir}/test_data/mapping/input/bam/HCC1395_tumor_chr17_demo.bam")
+                // ch_bai0 = channel.fromPath("${projectDir}/test_data/mapping/input/bam/HCC1395_tumor_chr17_demo.bam.bai")
+                // ch_bam1 = channel.fromPath("${projectDir}/test_data/mapping/input/bam/HG003_chr20_demo.bam")
+                // ch_bai1 = channel.fromPath("${projectDir}/test_data/mapping/input/bam/HG003_chr20_demo.bam.bai")
+
+                ch_fq0 = channel.fromPath("${projectDir}/test_data/mapping/input/fq/HCC1395.merged.fastq.gz")
+                ch_fq1 = channel.fromPath("${projectDir}/test_data/mapping/input/fq/HG003.merged.fastq.gz")
+
+                // ch_input0 = ch_bam0
+                //     .combine(ch_bai0)
+                //     .map { bam, bai ->
+                //         tuple(id:'HCC1395',bam, bai)}
+                // ch_input1 = ch_bam1
+                //     .combine(ch_bai1)
+                //     .map { bam, bai ->
+                //          tuple(id:'HG003',bam, bai)}
+
+                ch_input0 = ch_fq0
+                    .map { fq ->
+                        tuple(id:'HCC1395',fq)}
+
+                ch_input1 = ch_fq1
+                    .map { fq ->
+                        tuple(id:'HG003',fq)}
+
+                ch_samplesheet0 = channel.of([[id:'HCC1395'], 0.5, 'yes'])
+                ch_samplesheet1 = channel.of([[id:'HG003'], 0.5, 'no'])
+
+                input[0] = ch_samplesheet0.mix(ch_samplesheet1)
+                input[1] = ch_input0
+                    .mix(ch_input1)
+
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}
