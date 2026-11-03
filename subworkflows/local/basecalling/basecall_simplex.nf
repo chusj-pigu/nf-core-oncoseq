@@ -5,10 +5,9 @@
 */
 include { DORADO_BASECALL                           } from '../../../modules/local/dorado/main.nf'
 include { SAMTOOLS_QSFILTER                         } from '../../../modules/local/samtools/main.nf'
-include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_PASS } from '../../../modules/local/samtools/main.nf'
-include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_FAIL } from '../../../modules/local/samtools/main.nf'
-include { SEQKIT_STATS as SEQKIT_STATS_PASS         } from '../../../modules/nf-core/seqkit/stats/main'
-include { SEQKIT_STATS as SEQKIT_STATS_FAIL         } from '../../../modules/nf-core/seqkit/stats/main'
+include { SAMTOOLS_TOFASTQ                          } from '../../../modules/local/samtools/main.nf'
+include { HTSLIB_BGZIPTABIX                         } from '../../../modules/nf-core/htslib/bgziptabix/main'
+include { SEQKIT_STATS                              } from '../../../modules/nf-core/seqkit/stats/main'
 
 include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { modifyMetaId                              } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
@@ -49,22 +48,21 @@ workflow BASECALL_SIMPLEX {
             tuple(new_meta, ubam)
             }
 
-    SAMTOOLS_TOFASTQ_PASS(ch_ubam_pass)
-    SAMTOOLS_TOFASTQ_FAIL(ch_ubam_fail)
+    ch_to_fastq = ch_ubam_pass
+        .mix(ch_ubam_fail)
 
-    SEQKIT_STATS_PASS(SAMTOOLS_TOFASTQ_PASS.out.fq)              // Read stats for passed reads
-    SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
+    SAMTOOLS_TOFASTQ(ch_to_fastq)
 
-    ch_stats_pass = SEQKIT_STATS_PASS.out.stats
+    SEQKIT_STATS(SAMTOOLS_TOFASTQ.out.fq)
+
+    ch_stats_pass = SEQKIT_STATS.out.stats
+        .filter { meta, _tbl -> meta.id.contains('pass')}
         .map { meta, table ->
         def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
         tuple(meta_restore, table)}
-    ch_stats_fail = SEQKIT_STATS_FAIL.out.stats
-        .map { meta, table ->
-        def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_fail')
-        tuple(meta_restore, table)}
 
-    ch_fastq = SAMTOOLS_TOFASTQ_PASS.out.fq
+    ch_fastq_pass = SAMTOOLS_TOFASTQ.out.fq
+        .filter { meta, _reads -> meta.id.contains('pass')}
         .map { meta, reads ->
             def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
             tuple(new_meta, reads)}
@@ -77,8 +75,7 @@ workflow BASECALL_SIMPLEX {
     */
     ch_versions = DORADO_BASECALL.out.versions
         .mix(SAMTOOLS_QSFILTER.out.versions)
-        .mix(SAMTOOLS_TOFASTQ_PASS.out.versions)
-        .mix(SAMTOOLS_TOFASTQ_FAIL.out.versions)
+        .mix(SAMTOOLS_TOFASTQ.out.versions)
 
     def topic_versions = channel.topic("versions")
         .distinct()
@@ -101,9 +98,8 @@ workflow BASECALL_SIMPLEX {
         .mix(topic_versions_string)
 
     emit:
-    fastq          = ch_fastq
-    stats_pass     = ch_stats_pass        // TODO: QUARTO REPORT
-    stats_fail     = ch_stats_fail        // TODO: QUARTO REPORT
+    fastq          = ch_fastq_pass
+    stats_pass     = ch_stats_pass
     versions       = ch_collated_versions
 
 }
