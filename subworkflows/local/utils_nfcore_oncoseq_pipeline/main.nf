@@ -79,163 +79,101 @@ workflow PIPELINE_INITIALISATION {
         nextflow_cli_args
     )
 
-    //
-    // Create channel from input file provided through params.input
-    //
 
-    // channels from parameters:
+    def cols = ['meta', 'project', 'input', 'ubam', 'kit', 'barcode',
+                'bed', 'padding', 'lf', 'purity', 'filter', 'tumor_type']
 
-    ch_ubam         = channel.fromPath(params.ubam, checkIfExists: true)
-    ch_bed          = channel.fromPath(params.bed, checkIfExists: true)
-    ch_low_fidelity = channel.fromPath(params.low_fidelity, checkIfExists: true)
-    ch_padding      = channel.of(params.padding)
-
-    // Initialize empty channels to fall back on:
-
-    ch_adaptive = channel.empty()
-    ch_cfdna    = channel.empty()
-
-    // Main input channel:
-
-    channel
+    ch_rows = channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .combine(ch_ubam)
-        .branch {
-            meta, project, input, ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type, ubam_ph ->
-            reg: (!ubam && !kit && !barcode)
-                return [ meta, file(input), ubam_ph ]
-            resume: (ubam && !kit && !barcode)
-                return [ meta, file(input), file(ubam) ]
-            demux_reg: (project && kit && barcode && !ubam)
-                return tuple(id:project, file(input), ubam_ph )
-            demux_resume: (project && kit && barcode)
-                return tuple(id:project, file(input), file(ubam))
+        .map { row -> [cols, row].transpose().collectEntries() }
 
-        }
-        .set { ch_samplesheet_branched }
+    // Global defaults
+    def ubam_ph     = file(params.ubam, checkIfExists: true)
+    def bed_default = file(params.bed, checkIfExists: true)
+    def lf_default  = file(params.low_fidelity, checkIfExists: true)
 
-    ch_samplesheet_branched.reg
-        .mix(ch_samplesheet_branched.resume)
-        .mix(ch_samplesheet_branched.demux_reg)
-        .mix(ch_samplesheet_branched.demux_resume)
-        .unique()
-        .set { ch_in_samplesheet }
-
-    channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .map {
-            meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
-            if (project && kit && barcode) {
-                tuple(id:project, meta.id, barcode, kit)
-            } else {
-                tuple()
+    // --- Main input: [ meta, input, ubam ] ---
+    ch_in_samplesheet = ch_rows
+        .map { row ->
+            def demux = row.project && row.kit && row.barcode
+            if (!demux && (row.kit || row.barcode)) {
+                error "Sample '${row.meta.id}': kit and barcode require a project (demultiplexing)"
             }
-        }
-        .set { ch_demux }
-
-    if (params.cfdna) {
-
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .map {
-                meta, _project, _input, _ubam, _kit, _barcode, _bed, _padding, _low_fidelity, purity, filter, _tumor_type ->
-                if(!purity){
-                    throw new IllegalArgumentException("Please provide sample purity estimation for sample: ${meta.id ?: meta}")
-                }
-                if(!filter){
-                    log.warn("Warning: No filter value provided for sample ${meta.id ?: meta} — defaulting to yes (samples will be filtered for fragment length <= 700bp)")
-                    filter = "yes"
-                }
-
-                return tuple(meta, purity, filter)
-            }
-            .set { ch_cfdna }
-
-    }
-
-    ch_ubam         = channel.fromPath(params.ubam, checkIfExists: true)
-    ch_bed          = channel.fromPath(params.bed, checkIfExists: true)
-    ch_low_fidelity = channel.fromPath(params.low_fidelity, checkIfExists: true)
-
-    ch_adaptive_raw = channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .combine(ch_bed)
-        .combine(ch_padding)
-        .combine(ch_low_fidelity)
-        .map {
-            meta, _project, _input, _ubam, _kit, _barcode, bed, padding, lf, _purity, _filter, _tumor_type, bed_c, padding_c, lf_c ->
             tuple(
-                meta,
-                hasVal(bed)     ? file(bed) : bed_c,
-                hasVal(padding) ? padding   : padding_c,
-                hasVal(lf)      ? file(lf)  : lf_c
+                demux ? [id: row.project] : row.meta,
+                file(row.input),
+                row.ubam ? file(row.ubam) : ubam_ph
             )
         }
+        .unique()
 
-    // --- Decompress gzipped BED files ---
-    // Stable meta per BED file, so the same BED is decompressed once and can be joined back.
-    // The hash avoids collisions between same-named BEDs in different directories.
+    // --- Demultiplexing info: [ [id: project], sample_id, barcode, kit ] ---
+    ch_demux = ch_rows
+        .filter { row -> row.project && row.kit && row.barcode }
+        .map    { row -> tuple([id: row.project], row.meta.id, row.barcode, row.kit) }
 
-    // Unique gzipped BEDs only. Input: tuple(meta, infile, infile_tbi, regions)
-    ch_bed_to_decompress = ch_adaptive_raw
+    // --- cfDNA: [ meta, purity, filter ] ---
+    ch_cfdna = params.cfdna
+        ? ch_rows.map { row ->
+            if (!row.purity) {
+                error "Please provide sample purity estimation for sample: ${row.meta.id}"
+            }
+            if (!row.filter) {
+                log.warn("No filter value provided for sample ${row.meta.id} — defaulting to yes (fragment length <= 700bp)")
+            }
+            tuple(row.meta, row.purity, row.filter ?: 'yes')
+        }
+        : channel.empty()
+
+    // --- Tumor type: [ meta, tumor_type ] ---
+    ch_tumor_type = ch_rows
+        .map { row -> tuple(row.meta, row.tumor_type ?: 'other') }
+
+    // --- Adaptive: [ meta, bed, padding, lf ], per-sample value or global default ---
+    ch_adaptive_branched = ch_rows
+        .map { row ->
+            if (!row.padding) {
+                log.warn("Using padding of ${params.padding}kb padding around ROI for all samples")
+            }
+            if (!row.bed && params.bed.contains("v2.0.1-pre-merge-panel-20kb-pad.bed")) {
+                log.warn("Using default bed file ${params.bed} for all samples")
+            }
+            tuple(
+                row.meta,
+                row.bed ? file(row.bed) : bed_default,
+                row.padding != null ? row.padding : params.padding,   // keeps padding = 0 valid
+                row.lf  ? file(row.lf)  : lf_default
+            )
+        }
+        .branch { _meta, bed, _padding, _lf ->
+            gz   : bed.name.endsWith('.gz') || bed.name.endsWith('.bgz')
+            plain: true
+        }
+
+    // Decompress each unique gzipped BED once. The source path is kept in meta
+    // so the result can be joined back without a hash-based key.
+    ch_bed_to_decompress = ch_adaptive_branched.gz
         .map    { _meta, bed, _padding, _lf -> bed }
         .unique()
-        .filter { bed -> isGz(bed) }
-        .map    { bed -> tuple(bedMeta(bed), bed, [], []) }
+        .map    { bed -> tuple([id: bed.simpleName, src: bed], bed, [], []) }
 
     DECOMPRESS_BED(
         ch_bed_to_decompress,
         'decompress',
-        false,        // make_index
-        'bed'         // out_ext -> <meta.id>.bed
+        false,   // make_index
+        'bed'    // out_ext
     )
 
-    // Lookup: key -> decompressed BED
     ch_bed_decompressed = DECOMPRESS_BED.out.output
-        .map { meta, bed -> tuple(meta.id, bed) }
+        .map { meta, bed -> tuple(meta.src, bed) }
 
-    // Rows whose BED is gzipped: swap in the decompressed file.
-    // combine(by: 0) is needed (not join) because many samples can share one BED.
-    ch_adaptive_gz = ch_adaptive_raw
-        .filter { _meta, bed, _padding, _lf -> isGz(bed) }
-        .map    { meta, bed, padding, lf -> tuple(bedMeta(bed).id, meta, padding, lf) }
-        .combine(ch_bed_decompressed, by: 0)
-        .map    { _key, meta, padding, lf, bed -> tuple(meta, bed, padding, lf) }
-
-    // Rows whose BED is already plain text: pass through untouched
-    ch_adaptive_plain = ch_adaptive_raw
-        .filter { _meta, bed, _padding, _lf -> !isGz(bed) }
-
-    ch_adaptive = ch_adaptive_plain.mix(ch_adaptive_gz)
-
-    channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .map {
-            meta, _project, _input, _ubam, _kit, _barcode, _bed, _padding, _lf, _purity, _filter, tumor_type ->
-            def tumor_type_resolved = tumor_type ?: "other"
-            tuple(meta, tumor_type_resolved)
-        }
-        .set { ch_tumor_type }
-
-    /*
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ERROR MESSAGES
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    */
-
-    channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .combine(ch_bed)
-        .combine(ch_padding)
-        .combine(ch_low_fidelity)
-        .map { _meta, _project, _input, _ubam, _kit, _barcode, bed, padding, _low_fidelity, _purity, _filter, _tumor_type, bed_c, padding_c, _lf_c ->
-            if (!padding && padding_c == 20000){
-                log.warn("Using default padding of 20kb padding around ROI")
-            }
-            if (!bed && bed_c.name == "v2.0.1-pre-merge-panel-20kb-pad.bed") {
-                log.warn("Using default bed file ${bed_c.name}")
-            }
-        }
+    // combine(by: 0) because many samples can share one BED
+    ch_adaptive = ch_adaptive_branched.plain.mix(
+        ch_adaptive_branched.gz
+            .map     { meta, bed, padding, lf -> tuple(bed, meta, padding, lf) }
+            .combine(ch_bed_decompressed, by: 0)
+            .map     { _src, meta, padding, lf, bed -> tuple(meta, bed, padding, lf) }
+    )
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
