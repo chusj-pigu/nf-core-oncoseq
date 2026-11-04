@@ -124,9 +124,6 @@ workflow VCF_ANNOTATION {
 
     ch_vcf_filt_final = HTSLIB_BGZIPTABIX.out.output
         .join(HTSLIB_BGZIPTABIX.out.index)
-        .map { meta, vcf_file, index ->
-        def new_meta = modifyMetaId(meta, 'remove_suffix', '_filt', '', '')
-        tuple(new_meta,vcf_file,index)}
         .mix(ch_sv_empty)
 
     /*

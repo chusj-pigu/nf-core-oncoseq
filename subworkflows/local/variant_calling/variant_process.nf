@@ -85,9 +85,9 @@ workflow VARIANT_PROCESS {
     ch_in_bedtools = ch_severus_sniffles_filtered
         .map { meta, vcf, index ->
             def meta_extended = meta.id
-            def new_meta = meta.id.replaceFirst(/_sv_(severus|sniffles)_vep_filt_support$/, '')
-            tuple(new_meta, vcf, index, meta_extended)}
-        .join(bed)
+            def new_meta = meta.id.replaceAll(/_sv_(severus|sniffles)_vep_filt_support$/, '')
+            tuple(id:new_meta, vcf, index, meta_extended)}
+        .combine(bed, by: 0)        // Avoid bed file being consumed by first sample
         .map { _meta, vcf, _index, meta_extended, bedfile ->
             def new_meta = meta_extended.replaceAll('filt_support', 'filt_support_region')
             tuple(id:new_meta, vcf, bedfile)}
