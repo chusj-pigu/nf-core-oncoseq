@@ -6,13 +6,12 @@
     for variant calling with ClairS-TO, annotation with SNPEff/SNPSift, and VCF
     processing with BCFtools.
 */
-include { CLAIRS_TO_CALL                            } from '../../../modules/local/clairsto/main.nf'
-include { CLAIR3_CALL                               } from '../../../modules/local/clair3/main.nf'
-include { DEEPSOMATIC_TUMORONLY                     } from '../../../modules/local/deepsomatic/main'
-include { BCFTOOLS_CONCAT                           } from '../../../modules/nf-core/bcftools/concat'
-include { BCFTOOLS_SORT                             } from '../../../modules/nf-core/bcftools/sort'
-include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_CLAIR3   } from '../../../modules/nf-core/bcftools/index'
-include { BCFTOOLS_INDEX as BCFTOOLS_INDEX_CLAIRSTO } from '../../../modules/nf-core/bcftools/index'
+include { CLAIRS_TO_CALL        } from '../../../modules/local/clairsto/main.nf'
+include { CLAIR3_CALL           } from '../../../modules/local/clair3/main.nf'
+include { DEEPSOMATIC_TUMORONLY } from '../../../modules/local/deepsomatic/main'
+include { BCFTOOLS_CONCAT       } from '../../../modules/nf-core/bcftools/concat'
+include { BCFTOOLS_SORT         } from '../../../modules/nf-core/bcftools/sort'
+include { BCFTOOLS_INDEX        } from '../../../modules/nf-core/bcftools/index'
 
 // functions
 
@@ -68,18 +67,18 @@ workflow SNP_CALLING {
     ch_vcf_to_index = ch_snv_to_index
         .mix(ch_indel_to_index)
 
-    BCFTOOLS_INDEX_CLAIRSTO(ch_vcf_to_index)
+    BCFTOOLS_INDEX(ch_vcf_to_index)
 
     // Restore original meta id to join indel with snv together
     ch_snv_to_concat = ch_snv_to_index
-        .join(BCFTOOLS_INDEX_CLAIRSTO.out.index)
+        .join(BCFTOOLS_INDEX.out.index)
         .map { meta, vcf, tbx ->
             def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_snv')
             tuple(new_meta,vcf,tbx)
         }
 
     ch_indel_to_concat = ch_indel_to_index
-        .join(BCFTOOLS_INDEX_CLAIRSTO.out.index)
+        .join(BCFTOOLS_INDEX.out.index)
         .map { meta, vcf, tbx ->
             def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_indel')
             tuple(new_meta,vcf,tbx)
@@ -143,16 +142,8 @@ workflow SNP_CALLING {
         ch_model
     )
 
-    ch_to_index_clair3 = CLAIR3_CALL.out.vcf
-        .map { meta, vcf ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_snp_clair3')
-            tuple(new_meta,vcf)
-        }
-
-    BCFTOOLS_INDEX_CLAIR3(ch_to_index_clair3)
-
-    ch_clair3_final = ch_to_index_clair3
-        .join(BCFTOOLS_INDEX_CLAIR3.out.index)
+    ch_clair3_final = CLAIR3_CALL.out.vcf
+        .join(CLAIR3_CALL.out.tbi)
 
     ch_snp_final = ch_clairsto_final
         .mix(ch_clair3_final)
