@@ -114,7 +114,7 @@ workflow VARIANT_PROCESS {
 
     // Filter variants with HIGH and MODERATE impacts, create region file expected by figeno and tables for reports
     ch_sv_vcf = BCFTOOLS_RM_HEADER.out.vcf
-        .mix(BEDTOOLS_INTERSECT.out.vcf)
+        .mix(BEDTOOLS_INTERSECT.out.intersect)
         .map { meta, vcf ->
             def new_meta = meta.id.replaceFirst(/_sv_(severus|sniffles)_vep_(filt_support_region|filt_empty)$|_sv_stellerator$/, '')
             tuple(id:new_meta, vcf)
