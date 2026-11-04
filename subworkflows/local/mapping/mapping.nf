@@ -81,7 +81,7 @@ workflow MAPPING {
 
             SAMTOOLS_MERGE_CHUNK(
                 bams_chunk_sep.multi.map { meta_chunk, _type, chunk, chunk_index -> tuple(meta_chunk, chunk, chunk_index) },
-                ref.combine(fai).first().map { meta, fasta, index -> tuple(meta, fasta, index, []) },
+                ref.join(fai).map { meta, fasta, index -> tuple(meta, fasta, index, []) }.first(),
                 'bai'
                 )
 
@@ -109,7 +109,7 @@ workflow MAPPING {
             // Make another round of merging from those merged chunks
             SAMTOOLS_MERGE_FINAL(
                 ch_bam_merged.multi_bam.map{ meta, _size, bam_list, bai_list -> tuple(meta, bam_list, bai_list) },
-                ref.combine(fai).first().map { meta, fasta, index -> tuple(meta, fasta, index, []) },
+                ref.join(fai).map { meta, fasta, index -> tuple(meta, fasta, index, []) }.first(),
                 'bai'
             )
 
