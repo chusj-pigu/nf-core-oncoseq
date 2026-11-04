@@ -33,7 +33,6 @@ include { VARIANT_PROCESS                                 } from '../subworkflow
 
 // Adaptive-specific
 include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/coverage_separate'
-include { REMOVE_PADDING    } from '../modules/local/adaptive_specific/main.nf'
 
 // Tumor classification
 include { CLASSY               } from '../subworkflows/local/methylation_analysis/classy.nf'
@@ -118,6 +117,7 @@ workflow ONCOSEQ {
     mapq_wig                // cfDNA mode only
     basecall_model          // channel: model for basecalling
     bed                     // channel: bed file used for adaptive sampling regions
+    bed_nopad                // channel: bed file without padding
     targets                 // channel: list of genes with their position to represent in Figeno
     vep_cache
 
@@ -147,18 +147,6 @@ workflow ONCOSEQ {
     // Transform ref channel into value channel so it doesn't get consumed only once
     ch_ref = ref.first()
     ch_ref_fai = ref_fai.first()
-
-    // Process bed
-
-    ch_bed_pad = bed
-        .map { meta,bedfile,padding,_low_fidelity ->
-            tuple(meta,bedfile,padding) }
-        .groupTuple(by:[1,2])
-
-    REMOVE_PADDING(ch_bed_pad)
-
-    ch_bed_nopad = REMOVE_PADDING.out.bed
-        .transpose()
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -326,9 +314,9 @@ workflow ONCOSEQ {
                     .map { meta, tumor, t -> tuple(id:timed_id(meta, t), tumor) }
                 )
 
-                ch_bed_nopad_final = with_full(
-                    ch_bed_nopad,
-                    ch_bed_nopad
+                bed_nopad_final = with_full(
+                    bed_nopad,
+                    bed_nopad
                     .combine(ch_time_points)
                     .map { meta, bedfile, t -> tuple(id:timed_id(meta, t), bedfile) }
                 )
@@ -341,7 +329,7 @@ workflow ONCOSEQ {
         ch_bam_for_calling = ch_bam_res
         ch_bed_for_calling = bed
         ch_tumor_type      = tumor_type
-        ch_bed_nopad_final = ch_bed_nopad
+        bed_nopad_final = bed_nopad
     }
 
     /*
@@ -400,8 +388,8 @@ workflow ONCOSEQ {
     COVERAGE_SEPARATE(
         ch_bam_for_calling,
         ch_bed_for_calling,
-        ch_bed_nopad_final,
-        genome
+        bed_nopad_final,
+        ch_ref_fai
     )
 
     ADAPTIVE_REPORT(
@@ -523,7 +511,7 @@ workflow ONCOSEQ {
             ch_ref,
             ch_ref_fai,
             basecall_model,
-            ch_bed_nopad_final
+            bed_nopad_final
         )
 
         ch_versions = ch_versions
@@ -676,7 +664,7 @@ workflow ONCOSEQ {
         NASVAR(
             ch_bam_to_process,
             ch_bed_for_calling,
-            ch_bed_nopad_final,
+            bed_nopad_final,
             ref,
             ref_fai
         )
@@ -709,7 +697,7 @@ workflow ONCOSEQ {
     // Filter variants to visualize :
     VARIANT_PROCESS (
         ch_bam_to_process,
-        ch_bed_nopad_final,
+        bed_nopad_final,
         ch_vcf_to_process,
         CNV_CALLING.out.qdnaseq_bed,
         CNV_CALLING.out.qdnaseq_segs,

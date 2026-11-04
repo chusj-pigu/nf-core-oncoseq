@@ -38,6 +38,7 @@ workflow NF_CORE_ONCOSEQ {
     mapq_wig        // cfDNA mode only
     basecall_model   // channel: model for basecalling
     bed             // channel: from path read from params.bed, bed file used for adaptive sampling
+    bed_nopad       // channel: bed file without padding
     sv_targets      // channel : list of genes with their position to represent in Figeno
     vep_cache
 
@@ -58,6 +59,7 @@ workflow NF_CORE_ONCOSEQ {
         mapq_wig,
         basecall_model,
         bed,
+        bed_nopad,
         sv_targets,
         vep_cache
     )
@@ -351,6 +353,7 @@ workflow {
         ch_min_mapq,
         ch_model,
         PIPELINE_INITIALISATION.out.bed_sheet,
+        PIPELINE_INITIALISATION.out.bed_nopad,
         ch_sv_targets,
         ch_vep_cache
     )
