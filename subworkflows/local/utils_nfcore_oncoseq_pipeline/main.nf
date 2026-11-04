@@ -107,7 +107,6 @@ workflow PIPELINE_INITIALISATION {
             )
         }
         .unique()
-        .view()
 
     // --- Demultiplexing info: [ [id: project], sample_id, barcode, kit ] ---
     ch_demux = ch_rows
@@ -130,7 +129,6 @@ workflow PIPELINE_INITIALISATION {
     // --- Tumor type: [ meta, tumor_type ] ---
     ch_tumor_type = ch_rows
         .map { row -> tuple(row.meta, row.tumor_type ?: 'other') }
-        .view()
 
     // --- Adaptive: [ meta, bed, padding, lf ], per-sample value or global default ---
     ch_adaptive_branched = ch_rows
