@@ -17,6 +17,8 @@ include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
 include { SAMTOOLS_FAIDX            } from '../../../modules/nf-core/samtools/faidx/main.nf'
+include { HTSLIB_BGZIPTABIX as DECOMPRESS_FASTA } from '../../../modules/nf-core/htslib/bgziptabix'
+include { HTSLIB_BGZIPTABIX as DECOMPRESS_BED   } from '../../../modules/nf-core/htslib/bgziptabix'
 include { DORADO_DOWNLOAD_LIST    } from '../../../modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from '../../../modules/local/dorado/main.nf'
 include { ENSEMBLVEP_DOWNLOAD     } from '../../../modules/nf-core/ensemblvep/download/main.nf'
@@ -151,29 +153,60 @@ workflow PIPELINE_INITIALISATION {
 
     }
 
-    channel
+    ch_ubam         = channel.fromPath(params.ubam, checkIfExists: true)
+    ch_bed          = channel.fromPath(params.bed, checkIfExists: true)
+    ch_low_fidelity = channel.fromPath(params.low_fidelity, checkIfExists: true)
+
+    ch_adaptive_raw = channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .combine(ch_bed)
         .combine(ch_padding)
         .combine(ch_low_fidelity)
-        .branch {
+        .map {
             meta, _project, _input, _ubam, _kit, _barcode, bed, padding, lf, _purity, _filter, _tumor_type, bed_c, padding_c, lf_c ->
-            common: (!bed && !padding && !lf)
-                return [ meta, bed_c, padding_c, lf_c ]
-            bed: (bed && !padding && !lf)
-                return [ meta, file(bed), padding_c, lf_c  ]
-            padding: (bed && padding && !lf)
-                return [ meta, file(bed), padding, lf_c  ]
-            bed_diff: (bed && padding && lf)
-                return [ meta, file(bed), padding, file(lf) ]
+            tuple(
+                meta,
+                hasVal(bed)     ? file(bed) : bed_c,
+                hasVal(padding) ? padding   : padding_c,
+                hasVal(lf)      ? file(lf)  : lf_c
+            )
         }
-        .set { ch_adaptive_branched }
 
-    ch_adaptive_branched.common
-        .mix(ch_adaptive_branched.bed)
-        .mix(ch_adaptive_branched.padding)
-        .mix(ch_adaptive_branched.bed_diff)
-        .set { ch_adaptive }
+    // --- Decompress gzipped BED files ---
+    // Stable meta per BED file, so the same BED is decompressed once and can be joined back.
+    // The hash avoids collisions between same-named BEDs in different directories.
+
+    // Unique gzipped BEDs only. Input: tuple(meta, infile, infile_tbi, regions)
+    ch_bed_to_decompress = ch_adaptive_raw
+        .map    { _meta, bed, _padding, _lf -> bed }
+        .unique()
+        .filter { bed -> isGz(bed) }
+        .map    { bed -> tuple(bedMeta(bed), bed, [], []) }
+
+    DECOMPRESS_BED(
+        ch_bed_to_decompress,
+        'decompress',
+        false,        // make_index
+        'bed'         // out_ext -> <meta.id>.bed
+    )
+
+    // Lookup: key -> decompressed BED
+    ch_bed_decompressed = DECOMPRESS_BED.out.output
+        .map { meta, bed -> tuple(meta.id, bed) }
+
+    // Rows whose BED is gzipped: swap in the decompressed file.
+    // combine(by: 0) is needed (not join) because many samples can share one BED.
+    ch_adaptive_gz = ch_adaptive_raw
+        .filter { _meta, bed, _padding, _lf -> isGz(bed) }
+        .map    { meta, bed, padding, lf -> tuple(bedMeta(bed).id, meta, padding, lf) }
+        .combine(ch_bed_decompressed, by: 0)
+        .map    { _key, meta, padding, lf, bed -> tuple(meta, bed, padding, lf) }
+
+    // Rows whose BED is already plain text: pass through untouched
+    ch_adaptive_plain = ch_adaptive_raw
+        .filter { _meta, bed, _padding, _lf -> !isGz(bed) }
+
+    ch_adaptive = ch_adaptive_plain.mix(ch_adaptive_gz)
 
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
@@ -231,16 +264,14 @@ workflow PIPELINE_INITIALISATION {
 
             def faExts  = ['.fa', '.fasta', '.fa.gz', '.fasta.gz']
             def faiExts = ['.fa.fai', '.fasta.fai', '.fa.gz.fai', '.fasta.gz.fai']
-            def gziExts = ['.fa.gz.gzi', '.fasta.gz.gzi']
 
             // Resolve genome
             if (!genome) error "ERROR: No genome provided. Set params.genome or provide genome in samplesheet."
-            def genomeRes  = genomeMap[genome] ?: { error "ERROR: Unrecognized genome '${genome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
-            def aliases = genomeMap.findAll { k, v -> v == genomeRes }.keySet()
+            def genomeRes = genomeMap[genome] ?: { error "ERROR: Unrecognized genome '${genome}'. Valid values: ${genomeMap.keySet().join(', ')}" }()
+            def aliases   = genomeMap.findAll { k, v -> v == genomeRes }.keySet()
 
             def faFinal  = null
             def faiFinal = null
-            def gziFinal = null
 
             // --- Case 1: ref_path provided ---
             if ( ref_dir ) {
@@ -249,13 +280,10 @@ workflow PIPELINE_INITIALISATION {
                 // --- Case 1a: ref_path is a direct FASTA file ---
                 if (refFile.isFile()) {
                     if (faExts.any { ext -> refFile.name.endsWith(ext) }) {
-                        faFinal  = refFile
+                        faFinal = refFile
                         def faiFile = file("${refFile.parent}/${refFile.name}.fai")
-                        def gziFile = file("${refFile.parent}/${refFile.name}.gzi")
                         faiFinal = faiFile.exists() ? faiFile : null
-                        gziFinal = gziFile.exists() ? gziFile : null
                         if (!faiFinal) log.warn("No FAI found next to '${refFile}' — will index")
-                        if (!gziFinal && refFile.name.endsWith("gz")) log.warn("No GZI found next to '${refFile}' — will index")
                     } else {
                         error "ERROR: ref_path '${refFile}' does not look like a FASTA file. Expected extensions: ${faExts}"
                     }
@@ -265,17 +293,14 @@ workflow PIPELINE_INITIALISATION {
                     def allFiles = refFile.listFiles() as List
                     def faFile   = findFaFile(allFiles, aliases, faExts)
                     def faiFile  = findFaFile(allFiles, aliases, faiExts)
-                    def gziFile  = findFaFile(allFiles, aliases, gziExts)
                     def url = genomeRes == "hg38" ? "ftp://hgdownload.cse.ucsc.edu/goldenPath/${genomeRes}/bigZips/p14/${genomeRes}.p14.fa.gz"
                         : "ftp://hgdownload.cse.ucsc.edu/goldenPath/${genomeRes}/bigZips/${genomeRes}.fa.gz"
 
                     faFinal  = faFile  ?: file(url)
                     faiFinal = faiFile ?: null
-                    gziFinal = gziFile ?: null
 
                     if (!faFile)  log.warn("No FASTA found in ref_path '${refFile}' for '${genome}' — falling back to UCSC FTP")
                     if (!faiFile) log.warn("No FAI found in ref_path '${refFile}' for '${genome}' — will index")
-                    if (!gziFile && faFinal.name.endsWith("gz")) log.warn("No GZI found in ref_path '${refFile}' for '${genome}' — will index")
 
                 } else {
                     error "ERROR: ref_path '${refFile}' does not exist"
@@ -286,78 +311,73 @@ workflow PIPELINE_INITIALISATION {
                 log.warn("No ref_cache or ref_path provided — staging FTP genome '${genome}' from UCSC")
                 faFinal  = file("ftp://hgdownload.cse.ucsc.edu/goldenPath/${genomeRes}/bigZips/${genomeRes}.fa.gz")
                 faiFinal = null
-                gziFinal = null
             }
 
-            tuple(id:genome, faFinal, faiFinal, gziFinal)
+            tuple([id: genome], faFinal, faiFinal)
         }
         .set { ch_ref }
 
     ch_ref
-        .branch { genome, faFinal, faiFinal, gziFinal ->
-            indexed  : faiFinal != null && !faFinal.name.endsWith("gz")
-                return tuple(genome, faFinal, faiFinal, [])
-            indexed_gzip: faiFinal != null && faFinal.name.endsWith("gz") && gziFinal != null
-                return tuple(genome, faFinal, faiFinal, gziFinal)
-            to_index : true
+        .branch { meta, faFinal, faiFinal ->
+            // gzipped FASTA: decompress first (FAI may or may not exist)
+            gz_indexed : faFinal.name.endsWith('gz') && faiFinal != null
+                return tuple(meta, faFinal, faiFinal)
+            gz_noindex : faFinal.name.endsWith('gz')
+                return tuple(meta, faFinal, [])
+            // uncompressed FASTA
+            indexed    : faiFinal != null
+                return tuple(meta, faFinal, faiFinal)
+            to_index   : true
+                return tuple(meta, faFinal, [])
         }
         .set { ch_ref_branched }
 
-    // Reunite bgzipped FTP files with local files, then index all
+    // --- Decompress gzipped FASTA files ---
+    // Input: tuple(meta, infile, infile_tbi, regions)
+    ch_to_decompress = ch_ref_branched.gz_indexed
+        .mix(ch_ref_branched.gz_noindex)
+        .map { meta, fasta, _fai -> tuple(meta, fasta, [], []) }
+
+    DECOMPRESS_FASTA(
+        ch_to_decompress,
+        'decompress',
+        false,
+        'fa'
+    )
+
+    ch_decompressed = DECOMPRESS_FASTA.out.output   // tuple(meta, fasta)
+
+    // Decompressed FASTA that already had a FAI (the FAI is identical for bgzip and plain FASTA)
+    ch_decompressed_indexed = ch_decompressed
+        .join(ch_ref_branched.gz_indexed.map { meta, _fasta, fai -> tuple(meta, fai) })
+
+    // Decompressed FASTA without a FAI
+    ch_decompressed_noindex = ch_decompressed
+        .join(ch_ref_branched.gz_noindex.map { meta, _fasta, _fai -> tuple(meta) }.map { meta -> tuple(meta, true) })
+        .map { meta, fasta, _flag -> tuple(meta, fasta, []) }
+
+    // --- Index everything that still lacks a FAI ---
     ch_to_index = ch_ref_branched.to_index
-        .map { genome, faFinal,  _faiFinal, _gziFinal ->
-            tuple(genome, faFinal, [])
-        }
+        .mix(ch_decompressed_noindex)
 
     SAMTOOLS_FAIDX(
         ch_to_index,
         false
     )
 
-    ch_ref_fasta = ch_ref_branched.to_index
-        .map { genome, faFinal, _faiFinal, _gziFinal -> tuple(genome, faFinal)}
+    // FASTA channel: tuple(meta, fasta) — always uncompressed
+    ch_ref_fasta = ch_to_index
+        .map { meta, fasta, _fai -> tuple(meta, fasta) }
         .mix(
-            ch_ref_branched.indexed.map { meta, fasta, fai, gzi ->
-                tuple(meta, fasta)
-            }
+            ch_ref_branched.indexed.map { meta, fasta, _fai -> tuple(meta, fasta) },
+            ch_decompressed_indexed.map { meta, fasta, _fai -> tuple(meta, fasta) }
         )
-        .mix(
-            ch_ref_branched.indexed_gzip.map { meta, fasta, fai, gzi ->
-                tuple(meta, fasta)
-            }
-        )
-
 
     // FAI channel: tuple(meta, fai)
     ch_ref_fai = SAMTOOLS_FAIDX.out.fai
         .mix(
-            ch_ref_branched.indexed.map { meta, fasta, fai, gzi ->
-                tuple(meta, fai)
-            }
-        )
-        .mix(
-            ch_ref_branched.indexed_gzip.map { meta, fasta, fai, gzi ->
-                tuple(meta, fai)
-            }
-        )
-
-
-    // GZI channel: tuple(meta, gzi)
-    // Missing GZI files simply produce no item.
-    ch_ref_gzi = SAMTOOLS_FAIDX.out.gzi
-        .mix(
-            // gz + existing fai + existing gzi
-            ch_ref_branched.indexed_gzip.map { meta, _fasta, _fai, gzi ->
-                tuple(meta, gzi)
-            },
-            // uncompressed, already indexed
-            ch_ref_branched.indexed.map { meta, _fasta, _fai, _gzi ->
-                tuple(meta, [])
-            },
-            // uncompressed, needs indexing
-            ch_ref_branched.to_index
-                .filter { _meta, fasta, _fai, _gzi -> !fasta.name.endsWith('gz') }
-                .map    { meta, _fasta, _fai, _gzi -> tuple(meta, []) }
+            ch_ref_branched.indexed.map { meta, _fasta, fai -> tuple(meta, fai) },
+            ch_decompressed_indexed.map { meta, _fasta, fai -> tuple(meta, fai) }
         )
 
     /*
@@ -554,7 +574,6 @@ workflow PIPELINE_INITIALISATION {
     tumor_type  = ch_tumor_type
     ref_fa      = ch_ref_fasta
     ref_fai     = ch_ref_fai
-    ref_gzi     = ch_ref_gzi
     cfdna_ch    = ch_cfdna
     vep_cache   = ch_vep_cache
     model_ch    = ch_model
@@ -934,4 +953,17 @@ def findCached(String url) {
 
     def cached = cache.resolve(url.tokenize('/')[-1])
     return cached.exists() ? cached : null
+}
+
+def hasVal(v) {
+    return v != null && v != '' && v != []
+}
+
+// Needed by the BED decompression step
+def isGz(bed) {
+    return bed.name ==~ /.*\.b?gz$/
+}
+
+def bedMeta(bed) {
+    return [ id: "${bed.simpleName}_${Math.abs(bed.toString().hashCode())}" ]
 }

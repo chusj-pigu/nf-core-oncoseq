@@ -33,7 +33,6 @@ workflow MAPPING {
     in_ch       // Channel: from basecalling workflow, from --fastq if --skip_mapping is used, or from input samplesheet if skip_mapping is used
     ref       // Channel: from input samplesheet
     fai
-    gzi
 
 
     main:
@@ -82,7 +81,7 @@ workflow MAPPING {
 
             SAMTOOLS_MERGE_CHUNK(
                 bams_chunk_sep.multi.map { meta_chunk, _type, chunk, chunk_index -> tuple(meta_chunk, chunk, chunk_index) },
-                ref.combine(fai).combine(gzi).first(),
+                ref.combine(fai).first().map { meta, fasta, index -> tuple(meta, fasta, index, []) },
                 'bai'
                 )
 
@@ -110,7 +109,7 @@ workflow MAPPING {
             // Make another round of merging from those merged chunks
             SAMTOOLS_MERGE_FINAL(
                 ch_bam_merged.multi_bam.map{ meta, _size, bam_list, bai_list -> tuple(meta, bam_list, bai_list) },
-                ref.combine(fai).combine(gzi).first(),
+                ref.combine(fai).first().map { meta, fasta, index -> tuple(meta, fasta, index, []) },
                 'bai'
             )
 

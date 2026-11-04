@@ -33,7 +33,6 @@ workflow SNP_CALLING {
     bam           // channel: from mapping workflow (tuple containing [meta, bam, bai])
     ref           // channel: reference genome information from input samplesheet (tuple containing [meta, refid, ref_fasta, ref_fai]
     ref_fai
-    ref_gzi
     basecall_model      // channel: basecalling model name used for platform-specific optimizations in variant calling
     bed
 
@@ -109,7 +108,7 @@ workflow SNP_CALLING {
         ch_bam_reg,
         ref,
         ref_fai,
-        ref_gzi
+        [[], []]
     )
 
     ch_deeps_final = DEEPSOMATIC_TUMORONLY.out.vcf

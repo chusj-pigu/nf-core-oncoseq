@@ -112,8 +112,7 @@ workflow ONCOSEQ {
     tumor_type              // channel: tumor type read in from samplesheet
     cfdna_samplesheet       // channel: cfDNA samplesheet (cfDNA mode only)
     ref                     // channel: reference fasta
-    ref_fai             // channel : reference fasta file index
-    ref_gzi             // channel : gziped reference fasta file index
+    ref_fai                 // channel : reference fasta file index
     genome                  // variable: standardized genome ID
     ichor_bin               // cfDNA mode only
     mapq_wig                // cfDNA mode only
@@ -148,7 +147,6 @@ workflow ONCOSEQ {
     // Transform ref channel into value channel so it doesn't get consumed only once
     ch_ref = ref.first()
     ch_ref_fai = ref_fai.first()
-    ch_ref_gzi = ref_gzi.first()
 
     // Process bed
 
@@ -213,8 +211,7 @@ workflow ONCOSEQ {
     MAPPING(
         ch_to_map,
         ch_ref,
-        ref_fai,
-        ref_gzi
+        ref_fai
     )
 
     // cfDNA with mapped input: filter the BAM after mapping
@@ -242,17 +239,18 @@ workflow ONCOSEQ {
 
     if (params.realtime) {
 
-        ch_bam = MAPPING.out.bam
+        if (params.skip_mapping) {
+            // We have to convert bam to fastq when bam input is from MinKnow :
+
+            ch_bam = MAPPING.out.bam
             .map { meta, bam, _bai ->
                 tuple(meta,bam) }
 
-        if (params.skip_mapping) {
-            // We have to convert bam to fastq when bam input is from MinKnow :
             SAMTOOLS_TIME_FASTQ(ch_bam)
 
             ONTIME_TIME_RANGE(SAMTOOLS_TIME_FASTQ.out.fq)
         } else {
-            ONTIME_TIME_RANGE(ch_bam)
+            ONTIME_TIME_RANGE(ch_reads)
         }
     }
 
@@ -524,7 +522,6 @@ workflow ONCOSEQ {
             ch_snp_in,
             ch_ref,
             ch_ref_fai,
-            ch_ref_gzi,
             basecall_model,
             ch_bed_nopad_final
         )

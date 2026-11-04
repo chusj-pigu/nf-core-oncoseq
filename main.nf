@@ -33,7 +33,6 @@ workflow NF_CORE_ONCOSEQ {
     cfdna_ss        // channel: purity and filter directive from samplesheet
     ref             // channel : reference fasta file
     ref_fai         // channel : reference fasta file index
-    ref_gzi         // channel : gziped reference fasta file index
     genome          // variable: standardized genome ID
     ichor_bin       // cfDNA mode only
     mapq_wig        // cfDNA mode only
@@ -54,7 +53,6 @@ workflow NF_CORE_ONCOSEQ {
         cfdna_ss,
         ref,
         ref_fai,
-        ref_gzi,
         genome,
         ichor_bin,
         mapq_wig,
@@ -348,7 +346,6 @@ workflow {
         PIPELINE_INITIALISATION.out.cfdna_ch,
         PIPELINE_INITIALISATION.out.ref_fa,
         PIPELINE_INITIALISATION.out.ref_fai,
-        PIPELINE_INITIALISATION.out.ref_gzi,
         genome,
         ch_ichor_bin,
         ch_min_mapq,
