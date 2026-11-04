@@ -260,11 +260,12 @@ workflow PIPELINE_INITIALISATION {
         .set { ch_ref }
 
     ch_ref
-        .branch { _meta, faFinal, faiFinal ->
+        .branch { meta, faFinal, faiFinal ->
             // gzipped FASTA: decompress first (FAI may or may not exist)
             gz : faFinal.name.endsWith('gz')
             // uncompressed FASTA
             fa_toindex: (faFinal.name.endsWith('.fa') || faFinal.name.endsWith('.fasta')) && !faiFinal
+                return tuple(meta, faFinal, [])
             fa_indexed: (faFinal.name.endsWith('.fa') || faFinal.name.endsWith('.fasta')) && faiFinal
         }
         .set { ch_ref_branched }
@@ -287,7 +288,7 @@ workflow PIPELINE_INITIALISATION {
 
     SAMTOOLS_FAIDX(
         ch_to_index,
-        true
+        false
     )
 
     // FASTA channel: tuple(meta, fasta) — always uncompressed
