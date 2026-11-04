@@ -35,6 +35,11 @@
                         "git_sha": "feef37435aea56816adf4b3bde1fc76aac327a8d",
                         "installed_by": ["modules"]
                     },
+                    "bedtools/intersect": {
+                        "branch": "master",
+                        "git_sha": "7b3452a23773f687ededb4befd037920e5a51341",
+                        "installed_by": ["modules"]
+                    },
                     "bedtools/subtract": {
                         "branch": "master",
                         "git_sha": "06054b469d0997aa3442ba1373e17a641260f451",

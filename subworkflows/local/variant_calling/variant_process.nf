@@ -4,8 +4,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { BCFTOOLS_VIEW as BCFTOOLS_FILTER_SV  } from '../../../modules/nf-core/bcftools/view/main'
-include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_SNP } from '../../../modules/nf-core/bcftools/query/main'
 include { BCFTOOLS_VIEW as BCFTOOLS_RM_HEADER  } from '../../../modules/nf-core/bcftools/view/main'
+include { BEDTOOLS_INTERSECT                   } from '../../../modules/nf-core/bedtools/intersect/main'
 include { SV_PROCESS                           } from '../../../modules/local/vcf_process/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_FUSION    } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_SV_FIGURE as FIGENO_OTHER     } from '../../../modules/local/figeno/main.nf'
@@ -13,6 +13,7 @@ include { FIGENO_SV_FIGURE as FIGENO_TARGETS   } from '../../../modules/local/fi
 include { FIGENO_CIRCOS                        } from '../../../modules/local/figeno/main.nf'
 include { FIGENO_PAN_CHR                       } from '../../../modules/local/figeno/main.nf'
 include { QDNASEQ_PROCESS                      } from '../../../modules/local/vcf_process/main.nf'
+include { BCFTOOLS_QUERY as BCFTOOLS_QUERY_SNP } from '../../../modules/nf-core/bcftools/query/main'
 include { ENSEMBL_VEP_TABLE                    } from '../../../modules/local/vcf_process/main.nf'
 // functions
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -66,7 +67,7 @@ workflow VARIANT_PROCESS {
             meta.id.contains('sv') && !(meta.id =~ /stellerator|empty/)
         }
         .map { meta, vcf, index ->
-            def new_meta = meta.id.replaceAll('filt', 'filt2')
+            def new_meta = meta.id.replaceAll('filt', 'filt_support')
             tuple(id:new_meta, vcf, index)}
 
     BCFTOOLS_FILTER_SV(
@@ -79,8 +80,28 @@ workflow VARIANT_PROCESS {
     ch_severus_sniffles_filtered = BCFTOOLS_FILTER_SV.out.vcf
         .join(BCFTOOLS_FILTER_SV.out.index)
 
-    ch_in_rm_header = ch_severus_sniffles_filtered
-        .mix(vep_filt_vcf.filter { meta, _vcf, _index -> meta.id =~ /stellerator|empty/})
+    // Intersect vcf with bed file to keep only variants in regions of interest
+
+    ch_in_bedtools = ch_severus_sniffles_filtered
+        .map { meta, vcf, index ->
+            def meta_extended = meta.id
+            def new_meta = meta.id.replaceFirst(/_sv_(severus|sniffles)_vep_filt_support$/, '')
+            tuple(new_meta, vcf, index, meta_extended)}
+        .join(bed)
+        .map { _meta, vcf, _index, meta_extended, bedfile ->
+            def new_meta = meta_extended.replaceAll('filt_support', 'filt_support_region')
+            tuple(id:new_meta, vcf, bedfile)}
+
+    BEDTOOLS_INTERSECT(
+        ch_in_bedtools,
+        [[],[]],
+        "vcf"
+    )
+
+    // Remove vcf header for easier processing in SV_PROCESS
+
+    ch_in_rm_header = vep_filt_vcf
+        .filter { meta, _vcf, _index -> meta.id =~ /stellerator|empty/}
 
     BCFTOOLS_RM_HEADER(
         ch_in_rm_header,
@@ -93,8 +114,9 @@ workflow VARIANT_PROCESS {
 
     // Filter variants with HIGH and MODERATE impacts, create region file expected by figeno and tables for reports
     ch_sv_vcf = BCFTOOLS_RM_HEADER.out.vcf
+        .mix(BEDTOOLS_INTERSECT.out.vcf)
         .map { meta, vcf ->
-            def new_meta = meta.id.replaceFirst(/_sv_(severus|sniffles)_vep_(filt2|filt_empty)$|_sv_stellerator$/, '')
+            def new_meta = meta.id.replaceFirst(/_sv_(severus|sniffles)_vep_(filt_support_region|filt_empty)$|_sv_stellerator$/, '')
             tuple(id:new_meta, vcf)
         }
         .groupTuple()
@@ -103,7 +125,6 @@ workflow VARIANT_PROCESS {
 
 
     ch_to_process = ch_sv_vcf
-        .join(bed)
         .combine(sv_targets)
         .combine(ch_exclude)
 

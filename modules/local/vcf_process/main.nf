@@ -14,7 +14,6 @@ process SV_PROCESS {
         path(sniffles_vcf),
         path(severus_vcf),
         path(stellerator_vcf),
-        path(bed),
         path(gene_list),
         path(blacklist)
 
@@ -55,7 +54,6 @@ process SV_PROCESS {
     generate_sv_filt_regions.R \\
         --target ${gene_list} \\
         --exclude ${blacklist} \\
-        --panel ${bed} \\
         --min_support ${support}
 
 

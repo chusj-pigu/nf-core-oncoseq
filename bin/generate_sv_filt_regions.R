@@ -13,8 +13,6 @@ option_list <- list(
               help = "Path to target csv file", metavar = "file"),
   make_option(c("-e", "--exclude"), type = "character",
               help = "Path blacklist of artefact", metavar = "file"),
-  make_option(c("-p", "--panel"), type = "character",
-              help = "Path adaptive panel", metavar = "file"),
   make_option(c("-m", "--min_support"), type = "character",
               help = "Minimum support reads for filtering", metavar = "file")
 )
@@ -29,21 +27,10 @@ if (length(sample_id) != 1) {
        paste(sample_id, collapse = ", "))
 }
 blacklist <- opt$exclude
-panel <- opt$panel
 min_support <- as.numeric(opt$min_support)
 # -----------------------------
 # Helper Functions
 # -----------------------------
-
-process_bed <- function(input_bed) {
-  bed <- read.delim(input_bed, header = FALSE) %>%
-    dplyr::rename(chr = V1, start = V2, end = V3, gene = V4) %>%
-    mutate(gene = gsub("^\\d{4}_.+?_", "", gene)) %>%
-    mutate(gene = ifelse(duplicated(gene), paste(gene, chr, sep = "_"), gene)) %>%
-    pull(gene)
-
-  return(bed)
-}
 
 clamp0 <- function(x) {
   pmax(as.numeric(x), 0)
@@ -174,7 +161,6 @@ process_vcf <- function(vcf) {
       strand2 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", V8), pattern = "", i = 2)
     ) %>%
     filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
-    filter(SOURCE == "stellerator" | str_detect(GENE_FULL, pattern_start) | str_detect(GENE_FULL, pattern_end)) %>%
     filter(SUPPORT > min_support) %>%
     filter_stellerator_pairs(min_rows = 3) %>%
     mutate(
@@ -345,18 +331,6 @@ names(vcf) <- sapply(input, function(f) {
 
 targets_df <- read.csv(target_list)
 unwanted_calls <- readLines(blacklist)
-genes_panel <- process_bed(panel)
-
-# Pattern to select genes in panel
-pattern_end <- paste0(
-  "-(", paste(genes_panel, collapse = "|"), ")$"  # gene at the end: x-GENE
-)
-
-pattern_start <- paste0(
-  "^(",
-  paste(genes_panel, collapse = "|"),
-  ")(-|$|_)"
-)
 
 vcf <- vcf[vapply(vcf, nrow, integer(1)) > 0]
 
