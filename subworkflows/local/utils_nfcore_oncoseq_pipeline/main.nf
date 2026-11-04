@@ -19,6 +19,7 @@ include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipelin
 include { SAMTOOLS_FAIDX            } from '../../../modules/nf-core/samtools/faidx/main.nf'
 include { HTSLIB_BGZIPTABIX as DECOMPRESS_FASTA } from '../../../modules/nf-core/htslib/bgziptabix'
 include { HTSLIB_BGZIPTABIX as DECOMPRESS_BED   } from '../../../modules/nf-core/htslib/bgziptabix'
+include { BEDTOOLS_SLOP                         } from '../../../modules/nf-core/bedtools/slop/main'
 include { DORADO_DOWNLOAD_LIST    } from '../../../modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from '../../../modules/local/dorado/main.nf'
 include { ENSEMBLVEP_DOWNLOAD     } from '../../../modules/nf-core/ensemblvep/download/main.nf'
@@ -106,6 +107,7 @@ workflow PIPELINE_INITIALISATION {
             )
         }
         .unique()
+        .view()
 
     // --- Demultiplexing info: [ [id: project], sample_id, barcode, kit ] ---
     ch_demux = ch_rows
@@ -128,12 +130,14 @@ workflow PIPELINE_INITIALISATION {
     // --- Tumor type: [ meta, tumor_type ] ---
     ch_tumor_type = ch_rows
         .map { row -> tuple(row.meta, row.tumor_type ?: 'other') }
+        .view()
 
     // --- Adaptive: [ meta, bed, padding, lf ], per-sample value or global default ---
     ch_adaptive_branched = ch_rows
         .map { row ->
             if (!row.padding) {
-                log.warn("Using padding of ${params.padding}kb padding around ROI for all samples")
+                def padding_kb = params.padding / 1000
+                log.warn("Using padding of ${padding_kb}kb around ROI for all samples")
             }
             if (!row.bed && params.bed.contains("v2.0.1-pre-merge-panel-20kb-pad.bed")) {
                 log.warn("Using default bed file ${params.bed} for all samples")
@@ -141,7 +145,7 @@ workflow PIPELINE_INITIALISATION {
             tuple(
                 row.meta,
                 row.bed ? file(row.bed) : bed_default,
-                row.padding != null ? row.padding : params.padding,   // keeps padding = 0 valid
+                row.padding instanceof Number ? row.padding : params.padding,
                 row.lf  ? file(row.lf)  : lf_default
             )
         }
@@ -256,24 +260,18 @@ workflow PIPELINE_INITIALISATION {
         .set { ch_ref }
 
     ch_ref
-        .branch { meta, faFinal, faiFinal ->
+        .branch { _meta, faFinal, faiFinal ->
             // gzipped FASTA: decompress first (FAI may or may not exist)
-            gz_indexed : faFinal.name.endsWith('gz') && faiFinal != null
-                return tuple(meta, faFinal, faiFinal)
-            gz_noindex : faFinal.name.endsWith('gz')
-                return tuple(meta, faFinal, [])
+            gz : faFinal.name.endsWith('gz')
             // uncompressed FASTA
-            indexed    : faiFinal != null
-                return tuple(meta, faFinal, faiFinal)
-            to_index   : true
-                return tuple(meta, faFinal, [])
+            fa_toindex: (faFinal.name.endsWith('.fa') || faFinal.name.endsWith('.fasta')) && !faiFinal
+            fa_indexed: (faFinal.name.endsWith('.fa') || faFinal.name.endsWith('.fasta')) && faiFinal
         }
         .set { ch_ref_branched }
 
     // --- Decompress gzipped FASTA files ---
     // Input: tuple(meta, infile, infile_tbi, regions)
-    ch_to_decompress = ch_ref_branched.gz_indexed
-        .mix(ch_ref_branched.gz_noindex)
+    ch_to_decompress = ch_ref_branched.gz
         .map { meta, fasta, _fai -> tuple(meta, fasta, [], []) }
 
     DECOMPRESS_FASTA(
@@ -283,40 +281,46 @@ workflow PIPELINE_INITIALISATION {
         'fa'
     )
 
-    ch_decompressed = DECOMPRESS_FASTA.out.output   // tuple(meta, fasta)
-
-    // Decompressed FASTA that already had a FAI (the FAI is identical for bgzip and plain FASTA)
-    ch_decompressed_indexed = ch_decompressed
-        .join(ch_ref_branched.gz_indexed.map { meta, _fasta, fai -> tuple(meta, fai) })
-
-    // Decompressed FASTA without a FAI
-    ch_decompressed_noindex = ch_decompressed
-        .join(ch_ref_branched.gz_noindex.map { meta, _fasta, _fai -> tuple(meta) }.map { meta -> tuple(meta, true) })
-        .map { meta, fasta, _flag -> tuple(meta, fasta, []) }
-
-    // --- Index everything that still lacks a FAI ---
-    ch_to_index = ch_ref_branched.to_index
-        .mix(ch_decompressed_noindex)
+    // --- Index if fai file is missing ---
+    ch_to_index = ch_ref_branched.fa_toindex
+        .mix(DECOMPRESS_FASTA.out.output.map { meta, fasta -> tuple(meta, fasta, []) })
 
     SAMTOOLS_FAIDX(
         ch_to_index,
-        false
+        true
     )
 
     // FASTA channel: tuple(meta, fasta) — always uncompressed
     ch_ref_fasta = ch_to_index
+        .mix(ch_ref_branched.fa_indexed)
         .map { meta, fasta, _fai -> tuple(meta, fasta) }
-        .mix(
-            ch_ref_branched.indexed.map { meta, fasta, _fai -> tuple(meta, fasta) },
-            ch_decompressed_indexed.map { meta, fasta, _fai -> tuple(meta, fasta) }
-        )
 
     // FAI channel: tuple(meta, fai)
     ch_ref_fai = SAMTOOLS_FAIDX.out.fai
-        .mix(
-            ch_ref_branched.indexed.map { meta, _fasta, fai -> tuple(meta, fai) },
-            ch_decompressed_indexed.map { meta, _fasta, fai -> tuple(meta, fai) }
-        )
+        .mix(ch_ref_branched.fa_indexed.map { meta, _fasta, fai -> tuple(meta, fai) })
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Create bed file wihtout padding around ROI
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+
+    ch_slop_in = ch_adaptive
+        .groupTuple(by:[1,2])
+        .map { meta, bed, padding, _lf ->
+            def id_bed = bed.baseName
+            tuple([id: id_bed] + [padding: padding] + [sample:meta.id], bed)
+        }
+
+    BEDTOOLS_SLOP(
+        ch_slop_in,
+        ch_ref_fai.map { _meta, fai -> fai }.first(),
+    )
+
+    ch_bednopad = BEDTOOLS_SLOP.out.bed
+        .transpose()
+        .map { meta, bed ->
+            tuple(id:meta.sample[0],bed) }
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -507,6 +511,7 @@ workflow PIPELINE_INITIALISATION {
 
     emit:
     bed_sheet   = ch_adaptive
+    bed_nopad   = ch_bednopad
     demux_sheet = ch_demux
     samplesheet = ch_in_samplesheet
     tumor_type  = ch_tumor_type

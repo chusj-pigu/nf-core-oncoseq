@@ -4,11 +4,11 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { BEDTOOLS_SUBTRACT               } from '../../../modules/nf-core/bedtools/subtract/main'
+include { BEDTOOLS_MAKEWINDOWS            } from '../../../modules/nf-core/bedtools/makewindows/main'
 include { MOSDEPTH as MOSDEPTH_BACKGROUND } from '../../../modules/nf-core/mosdepth'
 include { MOSDEPTH as MOSDEPTH_NOFILT     } from '../../../modules/nf-core/mosdepth'
 include { MOSDEPTH as MOSDEPTH_PRIMARY    } from '../../../modules/nf-core/mosdepth'
 include { MOSDEPTH as MOSDEPTH_UNIQUE     } from '../../../modules/nf-core/mosdepth'
-include { REMOVE_PADDING                  } from '../../../modules/local/adaptive_specific/main.nf'
 include { PIGZ_UNCOMPRESS                 } from '../../../modules/nf-core/pigz/uncompress/main'
 include { COVERAGE_PLOT                   } from '../../../modules/local/adaptive_specific/main.nf'
 // functions
@@ -30,22 +30,26 @@ workflow COVERAGE_SEPARATE {
     bam                     // channel: from mapping workflow, tuple with bam and bai
     bed                     // channel: from path read from params.bed, bed file used for adaptive sampling
     bed_nopad
-    genome
+    ref_fai
 
     main:
 
 
     ch_versions = channel.empty()
 
-    // For now, we keep padding in bed file
+    // Create a bed file with window as big as chromosome size to substract ROI from:
+
+    BEDTOOLS_MAKEWINDOWS(
+        ref_fai
+    )
+
+    // For now, we keep padding in bed file, so that background coverage does not include padding
     ch_bed = bed
         .map { meta,bedfile,_padding,_low_fidelity ->
             tuple(meta,bedfile) }
 
-    ch_chrom_size = channel.fromPath("${projectDir}/assets/chrom_sizes/${genome}_chrom.bed")
-
     ch_in_bedtools = ch_bed
-        .combine(ch_chrom_size)
+        .combine(BEDTOOLS_MAKEWINDOWS.out.bed.map { _meta, bed_bg -> bed_bg})
         .groupTuple(by:[1])
 
     BEDTOOLS_SUBTRACT(ch_in_bedtools.map { meta, bedfile, chrom_size -> tuple(meta, bedfile, chrom_size[0])})
