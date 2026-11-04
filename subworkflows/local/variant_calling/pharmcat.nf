@@ -128,8 +128,14 @@ workflow PHARMCAT {
             empty: true
                 return meta
             }
+
+    // Restore meta id to original to match sample field in vcf
     ch_vcf_to_preprocess = ch_bcftools_count.pos
         .join(ch_preprocessed_vcf)
+        .map { meta, vcf_file, vcf_index ->
+            def meta_annotate = modifyMetaId(meta, 'replace', '_snp_vep_pharmcat', '', '')
+            tuple(meta_annotate, vcf_file, vcf_index)
+        }
 
     PHARMCAT_MATCHER(
         ch_vcf_to_preprocess,
@@ -140,8 +146,14 @@ workflow PHARMCAT {
         PHARMCAT_MATCHER.out.matcher_json.map { meta, json -> tuple(meta, json, [])}
     )
 
+    ch_phenotyper_json = PHARMCAT_PHENOTYPER.out.phenotyper_json
+        .map { meta, json ->
+            def meta_annotate = modifyMetaId(meta, 'add_suffix', '', '', '_snp_vep_pharmcat')
+            tuple(meta_annotate, json)
+        }
+
     PHARMCAT_REPORTER(
-        PHARMCAT_PHENOTYPER.out.phenotyper_json
+        ch_phenotyper_json
     )
 
      /*
