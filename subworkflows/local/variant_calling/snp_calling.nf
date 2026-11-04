@@ -144,6 +144,10 @@ workflow SNP_CALLING {
 
     ch_clair3_final = CLAIR3_CALL.out.vcf
         .join(CLAIR3_CALL.out.tbi)
+        .map { meta, vcf, vcf_index ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_snp_clair3')
+            tuple(new_meta, vcf, vcf_index)
+        }
 
     ch_snp_final = ch_clairsto_final
         .mix(ch_clair3_final)
