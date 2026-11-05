@@ -137,9 +137,16 @@ workflow PHARMCAT {
             tuple(meta_annotate, vcf_file, vcf_index)
         }
 
+    // Parse pharmcat gene list if provided
+    ch_pharmcat_genes = params.pharmcat_genes ? 
+        channel.fromPath(params.pharmcat_genes, checkIfExists:true)
+        .splitText()
+        .collect() 
+        : []
+
     PHARMCAT_MATCHER(
         ch_vcf_to_preprocess,
-        []
+        ch_pharmcat_genes
     )
 
     PHARMCAT_PHENOTYPER(

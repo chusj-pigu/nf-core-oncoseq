@@ -146,6 +146,9 @@ params {
     // List of genes to exclude from snp analysis
     snp_exclude: Path = "${projectDir}/assets/snp_exclude.txt"
 
+    // List of pharmacogenes for pharmcat
+    pharmcat_genes: Path?
+
     skip_mapping: Boolean
 
     // Specify a different container for Classy module (default: same as pipeline container)

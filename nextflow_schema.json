@@ -328,6 +328,10 @@
             "default": "/workspaces/nf-core-oncoseq/assets/snp_exclude.txt",
             "description": "List of genes to exclude from snp analysis"
         },
+        "pharmcat_genes": {
+            "type": "string",
+            "description": "List of pharmacogenes to include in PharmCAT analysis (text file, one gene per line)"
+        },
         "classy_container": {
             "type": "string",
             "default": null,
