@@ -138,11 +138,12 @@ workflow PHARMCAT {
         }
 
     // Parse pharmcat gene list if provided
-    ch_pharmcat_genes = params.pharmcat_genes ? 
-        channel.fromPath(params.pharmcat_genes, checkIfExists:true)
-        .splitText()
-        .collect() 
-        : []
+    ch_pharmcat_genes = params.pharmcat_genes
+        ? channel.fromPath(params.pharmcat_genes, checkIfExists: true)
+            .splitText() { it -> it.trim() }
+            .filter { it -> it }        // filter out empty lines
+            .collect()
+        : channel.value([])
 
     PHARMCAT_MATCHER(
         ch_vcf_to_preprocess,
