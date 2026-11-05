@@ -48,11 +48,13 @@ workflow COVERAGE_SEPARATE {
         .map { meta,bedfile,_padding,_low_fidelity ->
             tuple(meta,bedfile) }
 
-    ch_in_bedtools = BEDTOOLS_MAKEWINDOWS.out.bed.map { _meta, bed_bg -> bed_bg}
-        .combine(ch_bed)
+    ch_in_bedtools = ch_bed
+        .combine(BEDTOOLS_MAKEWINDOWS.out.bed.map { _meta, bed_bg -> bed_bg})
         .groupTuple(by:[1])
+        .map { meta, bedfile, chrom_size ->
+            tuple(meta, chrom_size[0], bedfile) }
 
-    BEDTOOLS_SUBTRACT(ch_in_bedtools.map { meta, bedfile, chrom_size -> tuple(meta, bedfile[0], chrom_size[0])})
+    BEDTOOLS_SUBTRACT(ch_in_bedtools)
 
     ch_bed_subtracted = BEDTOOLS_SUBTRACT.out.bed
         .transpose()
