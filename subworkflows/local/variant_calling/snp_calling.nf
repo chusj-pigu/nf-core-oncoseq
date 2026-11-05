@@ -44,64 +44,68 @@ workflow SNP_CALLING {
     ch_bam_reg= bam
         .join(bed)
 
-    CLAIRS_TO_CALL(
-        ch_bam_reg,
-        ref,
-        ref_fai,
-        params.clairsto_model
-    )
+    ch_clairsto_final = channel.empty()
 
-    // Add indel and snv to meta to name index correctly while preserving ts
-    ch_snv_to_index = CLAIRS_TO_CALL.out.snv
-        .map { meta, vcf ->
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_snv')
-        tuple(new_meta,vcf)
-        }
+    if (!params.realtime) {
+        CLAIRS_TO_CALL(
+            ch_bam_reg,
+            ref,
+            ref_fai,
+            params.clairsto_model
+        )
 
-    ch_indel_to_index = CLAIRS_TO_CALL.out.indel
-        .map { meta, vcf ->
-        def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_indel')
-        tuple(new_meta,vcf)
-        }
-
-    ch_vcf_to_index = ch_snv_to_index
-        .mix(ch_indel_to_index)
-
-    BCFTOOLS_INDEX(ch_vcf_to_index)
-
-    // Restore original meta id to join indel with snv together
-    ch_snv_to_concat = ch_snv_to_index
-        .join(BCFTOOLS_INDEX.out.index)
-        .map { meta, vcf, tbx ->
-            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_snv')
-            tuple(new_meta,vcf,tbx)
-        }
-
-    ch_indel_to_concat = ch_indel_to_index
-        .join(BCFTOOLS_INDEX.out.index)
-        .map { meta, vcf, tbx ->
-            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_indel')
-            tuple(new_meta,vcf,tbx)
-        }
-
-    // Merge SNV and INDEL together
-    ch_to_concat =  ch_snv_to_concat
-        .mix(ch_indel_to_concat)
-        .groupTuple()
-
-    BCFTOOLS_CONCAT(ch_to_concat)
-
-    ch_to_sort = BCFTOOLS_CONCAT.out.vcf
-        .map { meta, vcf ->
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_snp_clairsto')
+        // Add indel and snv to meta to name index correctly while preserving ts
+        ch_snv_to_index = CLAIRS_TO_CALL.out.snv
+            .map { meta, vcf ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_snv')
             tuple(new_meta,vcf)
-        }
-    BCFTOOLS_SORT(ch_to_sort)
+            }
 
-    ch_clairsto_final = BCFTOOLS_SORT.out.vcf
-        .join(BCFTOOLS_SORT.out.index)
+        ch_indel_to_index = CLAIRS_TO_CALL.out.indel
+            .map { meta, vcf ->
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_indel')
+            tuple(new_meta,vcf)
+            }
 
-    ch_versions = ch_versions.mix(CLAIRS_TO_CALL.out.versions)
+        ch_vcf_to_index = ch_snv_to_index
+            .mix(ch_indel_to_index)
+
+        BCFTOOLS_INDEX(ch_vcf_to_index)
+
+        // Restore original meta id to join indel with snv together
+        ch_snv_to_concat = ch_snv_to_index
+            .join(BCFTOOLS_INDEX.out.index)
+            .map { meta, vcf, tbx ->
+                def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_snv')
+                tuple(new_meta,vcf,tbx)
+            }
+
+        ch_indel_to_concat = ch_indel_to_index
+            .join(BCFTOOLS_INDEX.out.index)
+            .map { meta, vcf, tbx ->
+                def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_indel')
+                tuple(new_meta,vcf,tbx)
+            }
+
+        // Merge SNV and INDEL together
+        ch_to_concat =  ch_snv_to_concat
+            .mix(ch_indel_to_concat)
+            .groupTuple()
+
+        BCFTOOLS_CONCAT(ch_to_concat)
+
+        ch_to_sort = BCFTOOLS_CONCAT.out.vcf
+            .map { meta, vcf ->
+                def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_snp_clairsto')
+                tuple(new_meta,vcf)
+            }
+        BCFTOOLS_SORT(ch_to_sort)
+
+        ch_clairsto_final = BCFTOOLS_SORT.out.vcf
+            .join(BCFTOOLS_SORT.out.index)
+
+        ch_versions = ch_versions.mix(CLAIRS_TO_CALL.out.versions)
+    }
 
     DEEPSOMATIC_TUMORONLY(
         ch_bam_reg,
