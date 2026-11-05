@@ -17,9 +17,9 @@ include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
 include { SAMTOOLS_FAIDX            } from '../../../modules/nf-core/samtools/faidx/main.nf'
-include { HTSLIB_BGZIPTABIX as DECOMPRESS_FASTA } from '../../../modules/nf-core/htslib/bgziptabix'
-include { HTSLIB_BGZIPTABIX as DECOMPRESS_BED   } from '../../../modules/nf-core/htslib/bgziptabix'
-include { BEDTOOLS_SLOP                         } from '../../../modules/nf-core/bedtools/slop/main'
+include { PIGZ_UNCOMPRESS as PIGZ_UNGZ_BED } from '../../../modules/nf-core/pigz/uncompress/main'
+include { PIGZ_UNCOMPRESS as PIGZ_UNGZ_FA  } from '../../../modules/nf-core/pigz/uncompress/main'
+include { BEDTOOLS_SLOP             } from '../../../modules/nf-core/bedtools/slop/main'
 include { DORADO_DOWNLOAD_LIST    } from '../../../modules/local/dorado/main.nf'
 include { DORADO_DOWNLOAD_MODEL   } from '../../../modules/local/dorado/main.nf'
 include { ENSEMBLVEP_DOWNLOAD     } from '../../../modules/nf-core/ensemblvep/download/main.nf'
@@ -157,16 +157,13 @@ workflow PIPELINE_INITIALISATION {
     ch_bed_to_decompress = ch_adaptive_branched.gz
         .map    { _meta, bed, _padding, _lf -> bed }
         .unique()
-        .map    { bed -> tuple([id: bed.simpleName, src: bed], bed, [], []) }
+        .map    { bed -> tuple([id: bed.simpleName, src: bed], bed) }
 
-    DECOMPRESS_BED(
+    PIGZ_UNGZ_BED(
         ch_bed_to_decompress,
-        'decompress',
-        false,   // make_index
-        'bed'    // out_ext
     )
 
-    ch_bed_decompressed = DECOMPRESS_BED.out.output
+    ch_bed_decompressed = PIGZ_UNGZ_BED.out.file
         .map { meta, bed -> tuple(meta.src, bed) }
 
     // combine(by: 0) because many samples can share one BED
@@ -271,18 +268,15 @@ workflow PIPELINE_INITIALISATION {
     // --- Decompress gzipped FASTA files ---
     // Input: tuple(meta, infile, infile_tbi, regions)
     ch_to_decompress = ch_ref_branched.gz
-        .map { meta, fasta, _fai -> tuple(meta, fasta, [], []) }
+        .map { meta, fasta, _fai -> tuple(meta, fasta) }
 
-    DECOMPRESS_FASTA(
-        ch_to_decompress,
-        'decompress',
-        false,
-        'fa'
+    PIGZ_UNGZ_FA(
+        ch_to_decompress
     )
 
     // --- Index if fai file is missing ---
     ch_to_index = ch_ref_branched.fa_toindex
-        .mix(DECOMPRESS_FASTA.out.output.map { meta, fasta -> tuple(meta, fasta, []) })
+        .mix(PIGZ_UNGZ_FA.out.file.map { meta, fasta -> tuple(meta, fasta, []) })
 
     SAMTOOLS_FAIDX(
         ch_to_index,
