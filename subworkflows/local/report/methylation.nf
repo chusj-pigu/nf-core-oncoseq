@@ -24,15 +24,23 @@ workflow CLASSIFIER_REPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+    ch_classifiers_per_sample = ch_methylation_call
+        .map { meta, _tables, classifier -> tuple(meta, classifier) }
+        .groupTuple()
+
     ch_methylation_text_classified = tumor_type
-        .join(ch_methylation_call)
-        .map { meta, type, _tables, _type_dup ->
+        .join(ch_classifiers_per_sample)
+        .map { meta, type, classifiers ->
+            def names = classifiers.unique().sort()
+            def classifier_list = names.size() > 1
+                ? names[0..-2].join(", ") + " and " + names[-1]
+                : names[0]
+
             def section = "Methylation"
             def process = "Methylation-text-${meta.id}"
-            def classifier_list = type == "blood" ? "Alma, Lamprey and Marlin" :
-                type == "brain" ? "CrossNN Caper, MPACT and Sturgeon" :
-                type == "solid" ? "CrossNN PanCancer and Tucan" : "All classifiers"
-            tuple(meta, "Tumor classifier predictions based on DNA methylation profiles. Top 5 scoring predictions are shown, and relevant classifiers for ${type} tumor types are ${classifier_list}.", section, process)
+            tuple(meta,
+                "Tumor classifier predictions based on DNA methylation profiles. Top 5 scoring predictions are shown, and the classifiers used for ${type} tumor types are ${classifier_list}.",
+                section, process)
         }
 
     QUARTO_TEXT(
@@ -68,34 +76,32 @@ workflow CLASSIFIER_REPORT {
 */
 
     def cutoffMap = [
-        'Sturgeon General' : 0.8,
-        'Tucan'            : 0.7,
-        'Marlin'           : 0.8,
-        'CrossNN Caper'    : 0.2,
-        'CrossNN PanCancer': 0.15,
-        'Alma'             : 0.2,
-        'Lamprey'          : 0.9,
+        'Sturgeon General'   : 0.8,
         'Sturgeon Brainstem' : 0.8,
-        'MPACT'            : 0.7,
-        'Nanomix'          : 0.8
+        'Tucan'              : 0.7,
+        'Marlin'             : 0.8,
+        'CrossNN Caper'      : 0.2,
+        'CrossNN PanCancer'  : 0.15,
+        'Alma'               : 0.2,
+        'Lamprey'            : 0.9,
+        'MPACT'              : 0.7,
+        'Nanomix'            : 0.8
     ]
 
     ch_tables_in_quarto = ch_methylation_call
         .groupTuple()
-        .map { meta, tables, type ->
-            def tab = type
-            def captions = type.collect { types ->
-                def cutoff = cutoffMap[types]
-                "Tumor classifier predictions by ${types} model. Entries with PASS are above score cutoff ${cutoff}"
-            }
-            def colnames = ""
-            def section = "Methylation"
-            def process = "methylation-calls-${meta.id}"
-            tuple(meta, section, process, tables, tab, captions, colnames)}
+        .map { meta, tables, types ->
+            // sort tables and labels together so tabs have a stable order
+            def pairs  = [tables, types].transpose().sort { it[1] }
+            def tables_sorted = pairs.collect { it[0] }
+            def tab           = pairs.collect { it[1] }
+            def captions      = tab.collect { captionFor(it, cutoffMap) }
 
-    QUARTO_TABLE_TABS(
-        ch_tables_in_quarto
-    )
+            tuple(meta, "Methylation", "methylation-calls-${meta.id}",
+                tables_sorted, tab, captions, "")
+        }
+
+    QUARTO_TABLE_TABS(ch_tables_in_quarto)
 
 
     ch_section_inputs = QUARTO_TEXT.out.quarto_text
@@ -123,4 +129,14 @@ workflow CLASSIFIER_REPORT {
     emit:
     sections = ch_sections
 
+}
+
+def captionFor(name, cutoff_map) {
+    if (name == 'Optic') {
+        return "Tumor classifier predictions by Optic model. Entries with PASS were accepted by the hierarchical call (score above the cutoff for that depth, 0.5 or 0.8)"
+    }
+    def cutoff = cutoff_map[name]
+    cutoff != null
+        ? "Tumor classifier predictions by ${name} model. Entries with PASS are above score cutoff ${cutoff}"
+        : "Tumor classifier predictions by ${name} model."
 }

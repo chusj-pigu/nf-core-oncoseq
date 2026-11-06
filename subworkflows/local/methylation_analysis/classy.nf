@@ -70,6 +70,7 @@ workflow CLASSY {
         .join(addTypeToChannel(PARSE_JSON_COMBINED.out.alma, "Alma"))
         .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.lamprey, "Lamprey")))
         .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.marlin, "Marlin")))
+        .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 
@@ -78,12 +79,14 @@ workflow CLASSY {
         .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.mpact, "MPACT")))
         .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_brainstem, "Sturgeon Brainstem")))
         .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_general, "Sturgeon General")))
+        .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 
     ch_json_solid = ch_tumor_branched.solid
         .join(addTypeToChannel(PARSE_JSON_COMBINED.out.pancan, "CrossNN PanCancer"))
         .mix(ch_tumor_branched.solid.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "Tucan")))
+        .mix(ch_tumor_branched.solid.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 
@@ -97,6 +100,7 @@ workflow CLASSY {
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_brainstem, "Sturgeon Brainstem")))
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_general, "Sturgeon General")))
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "Tucan")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 
