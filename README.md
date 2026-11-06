@@ -47,7 +47,7 @@ nextflow run . \
 
 Replace `docker` with `singularity` or `apptainer` if appropriate. Pin a pipeline revision for reproducible analyses. Add `--ref_cache /path/to/reference/cache` to use local references and models. When a reference or VEP cache is unavailable locally, the pipeline may download it. The Nextflow launch host must have internet access for VEP cache downloads.
 
-For existing basecalled FASTQ input, provide its path in the samplesheet and add `--skip_basecalling`. For coordinate-sorted, genome-aligned BAM input, add `--skip_mapping`. The pipeline can inspect existing reads for methylation tags when basecalling is skipped.
+For existing basecalled FASTQ input, provide its path in the samplesheet and add `--skip_basecalling`. For coordinate-sorted, genome-aligned BAM input, add `--skip_mapping`. Supply `--basecall_model` for both starting points: the workflow uses it to select a Clair3 model. The pipeline can inspect existing reads for methylation tags when basecalling is skipped.
 
 Pipeline parameters can be passed on the command line or in a Nextflow `-params-file`. Use `-c` for execution configuration rather than pipeline parameters. See the [nf-core configuration guide](https://nf-co.re/docs/running/configuration/configuration-options).
 
@@ -66,7 +66,7 @@ The samplesheet is a CSV file with one row per sample. `sample` and `input` are 
 | `ubam`         | Path to an incomplete uBAM for resuming basecalling.                                                  |
 | `bed`          | Sample-specific BED file for adaptive sampling regions.                                               |
 | `padding`      | Sample-specific padding around BED regions, in bases.                                                 |
-| `low_fidelity` | Sample-specific file listing low-fidelity genes.                                                      |
+| `low_fidelity` | Sample-specific file listing low-fidelity genes. Overrides `--low_fidelity` for that sample.          |
 | `purity`       | Tumour purity estimate as a fraction from 0 to 1. Required in cfDNA mode.                             |
 | `filter`       | `yes` or `no`, selecting cfDNA read-length filtering. Defaults to `yes` in cfDNA mode.                |
 
@@ -75,12 +75,12 @@ Enable demultiplexing with `--demux`. Supply `project`, `kit` and `barcode` for 
 ## Analysis modes
 
 - The default workflow runs the full analysis and performs variant phasing.
-- `--realtime HOURS` selects real-time analysis for the given integer number of sequencing hours. SNP calling starts at six hours. Real-time analysis does not perform the full workflow's phasing step.
-- `--cfdna` selects cell-free DNA analysis. Each sample requires `purity`. When filtering is enabled, the current Chopper configuration removes reads longer than 700 bases. SNP calling runs for samples with at least 10x coverage. The cfDNA workflow does not perform the full workflow's phasing step.
-- `--time_series` enables retrospective time-point analysis outside real-time mode. Set `--time_points` to a comma-separated list of hours. The default is `1,3,6,12,18,24,48,60,72`. `--include_full` controls whether full-depth data are included.
-- `--wgs` increases basecalling resource allocation for whole-genome data. It is a resource option, not a separate workflow selection.
+- `--realtime HOURS` selects real-time analysis for the given integer number of sequencing hours when cfDNA mode is not enabled. SNP calling starts at six hours. This mode does not perform the full workflow's phasing step.
+- `--cfdna` selects cell-free DNA analysis. Each sample requires `purity`. SNP calling runs for samples with at least 10x coverage. This mode does not perform the full workflow's phasing step.
+- In cfDNA mode, the samplesheet `filter` column selects whether to remove reads longer than `--max_length`, which defaults to 700 bases. FASTQ reads are filtered with Chopper before mapping; aligned BAM input is filtered with samtools.
+- `--time_series` enables retrospective time-point analysis when the workflow is not in its real-time analysis branch. Set `--time_points` to a comma-separated list of hours. The default is `1,3,6,12,18,24,48,60,72`. `--include_full` also requests full-depth data; downstream outputs depend on the analysis mode.
 
-Do not combine `--cfdna` and `--realtime`. The workflow uses cfDNA mode for analysis but still applies some real-time processing and report logic.
+`--cfdna` and `--realtime HOURS` can be used together. The workflow applies the cfDNA coverage threshold for SNP calling. The real-time option also enables sequencing-time reporting and changes caller selection: ClairS-TO is skipped when `--realtime` is set. The workflow can still enable `--time_series` for this combination. These descriptions reflect the current implementation; output availability depends on the input and run conditions.
 
 ## Pipeline overview
 
@@ -90,25 +90,51 @@ Methylation classification uses Classy when modified-base calls or input methyla
 
 ## Key parameters
 
-| Parameter            | Default       | Description                                                               |
-| -------------------- | ------------- | ------------------------------------------------------------------------- |
-| `--input`            | Required      | Samplesheet CSV.                                                          |
-| `--outdir`           | Required      | Output directory.                                                         |
-| `--basecall_model`   | Required      | Dorado basecalling model, for example `sup`, `hac` or `fast`.             |
-| `--m_bases`          | None          | Dorado modified-base model, for example `5mCG_5hmCG`.                     |
-| `--skip_basecalling` | `false`       | Start with basecalled reads.                                              |
-| `--skip_mapping`     | `false`       | Start with aligned BAM input.                                             |
-| `--demux`            | `false`       | Enable demultiplexing for multiplexed samples.                            |
-| `--genome`           | `hg38`        | Human reference assembly identifier.                                      |
-| `--ref_cache`        | None          | Reference FASTA or reference cache directory.                             |
-| `--vep_cache`        | None          | VEP cache location. If absent, a matching cache is located or downloaded. |
-| `--bed`              | Bundled panel | BED file for adaptive sampling regions.                                   |
-| `--padding`          | `20000`       | Padding around target regions, in bases.                                  |
-| `--max_memory`       | `400.GB`      | Maximum memory for a process.                                             |
-| `--max_cpus`         | `100`         | Maximum CPUs for a process.                                               |
-| `--max_time`         | `24.h`        | Maximum time for a process.                                               |
+### Input and starting point
 
-Profiles can override these defaults. See [`nextflow_schema.json`](nextflow_schema.json), [`main.nf`](main.nf) and [`conf/params.config`](conf/params.config) for the parameter definitions.
+| Parameter            | Default  | Description                                                                                                                  |
+| -------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `--input`            | Required | Samplesheet CSV.                                                                                                             |
+| `--outdir`           | Required | Output directory.                                                                                                            |
+| `--basecall_model`   | Required | Basecalling model, for example `sup`, `hac` or `fast`. Also used for Clair3 model selection when starting with FASTQ or BAM. |
+| `--m_bases`          | None     | Dorado modified-base model, for example `5mCG_5hmCG`, for methylation classification when basecalling.                       |
+| `--skip_basecalling` | `false`  | Start with basecalled FASTQ reads.                                                                                           |
+| `--skip_mapping`     | `false`  | Start with coordinate-sorted, genome-aligned BAM input.                                                                      |
+| `--demux`            | `false`  | Enable demultiplexing using the samplesheet `project`, `kit` and `barcode` fields.                                           |
+
+### Reference and targets
+
+| Parameter        | Default       | Description                                                                                  |
+| ---------------- | ------------- | -------------------------------------------------------------------------------------------- |
+| `--genome`       | `hg38`        | Human reference assembly identifier.                                                         |
+| `--ref_cache`    | None          | Reference FASTA or reference cache directory.                                                |
+| `--vep_cache`    | None          | VEP cache location. If absent, a matching cache is located or downloaded.                    |
+| `--bed`          | Bundled panel | BED file for adaptive sampling regions. A samplesheet `bed` can be supplied per sample.      |
+| `--padding`      | `20000`       | Padding around target regions, in bases. A samplesheet `padding` can be supplied per sample. |
+| `--low_fidelity` | Bundled list  | File listing low-fidelity genes for coverage analysis.                                       |
+
+### Analysis options
+
+| Parameter        | Default                   | Description                                                                                  |
+| ---------------- | ------------------------- | -------------------------------------------------------------------------------------------- |
+| `--cfdna`        | `false`                   | Enable cfDNA analysis. Each sample requires a `purity` value.                                |
+| `--realtime`     | None                      | Provide the sequencing duration in integer hours for real-time processing and reporting.     |
+| `--time_series`  | `false`                   | Enable retrospective time-point analysis when the real-time analysis branch is not selected. |
+| `--time_points`  | `1,3,6,12,18,24,48,60,72` | Comma-separated time points in hours.                                                        |
+| `--include_full` | `true`                    | Include full-depth data in time-series analysis. Downstream outputs depend on mode.          |
+| `--max_length`   | `700`                     | Maximum read length in bases when cfDNA filtering is enabled.                                |
+
+### Resources
+
+| Parameter      | Default  | Description                                                                                                 |
+| -------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `--max_memory` | `400.GB` | Maximum memory for a process.                                                                               |
+| `--max_cpus`   | `100`    | Maximum CPUs for a process.                                                                                 |
+| `--max_time`   | `24.h`   | Maximum time for a process.                                                                                 |
+| `--huge`       | `false`  | Scale resource requests for large datasets, subject to the configured limits.                               |
+| `--wgs`        | `false`  | Declared for whole-genome basecalling resource allocation. The current workflow does not apply this option. |
+
+Profiles can override these defaults. See [`nextflow_schema.json`](nextflow_schema.json), [`main.nf`](main.nf) and [`conf/params.config`](conf/params.config) for parameter definitions. Some schema defaults and types differ from the workflow declarations.
 
 ## Output
 
