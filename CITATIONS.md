@@ -42,6 +42,10 @@
 
 > Yuan, D., Jugas, R., Pokorna, P., Sterba, J., Slaby, O., Schmid, S., Siewert, C., Osberg, B., Capper, D., Halldorsson, S., Vik-Mo, E. O., Zeiner, P. S., Weber, K. J., Harter, P. N., Thomas, C., Albers, A., Rechsteiner, M., Reimann, R., Appelt, A., … Euskirchen, P. (2025). crossNN is an explainable framework for cross-platform DNA methylation-based classification of tumors. Nature Cancer, 6(7), 1283–1294. https://doi.org/10.1038/s43018-025-00976-5
 
+- [Deepsomatic](https://github.com/google/deepsomatic)
+
+> Park, J., Cook, D. E., Chang, P.-C., Kolesnikov, A., Brambrink, L., Mier, J. C., Gardner, J., McNulty, B., Sacco, S., Keskus, A., Bryant, A., Ahmad, T., Shetty, J., Zhao, Y., Tran, B., Narzisi, G., Helland, A., Yoo, B., Pushel, I., … Shafin, K. (2024). DeepSomatic: Accurate somatic small variant discovery for multiple sequencing technologies. bioRxiv. https://doi.org/10.1101/2024.08.16.608331
+
 - [Dorado](https://dorado-docs.readthedocs.io/en/latest/)
 
 - [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html)
@@ -80,9 +84,17 @@
 
 - [Nanomix](https://github.com/Jonbroad15/nanomix)
 
+- [Nasvar](https://github.com/jwanglab/nasvar)
+
+- [Optic](https://github.com/jwanglab/optic)
+
 - [ontime](https://github.com/mbhall88/ontime)
 
 > Hall, M. (2024). mbhall88/ontime: v0.3.1 (0.3.1). Zenodo. https://doi.org/10.5281/zenodo.10652351
+
+- [PharmCAT](https://pharmcat.clinpgx.org/using/)
+
+> Sangkuhl, K., Whirl-Carrillo, M., Whaley, R. M., Woon, M., Lavertu, A., Altman, R. B., Carter, L., Verma, A., Ritchie, M. D., & Klein, T. E. (2020). Pharmacogenomics Clinical Annotation Tool (PharmCAT). Clinical Pharmacology & Therapeutics, 107(1), 203–210. https://doi.org/10.1002/cpt.1568
 
 - [quarto](https://quarto.org/)
 
@@ -107,10 +119,6 @@
 > Cingolani, P., Patel, V. M., Coon, M., Nguyen, T., Land, S. J., Ruden, D. M., & Lu, X. (2012). Using Drosophila melanogaster as a Model for Genotoxic Chemical Mutational Studies with a New Program, SnpSift. Frontiers in Genetics, 3, 35. https://doi.org/10.3389/fgene.2012.00035
 
 - [Stellerator](https://github.com/chusj-pigu/stellerator)
-
-- [SubChrom](https://github.com/Shaohua-Lei/SubChrom/)
-
-> Lei, S., Jia, S., Takalkar, S., Chang, T.-C., Ma, X., Szlachta, K., Xu, K., Cheng, Z., Hui, Y., Koo, S. C., Mead, P. E., Gao, Q., Kumar, P., Bailey, C. P., Sunny, J., Pappo, A. S., Federico, S. M., Robinson, G. W., Gajjar, A., … Mullighan, C. G. (2025). Genomic profiling of circulating tumor DNA for childhood cancers. Leukemia, 39(2), 420–430. https://doi.org/10.1038/s41375-024-02461-x
 
 - [WhatsHap](https://whatshap.readthedocs.io/en/latest/index.html)
 

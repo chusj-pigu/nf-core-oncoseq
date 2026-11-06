@@ -1,0 +1,53 @@
+nextflow_workflow {
+
+    name "Test Workflow MAPPING"
+    script "subworkflows/local/mapping/mapping.nf"
+    workflow "MAPPING"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                skip_mapping=true
+            }
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                ch_fq0 = channel.fromPath("${projectDir}/test_data/mapping/input/fq/giab.hg002.2D.fastq")
+                ch_fq1 = channel.fromPath("${projectDir}/test_data/mapping/input/fq/giab.hg003.2D.fastq")
+                // ch_input0 = ch_fq0
+                //     .map { fq ->
+                //         tuple(id:'HCC1395',fq)}
+                // ch_input1 = ch_fq1
+                //     .map { fq ->
+                //         tuple(id:'HG003',fq)}
+
+                ch_bam0 = channel.fromPath("${projectDir}/test_data/mapping/input/bam/HCC1395_tumor_chr17_demo.bam")
+                ch_bam1 = channel.fromPath("${projectDir}/test_data/mapping/input/bam/HG003_chr20_demo.bam")
+
+                ch_input0 = ch_bam0
+                    .map { bam ->
+                        tuple(id:'HCC1395',bam)}
+                ch_input1 = ch_bam1
+                    .map { bam ->
+                         tuple(id:'HG003',bam)}
+
+                input[0] = ch_input0
+                    .mix(ch_input1)
+                ref = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa")
+                ref_index = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa.fai")
+                input[1] = ref
+                    .combine(ref_index)
+                    .map { ref, ref_fai ->
+                        tuple(id:"hg38", ref, ref_fai) }
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}

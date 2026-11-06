@@ -13,35 +13,72 @@ nextflow_workflow {
             }
             workflow {
                 """
-                // define inputs of the workflow here. Example:
-                ch_bam = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/input/HCC1395_tumor_chr17_demo.bam")
-                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/input/HCC1395_tumor_chr17_demo.bam.bai")
-                ch_input0 = ch_bam
-                    .combine(ch_bai)
+                ch_clair3_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_clair3_snp_vep.vcf.gz")
+                ch_clair3_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_clair3_snp_vep.vcf.gz.tbi")
+                ch_clairsto_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_clairsto_snp_vep.vcf.gz")
+                ch_clairsto_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_clairsto_snp_vep.vcf.gz.tbi")
+                ch_deeps_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_deepsomatic_snp_vep.vcf.gz")
+                ch_deeps_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_deepsomatic_snp_vep.vcf.gz.tbi")
+                ch_clair3_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HG003_clair3_snp_vep.vcf.gz")
+                ch_clair3_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HG003_clair3_snp_vep.vcf.gz.tbi")
+                ch_clairsto_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HG003_clairsto_snp_vep.vcf.gz")
+                ch_clairsto_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HG003_clairsto_snp_vep.vcf.gz.tbi")
+                ch_deeps_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HG003_deepsomatic_snp_vep.vcf.gz")
+                ch_deeps_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HG003_deepsomatic_snp_vep.vcf.gz.tbi")
+
+                ch_clair3_0 = ch_clair3_vcf0
+                    .combine(ch_clair3_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_clair3_snp_vep', vcf, idx)}
+                ch_clairsto_0 = ch_clairsto_vcf0
+                    .combine(ch_clairsto_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_clairsto_snp_vep', vcf, idx)}
+                ch_deeps_0 = ch_deeps_vcf0
+                    .combine(ch_deeps_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_deepsomatic_snp_vep', vcf, idx)}
+                ch_clair3_1 = ch_clair3_vcf1
+                    .combine(ch_clair3_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_clair3_snp_vep', vcf, idx)}
+                ch_clairsto_1 = ch_clairsto_vcf1
+                    .combine(ch_clairsto_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_clairsto_snp_vep', vcf, idx)}
+                ch_deeps_1 = ch_deeps_vcf1
+                    .combine(ch_deeps_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_deepsomatic_snp_vep', vcf, idx)}
+
+                ch_bam0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam")
+                ch_bai0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam.bai")
+                ch_bam1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam")
+                ch_bai1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam.bai")
+                ch_input0 = ch_bam0
+                    .combine(ch_bai0)
                     .map { bam, bai ->
                         tuple(id:'HCC1395',bam,bai)}
+                ch_input1 = ch_bam1
+                    .combine(ch_bai1)
+                    .map { bam, bai ->
+                        tuple(id:'HG003',bam,bai)}
 
-                ch_ref = Channel.fromPath("${projectDir}/test_data/variant_calling/clairs_to/ref/GRCh38_no_alt_chr17.fa*")
-                    .toSortedList()
+                input[0] = ch_input0.mix(ch_input1)
+
+                ref = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa")
+                ref_index = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa.fai")
+
+                input[1] = ref
+                    .combine(ref_index)
                     .map { ref, ref_fai ->
-                        tuple(id:"HCC1395", "GRCh38", ref, ref_fai) }
-
-                ch_snv_vcf_tbi = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_somatic.vcf.gz.tbi")
-                ch_snv_vcf = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_somatic.vcf.gz")
-                    .combine(ch_snv_vcf_tbi)
-                    .map { vcf, vcf_tbi ->
-                        tuple(id:'HCC1395_somatic',vcf, vcf_tbi) }
-                ch_snv_clin_vcf_tbi = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_somatic_clinvar.vcf.gz.tbi")
-                ch_snv_clin_vcf = Channel.fromPath("${projectDir}/test_data/variant_calling/phasing/HCC1395_somatic_clinvar.vcf.gz")
-                    .combine(ch_snv_clin_vcf_tbi)
-                    .map { vcf, vcf_tbi ->
-                        tuple(id:'HCC1395_somatic_clinvar',vcf, vcf_tbi) }
-                ch_input2 = ch_snv_vcf
-                    .mix(ch_snv_clin_vcf)
-
-                input[0] = ch_input0
-                input[1] = ch_ref
-                input[2] = ch_input2
+                        tuple(id:"hg38", ref, ref_fai) }
+                input[2] = ch_clair3_0
+                    .mix(ch_clairsto_0)
+                    .mix(ch_deeps_0)
+                    .mix(ch_clair3_1)
+                    .mix(ch_clairsto_1)
+                    .mix(ch_deeps_1)
                 """
             }
         }

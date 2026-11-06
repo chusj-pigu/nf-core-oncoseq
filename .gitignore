@@ -16,15 +16,20 @@ test_data/references
 test_data/cfdna/*
 test_data/realistic_data/*
 test_data/cfdna/
-test_data/variant_calling/cnv_calling/*
+test_data/variant_calling/*
 test_data/methylation_analysis/*
 test_data/basecalling/
+test_data/mapping/
 .nf-test/
 .Rproj.user
 refs
+tmp/
 
 # Dolt database files (added by bd init)
 .dolt/
 *.db
 test_data/basecalling/sample*
 references
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

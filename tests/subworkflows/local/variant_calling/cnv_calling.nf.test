@@ -9,31 +9,32 @@ nextflow_workflow {
         when {
             params {
                 // define parameters here. Example:
-                // outdir = "tests/results"
+                delly_bin_size=500000
+                qdnaseq_binsize=500
             }
             workflow {
                 """
                 // define inputs of the workflow here. Example:
-                ch_bam = Channel.fromPath("${projectDir}/test_data/variant_calling/cnv_calling/sample1.sorted.bam")
-                ch_bai = Channel.fromPath("${projectDir}/test_data/variant_calling/cnv_calling/sample1.sorted.bam.bai")
-                ch_input0 = ch_bam
-                    .combine(ch_bai)
+                ch_bam0 = channel.fromPath("${projectDir}/test_data/realistic_data/435807_SISJ1551_T_asWGS_ALL_435825_1T_hg38.indexed.bam")
+                ch_bai0 = channel.fromPath("${projectDir}/test_data/realistic_data/435807_SISJ1551_T_asWGS_ALL_435825_1T_hg38.indexed.bam.bai")
+                ch_bam1 = channel.fromPath("${projectDir}/test_data/realistic_data/435807_SISJ1551_T_asWGS_ALL_435825_1T_hg38.indexed.bam")
+                ch_bai1 = channel.fromPath("${projectDir}/test_data/realistic_data/435807_SISJ1551_T_asWGS_ALL_435825_1T_hg38.indexed.bam.bai")
+                ch_input0 = ch_bam0
+                    .combine(ch_bai0)
                     .map { bam, bai ->
-                        tuple(id:'sample1',bam,bai)}
-                ch_ref = Channel.fromPath("${projectDir}/test_data/realistic_data/hg38.{fa,fa.fai}")
-                    .toSortedList()
+                        tuple(id:'HCC1395',bam,bai)}
+                ch_input1 = ch_bam1
+                    .combine(ch_bai1)
+                    .map { bam, bai ->
+                        tuple(id:'HG003',bam,bai)}
+
+                input[0] = ch_input0.mix(ch_input1)
+                ref = channel.fromPath("${projectDir}/test_data/references/hg38.fa.gz")
+                ref_index = channel.fromPath("${projectDir}/test_data/references/hg38.fa.gz")
+                input[1] = ref
+                    .combine(ref_index)
                     .map { ref, ref_fai ->
-                        tuple(id:"sample1", "hg38", ref, ref_fai) }
-                input[0] = ch_input0
-                input[1] = ch_ref
-                ch_vcf = Channel.fromPath("${projectDir}/test_data/realistic_data/subchrom_in.vcf.gz")
-                ch_vcf_tbi = Channel.fromPath("${projectDir}/test_data/realistic_data/subchrom_in.vcf.gz.tbi")
-                ch_meta_vcf = Channel.of('sample1_germline_snp')
-                input[2] = ch_meta_vcf
-                    .combine(ch_vcf)
-                    .combine(ch_vcf_tbi)
-                    .map { meta, vcf, vcf_tbi ->
-                        tuple(id:meta, vcf, vcf_tbi) }
+                        tuple(id:"hg38", ref, ref_fai) }
                 """
             }
         }

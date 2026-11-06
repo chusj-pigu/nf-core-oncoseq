@@ -3,20 +3,18 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SNIFFLES_CALL                     } from '../../../modules/local/sniffles/main.nf'
-include { SNPEFF_ANNOTATE                   } from '../../../modules/local/snpeff/main.nf'
-include { SEVERUS_TUMOR_PHASED              } from '../../../modules/local/severus/main.nf'
-include { SEVERUS_TUMOR_UNPHASED            } from '../../../modules/local/severus/main.nf'
+include { WGET as WGET_TR_BED               } from '../../../modules/nf-core/wget/main'
+include { WGET as WGET_PON                  } from '../../../modules/nf-core/wget/main'
+include { SNIFFLES                          } from '../../../modules/nf-core/sniffles'
+include { BCFTOOLS_INDEX                    } from '../../../modules/nf-core/bcftools/index'
+include { SEVERUS_TUMOR_SINGLE              } from '../../../modules/local/severus/main.nf'
+include { HTSLIB_BGZIPTABIX                 } from '../../../modules/nf-core/htslib/bgziptabix'
 include { STELLERATOR                       } from '../../../modules/local/stellerator/main.nf'
-include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG38 } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
-include { ENSEMBLVEP_VEP as ENSEMBLVEP_HG19 } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
-include { ENSEMBLVEP_VEP as ENSEMBLVEP_HS1  } from '../../../modules/nf-core/ensemblvep/vep/main.nf'
-include { ENSEMBLVEP_FILTERVEP              } from '../../../modules/nf-core/ensemblvep/filtervep/main.nf'
-include { BCFTOOLS_SORT                     } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_INDEX                    } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_VIEW as BCFTOOLS_COUNT   } from '../../../modules/local/bcftools/main.nf'
-include { BCFTOOLS_VIEW as BGZIP_VCF        } from '../../../modules/local/bcftools/main.nf'
-include { modifyMetaId                      } from '../utils_nfcore_oncoseq_pipeline'
+
+// functions
+include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { modifyMetaId                 } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
+include { findCached                   } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -29,8 +27,8 @@ workflow SV_CALLING {
     take:
     bam        // channel: from phasing workflow, includes index
     ref         // reference channel with index
+    genome
     snp_vcf        // channel: from phasing workflow, phased snv vcf
-    vep_cache
 
     main:
 
@@ -40,41 +38,45 @@ workflow SV_CALLING {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
 
-    // Sniffles2
-    ch_in_sniffles = bam
-        .join(ref)
+    // Download the tandem repeat bed file
 
-    SNIFFLES_CALL(ch_in_sniffles)
+    ch_td_repeat = channel.of("trf.bed")
+        .map { type ->
+            def url = genome == "hg38" ? "https://github.com/PacificBiosciences/pbsv/raw/master/annotations/human_GRCh38_no_alt_analysis_set.trf.bed"
+                    : genome == "hg19" ? "https://github.com/PacificBiosciences/pbsv/raw/master/annotations/human_hs37d5.trf.bed"
+                    : "https://github.com/PacificBiosciences/pbsv/raw/master/annotations/human_chm13v2.0_maskedY_rCRS.trf.bed"
 
-    BCFTOOLS_SORT(SNIFFLES_CALL.out.vcf)
+            // 4th element: local copy, or null if not in the cache
+            tuple(id: url.tokenize('/')[-1], url, type, findCached(url))
+        }
+        .branch { _meta, _url, _type, local_file ->
+            cached:   local_file != null
+            download: true
+        }
 
-    ch_ref_type = ref
-        .map { meta, refid, _ref_fasta, _ref_fai ->
-            tuple(meta, refid) }
+    WGET_TR_BED(
+        ch_td_repeat.download.map { meta, url, type, _local_file -> tuple(meta, url, type) }
+    )
 
-    // Branch ref channel to create database channel
-    ch_databases = ch_ref_type.branch {
-        hg38: { _meta, refid -> refid.matches('hg38|GRCh38') }
-        hg19: { _meta, refid -> refid.matches('hg19|GRCh37') }
-        other: true
-            return 'Error'
-    }
+    ch_trf_cached = ch_td_repeat.cached.map { meta, _url, _type, local_file -> tuple(meta, local_file) }
 
-    ch_databases_hg38 = ch_databases.hg38
-        .map { meta, _refid -> tuple(meta, 'GRCh38.p14') }
-    ch_databases_hg19 = ch_databases.hg19
-        .map { meta, _refid -> tuple(meta, 'GRCh37.p13') }
+    ch_trf_bed = WGET_TR_BED.out.outfile
+        .mix(ch_trf_cached)
+        .first()
 
-    ch_databases_ref = ch_databases_hg38
-        .mix(ch_databases_hg19)
-
-    ch_sv_annotate = BCFTOOLS_SORT.out.vcf
-        .join(ch_databases_ref)
-        .map { meta, output, database ->
+    SNIFFLES(
+        bam.map { meta, bam_file, index ->
             def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_sv_sniffles')
-            tuple(new_meta, output, database) }
+            tuple(new_meta, bam_file, index)
+        },
+        ref,
+        ch_trf_bed,
+        true,
+        false
+    )
 
-    SNPEFF_ANNOTATE(ch_sv_annotate)
+    ch_vcf_sniffles = SNIFFLES.out.vcf
+        .join(SNIFFLES.out.tbi)
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -82,108 +84,55 @@ workflow SV_CALLING {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
 
-    if (params.realtime || params.cfdna) {
+    // Download pon files if not present in ref cache
 
-        ch_severus_in = bam
-            .join(ch_ref_type)
-        SEVERUS_TUMOR_UNPHASED(ch_severus_in)
-        ch_vcf_severus = SEVERUS_TUMOR_UNPHASED.out.vcf
-        ch_severus_versions = SEVERUS_TUMOR_UNPHASED.out.versions
-    } else {
+    ch_pon_url = channel.of("tsv.gz")
+        .map { type ->
+            def url = genome == "hg38" ? "https://github.com/KolmogorovLab/Severus/raw/main/pon/PoN_1000G_hg38_extended.tsv.gz"
+                    : genome == "hs1" ? "https://github.com/KolmogorovLab/Severus/raw/main/pon/PoN_1000G_chm13.tsv.gz" :
+                    "https://github.com/KolmogorovLab/Severus/raw/main/pon/PoN_1000G_hg19.tsv.gz"
 
-        ch_vcf_snp = snp_vcf
-            .map { meta, vcf_file ->
-                def new_meta = modifyMetaId(meta, 'replace', '_germline_snp_snpeff', '', '')
-                tuple(new_meta, vcf_file) }
-
-        ch_severus_in = bam
-            .join(ch_vcf_snp)
-            .join(ch_ref_type)
-
-        SEVERUS_TUMOR_PHASED(ch_severus_in)
-        ch_vcf_severus = SEVERUS_TUMOR_PHASED.out.vcf
-        ch_severus_versions = SEVERUS_TUMOR_PHASED.out.versions
-    }
-
-    BCFTOOLS_COUNT(ch_vcf_severus)
-
-    ch_count_variant = BCFTOOLS_COUNT.out.vcf
-        .branch { meta, vcf ->
-            positive: vcf.size() > 0
-                return meta
-            negative: true
-                return meta
+            tuple(id: url.tokenize('/')[-1], url, type, findCached(url))
+        }
+        .branch { _meta, _url, _type, local_file ->
+            cached:   local_file != null
+            download: true
         }
 
-    ch_severus_empty = ch_count_variant.negative
-        .join(ch_vcf_severus)
-        .map { meta, vcf ->
-            tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf)
-        }
+    ch_pon_to_download = ch_pon_url.download
+        .filter { meta, _url, _type, _local_file -> meta.id != "hg19" }
+        .map { meta, url, type, _local -> tuple(meta, url, type) }
 
-    ch_vep = ch_vcf_severus
-        .join(ch_count_variant.positive)
-        .join(ch_ref_type)
-        .branch { meta, vcf, genome ->
-            hg38: genome == "hg38"
-            return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf,[])
-            hg19: genome == "hg19"
-            return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf,[])
-            hs1: genome == "hs1"
-                return tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus'),vcf,[])
-            }
-
-    ch_fasta = ch_vcf_severus
-        .join(ch_count_variant.positive)
-        .join(ref)
-        .branch { meta, _vcf, genome, ref_fasta, _ref_index ->
-            hg38: genome == "hg38"
-            return tuple(meta,ref_fasta)
-            hg19: genome == "hg19"
-            return tuple(meta,ref_fasta)
-            hs1: genome == "hs1"
-                return tuple(meta,ref_fasta)
-            }
-
-    def vep_cache_resolved = vep_cache ? vep_cache : []
-
-    ENSEMBLVEP_HG38(
-        ch_vep.hg38,
-        "GRCh38",
-        "homo_sapiens",
-        params.vep_version,
-        vep_cache_resolved,
-        ch_fasta.hg38,
-        []
+    WGET_PON(
+        ch_pon_to_download
     )
 
-    ENSEMBLVEP_HG19(
-        ch_vep.hg19,
-        "GRCh37",
-        "homo_sapiens",
-        params.vep_version,
-        vep_cache_resolved,
-        ch_fasta.hg19,
-        []
-    )
+    ch_pon_cached = ch_pon_url.cached.map { meta, _url, _type, local_file -> tuple(meta, local_file) }
 
-    ENSEMBLVEP_HS1(
-        ch_vep.hs1,
-        "CHM13",
-        "homo_sapiens",
-        params.vep_version,
-        vep_cache_resolved,
-        ch_fasta.hs1,
-        []
-    )
+    ch_pon = WGET_PON.out.outfile
+        .mix(ch_pon_cached)
+        .first()
 
-    ch_vep_to_filter = ENSEMBLVEP_HG38.out.vcf
-        .mix(ENSEMBLVEP_HG19.out.vcf)
-        .mix(ENSEMBLVEP_HS1.out.vcf)
+    ch_vcf_snp = snp_vcf
+        .map { meta, vcf_file ->
+            def new_meta = meta.id.replaceAll(/_snp_phased$/, '')
+            tuple(id:new_meta, vcf_file) }
+        .mix(bam.map { meta, _bamfile, _bai -> tuple(meta, []) })
+        .groupTuple()
+        .map { meta, vcfs -> tuple(meta, vcfs.find { it -> it } ?: []) }
 
-    ENSEMBLVEP_FILTERVEP(
-        ch_vep_to_filter,
-        []
+    ch_severus_in = bam
+        .join(ch_vcf_snp)
+        .map { meta, bamfile, bai, vcf ->
+            def vcf_phased = vcf ?: []
+            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', '_sv_severus')
+            tuple(new_meta,bamfile,bai,vcf_phased)}
+
+    SEVERUS_TUMOR_SINGLE(
+        ch_severus_in,
+        ref,
+        ch_trf_bed,
+        ch_pon
     )
 
     /*
@@ -192,46 +141,71 @@ workflow SV_CALLING {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
 
-    ch_genes = channel.fromPath(params.fusion_targets, checkIfExists:true)
+    ch_genes = channel.fromPath(params.fusion_targets, checkIfExists:true).first()
 
-    ch_in_stellerator = bam
-        .join(ch_ref_type)
-        .combine(ch_genes)
-
-    STELLERATOR(ch_in_stellerator)
-
-    ch_out_stellerator = STELLERATOR.out.vcf
-        .map { meta, vcf ->
-            tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_stellerator'),vcf)
+    ch_bam_in_stellerator = bam
+        .map { meta, bam_file, bai ->
+        tuple(modifyMetaId(meta, 'add_suffix', '', '', '_sv_stellerator'),bam_file,bai)
         }
 
-    ch_to_bgzip = SNPEFF_ANNOTATE.out.vcf
-        .mix(ENSEMBLVEP_FILTERVEP.out.output)
-        .mix(ch_severus_empty)
+    STELLERATOR(
+        ch_bam_in_stellerator,
+        genome,
+        ch_genes
+    )
 
-    BGZIP_VCF(ch_to_bgzip)
-    BCFTOOLS_INDEX(BGZIP_VCF.out.vcf)
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     POST-PROCESSING
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
 
+    ch_vcf_to_idx_gz = SEVERUS_TUMOR_SINGLE.out.vcf.map { meta, vcf -> tuple(meta,vcf, [], [])}
+        .mix(STELLERATOR.out.vcf.map { meta, vcf -> tuple(meta,vcf, [], [])})
 
-    ch_versions = SNIFFLES_CALL.out.versions
-        .mix(SNPEFF_ANNOTATE.out.versions)
-        .mix(BCFTOOLS_SORT.out.versions)
-        .mix(BGZIP_VCF.out.versions)
-        .mix(BCFTOOLS_INDEX.out.versions)
-        .mix(ch_severus_versions)
+    HTSLIB_BGZIPTABIX (
+        ch_vcf_to_idx_gz,
+        "compress",
+        true,
+        "vcf"
+    )
+
+    ch_vcf_final = HTSLIB_BGZIPTABIX.out.output
+        .join(HTSLIB_BGZIPTABIX.out.index)
+        .mix(ch_vcf_sniffles)
+
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        Collect software version information from all processes for inclusion in reports
+        and pipeline provenance tracking. Essential for reproducibility.
+    */
+    ch_versions = SEVERUS_TUMOR_SINGLE.out.versions
         .mix(STELLERATOR.out.versions)
 
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+        .mix(topic_versions_string)
+
     emit:
-    vcf              = BCFTOOLS_INDEX.out.vcf_tbi
-    stellerator      = ch_out_stellerator
-    versions         = ch_versions
+    vcf_to_annotate  = ch_vcf_final
+    versions         = ch_collated_versions
 
 }
-
-
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/

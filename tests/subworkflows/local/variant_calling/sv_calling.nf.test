@@ -1,0 +1,59 @@
+nextflow_workflow {
+
+    name "Test Workflow SV_CALLING"
+    script "subworkflows/local/variant_calling/sv_calling.nf"
+    workflow "SV_CALLING"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                fusion_targets = "${projectDir}/assets/fusion-list.txt"
+            }
+            workflow {
+                """
+                // define inputs of the workflow here. Example:
+                ch_bam0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam")
+                ch_bai0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam.bai")
+                ch_bam1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam")
+                ch_bai1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam.bai")
+                ch_input0 = ch_bam0
+                    .combine(ch_bai0)
+                    .map { bam, bai ->
+                        tuple(id:'HCC1395',bam,bai)}
+                ch_input1 = ch_bam1
+                    .combine(ch_bai1)
+                    .map { bam, bai ->
+                        tuple(id:'HG003',bam,bai)}
+
+                input[0] = ch_input0.mix(ch_input1)
+                ref = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa")
+                ref_index = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa.fai")
+                input[1] = ref
+                    .combine(ref_index)
+                    .map { ref, ref_fai ->
+                        tuple(id:"hg38", ref, ref_fai) }
+
+                ch_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/sv_calling/input/HCC1395_snp_phased.vcf.gz")
+                ch_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/sv_calling/input/HG003_snp_phased.vcf.gz")
+
+                ch_inputvcf0 = ch_vcf0
+                    .map { vcf ->
+                        tuple(id:'HCC1395_snp_phased',vcf)}
+                ch_inputvcf1 = ch_vcf1
+                    .map { vcf ->
+                        tuple(id:'HG003_snp_phased',vcf)}
+                input[2] = ch_inputvcf0.mix(ch_inputvcf1)
+                // Test when no phased vcf is available:
+                // input[2] = channel.empty()
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}

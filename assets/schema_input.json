@@ -30,15 +30,6 @@
                 "exists": true,
                 "errorMessage": "Absolute path to ubam file path must be provided"
             },
-            "genome": {
-                "type": "string",
-                "pattern": "^(?i)(hg38|GRCh38|hg19|GRCh37|hs1|CHM13|t2t)$",
-                "errorMessage": "Reference type must be provided and be either hg38|GRCh38, hg19|GRCh37 or hs1|CHM13"
-            },
-            "ref_path": {
-                "type": "string",
-                "errorMessage": "Glob of path to reference fasta and index file must be provided"
-            },
             "kit": {
                 "type": "string",
                 "enum": [

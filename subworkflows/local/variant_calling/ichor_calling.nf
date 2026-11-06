@@ -31,15 +31,11 @@ workflow ICHORCNA_CALLING {
         .combine(mapq_wig)
     HMMCOPY_WIG(ch_hmmwig_in)
 
-    ch_ref_genome = ref
-        .map { meta, genome, _ref_fasta, _ref_index ->
-        tuple(meta,genome) }
-
     ch_samplesheet_wig = cfdna_samplesheet
-        .join(ch_ref_genome)
+        .combine(ref)
         .join(HMMCOPY_WIG.out.wig)
-        .map { meta, purity, _filter, genome, wig ->
-            tuple(meta, genome, wig, purity) }
+        .map { meta, purity, _filter, genome, _genome_fasta, wig ->
+            tuple(meta, genome.id, wig, purity) }
 
     ICHORCNA_DOWNLOAD(ch_samplesheet_wig)
 
