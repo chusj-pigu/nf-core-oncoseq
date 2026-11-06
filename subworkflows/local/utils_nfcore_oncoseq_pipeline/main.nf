@@ -307,6 +307,7 @@ workflow PIPELINE_INITIALISATION {
             def id_bed = bed.baseName
             tuple([id: id_bed] + [padding: padding_minus] + [sample:meta.id], bed)
         }
+        .filter { meta, bed -> meta.padding > 0 }
 
     BEDTOOLS_SLOP(
         ch_slop_in,
@@ -317,6 +318,7 @@ workflow PIPELINE_INITIALISATION {
         .transpose()
         .map { meta, bed ->
             tuple(id:meta.sample[0],bed) }
+        .mix(ch_adaptive.filter { _meta, bed, padding, _lf -> padding <= 0 }.map { meta, bed, _padding, _lf -> tuple(meta,bed) })
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
