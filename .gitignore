@@ -30,3 +30,6 @@ tmp/
 *.db
 test_data/basecalling/sample*
 references
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key
