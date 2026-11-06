@@ -47,7 +47,7 @@ workflow SV_CALLING {
                     : "https://github.com/PacificBiosciences/pbsv/raw/master/annotations/human_chm13v2.0_maskedY_rCRS.trf.bed"
 
             // 4th element: local copy, or null if not in the cache
-            tuple(id: genome, url, type, findCached(url))
+            tuple(id: url.tokenize('/')[-1], url, type, findCached(url))
         }
         .branch { _meta, _url, _type, local_file ->
             cached:   local_file != null
@@ -92,7 +92,7 @@ workflow SV_CALLING {
                     : genome == "hs1" ? "https://github.com/KolmogorovLab/Severus/raw/main/pon/PoN_1000G_chm13.tsv.gz" :
                     "https://github.com/KolmogorovLab/Severus/raw/main/pon/PoN_1000G_hg19.tsv.gz"
 
-            tuple(id: genome, url, type, findCached(url))
+            tuple(id: url.tokenize('/')[-1], url, type, findCached(url))
         }
         .branch { _meta, _url, _type, local_file ->
             cached:   local_file != null
