@@ -37,10 +37,14 @@ workflow CNV_CALLING {
         ch_qdnaseq_calls_bed = QDNASEQ_CALL.out.calls_bed
         ch_qdnaseq_segs_bed  = QDNASEQ_CALL.out.segs_bed
 
+        ch_versions = QDNASEQ_CALL.out.versions
+
     } else {
         ch_qdnaseq_cov_png   = channel.empty()
         ch_qdnaseq_calls_bed = channel.empty()
         ch_qdnaseq_segs_bed  = channel.empty()
+
+        ch_versions = channel.empty()
     }
 
     DELLY_CNV(
@@ -69,7 +73,7 @@ workflow CNV_CALLING {
         Collect software version information from all processes for inclusion in reports
         and pipeline provenance tracking. Essential for reproducibility.
     */
-    ch_versions = QDNASEQ_CALL.out.versions
+    ch_versions = ch_versions
         .mix(DELLY_CNV.out.versions)
 
     def topic_versions = channel.topic("versions")
