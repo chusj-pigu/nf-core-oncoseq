@@ -83,7 +83,7 @@ This pipeline is optimized to use with hg38 reference genome. When using hg19 or
 8. **Structural variants**: [Sniffles2](https://github.com/fritzsedlazeck/Sniffles), [Severus](https://github.com/KolmogorovLab/Severus) and [Stellerator](https://github.com/chusj-pigu/stellerator)
 9. **VCF annotation**: [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html)
 10. **Phasing**: [WhatsHap](https://whatshap.readthedocs.io/) (excluded in `--cfdna` and `--realtime` modes)
-11. **Pharmacogenomics**: [PharmCAT](https://github.com/pharmgkb/pharmcat)
+11. **Pharmacogenomics**: [PharmCAT](https://pharmcat.clinpgx.org/using/)
 12. **Reporting**: [Quarto](https://quarto.org/) report summarizing coverage, variants, and methylation-based tumor classification
 
 > [!WARNING]

@@ -92,6 +92,10 @@
 
 > Hall, M. (2024). mbhall88/ontime: v0.3.1 (0.3.1). Zenodo. https://doi.org/10.5281/zenodo.10652351
 
+- [PharmCAT](https://pharmcat.clinpgx.org/using/)
+
+> Sangkuhl, K., Whirl-Carrillo, M., Whaley, R. M., Woon, M., Lavertu, A., Altman, R. B., Carter, L., Verma, A., Ritchie, M. D., & Klein, T. E. (2020). Pharmacogenomics Clinical Annotation Tool (PharmCAT). Clinical Pharmacology & Therapeutics, 107(1), 203–210. https://doi.org/10.1002/cpt.1568
+
 - [quarto](https://quarto.org/)
 
 - [Samtools](https://github.com/samtools/samtools)
