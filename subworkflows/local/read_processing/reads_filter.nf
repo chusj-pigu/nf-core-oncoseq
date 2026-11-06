@@ -26,9 +26,16 @@ workflow READS_FILTER {
 
     if (params.skip_basecalling) {
 
-        CAT_FASTQ(input.map{ meta, files -> tuple([id: meta.id, single_end: true], files) })
+        ch_fastq = input
+            .branch { meta, files ->
+            multiple: files.isDirectory() && files.listFiles().findAll { f -> f.name ==~ /.*\.(fastq|fq)(\.gz)?$/ }.size() > 1
+            single: true
+            }
+
+        CAT_FASTQ(ch_fastq.multiple.map{ meta, files -> tuple([id: meta.id, single_end: true], files) })
 
         ch_input = CAT_FASTQ.out.reads.map { meta, file -> tuple(id:meta.id, file)}
+            .mix(ch_fastq.single)
 
     } else if (!params.skip_mapping) {
         input
