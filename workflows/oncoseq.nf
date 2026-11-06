@@ -135,7 +135,7 @@ workflow ONCOSEQ {
     def realtime_hours = is_realtime ? params.realtime?.toInteger() : 0
     def time_series    = (params.time_series && !is_realtime) ? true : false
     def check_tags     = (params.skip_basecalling || params.skip_mapping) ? true : false
-    def do_classify    = (params.m_bases || check_tags) ? true : false
+    def do_classify    = ((params.m_bases || check_tags) && genome != "hs1") ? true : false
     def run_snp        = (!is_realtime || realtime_hours >= 6)
 
     def title_prefix = is_cfdna     ? 'OncoSeq cfDNA Report'
