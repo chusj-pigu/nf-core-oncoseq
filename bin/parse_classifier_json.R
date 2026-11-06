@@ -1,418 +1,179 @@
 #!/usr/bin/env Rscript
+# Copyright (c) the nf-core community under an open-source MIT license.
+#
+# Usage: Rscript classy_tables.R --sample sample1 --json sample1_combined_classification.json
 
-library(readr)
-library(jsonlite)
-library(optparse)
-library(purrr)
-library(stringr)
-library(dplyr)
+suppressPackageStartupMessages({
+  library(optparse)
+  library(jsonlite)
+  library(purrr)
+  library(dplyr)
+  library(tibble)
+  library(stringr)
+  library(readr)
+})
 
-# -----------------------------
-# CLI Options
-# -----------------------------
-option_list <- list(
-  make_option(c("-s", "--sample"), type = "character",
-              help = "Sample ID to name outputs with"),
-  make_option(c("-j", "--json"), type = "character",
-              help = "Path to json containing all classifier results from classy", metavar = "file")
-)
+TOP_N <- 5
 
-opt <- parse_args(OptionParser(option_list = option_list))
+# =============================================================
+# 1. Inputs
+# =============================================================
 
-input <- opt$json
+opt <- parse_args(OptionParser(option_list = list(
+  make_option(c("-s", "--sample"), type = "character", help = "Sample ID used to name outputs"),
+  make_option(c("-j", "--json"),   type = "character", help = "Combined classy JSON", metavar = "file")
+)))
+
 sample_id <- opt$sample
+parsed    <- fromJSON(opt$json, simplifyVector = FALSE)
+scores    <- parsed$combined$classification_scores   # one entry per (classifier, class)
 
-# ============================================================
-# Helper functions
-# ============================================================
+classifier_ids <- scores %>% map_chr("classifier_run_id") %>% unique()
 
-# Extract the value associated with a particular level in native_path
-get_path_value <- function(x, level_kind) {
 
-  hit <- purrr::keep(
-    x$native_path,
-    ~ .x$level_kind == level_kind
-  )
+# =============================================================
+# 2. Small helpers
+# =============================================================
 
-  if (length(hit) == 0) {
-    return(NA_character_)
-  }
+pass_fail <- function(passed) if_else(passed, "PASS", "FAIL")
 
-  hit[[1]]$name
+# Scores for one classifier (a list of entries)
+scores_for <- function(id) keep(scores, ~ .x$classifier_run_id == id)
+
+# Hierarchy of one entry as a named character vector,
+# e.g. c(Family = "LYMPHOMA", Type = "B-cell lymphoblastic lymphoma")
+path_levels <- function(x) {
+  kinds <- map_chr(x$native_path, "level_kind")
+  names <- map_chr(x$native_path, "name")
+  setNames(names, str_to_title(kinds))
+}
+
+# Name of one level in an entry's hierarchy, or NA
+level_value <- function(x, kind) {
+  hit <- keep(x$native_path, ~ .x$level_kind == kind)
+  if (length(hit) == 0) NA_character_ else hit[[1]]$name
+}
+
+# Turn a list of records into a named numeric lookup
+# e.g. lookup(parsed$inference$lineage_probabilities, "label", "probability")
+lookup <- function(records, name_field, value_field) {
+  setNames(map_dbl(records, ~ as.numeric(.x[[value_field]])),
+           map_chr(records, name_field))
 }
 
 
-# Convert a level_kind into a nice column name
-# e.g. "supergroup" -> "Supergroup"
-level_to_name <- function(x) {
-  stringr::str_to_title(x)
+# =============================================================
+# 3. Table builders (one per kind of classifier)
+# =============================================================
+
+# ---- Generic: any classifier whose hierarchy is in native_path ----
+# Columns: <one per hierarchy level>, Score, Cutoff
+make_generic_table <- function(id) {
+  scores_for(id) %>%
+    map_dfr(function(x) {
+      as_tibble(as.list(path_levels(x))) %>%
+        mutate(Score  = x$score,
+               Cutoff = pass_fail(x$score >= x$cutoff))
+    })
 }
 
 
-# ============================================================
-# Get classifier list
-# ============================================================
+# ---- MARLIN: adds lineage and group scores ----
+# Columns: Lineage, Lineage_score, Group, Group_score, Class, Class_score, Cutoff
+make_marlin_table <- function() {
+  lineage_scores <- lookup(parsed$inference$lineage_probabilities, "label", "probability")
+  group_scores   <- lookup(parsed$inference$group_probabilities,   "label", "probability")
 
-parsed_json <- fromJSON(input, simplifyVector = FALSE)
-
-classification_scores <- parsed_json$combined$classification_scores
-
-classifier_list <- classification_scores %>%
-  purrr::map_chr(~ .x$classifier_run_id) %>%
-  unique()
-
-
-# ============================================================
-# Generic classifier
-# ============================================================
-
-make_generic_table <- function(scores, classifier_id) {
-
-  results <- scores %>%
-    purrr::keep(
-      ~ .x$classifier_run_id == classifier_id
-    )
-
-  if (length(results) == 0) {
-    stop("No results found for: ", classifier_id)
-  }
-
-  # --------------------------------------------------------
-  # Determine which hierarchy levels are present
-  # --------------------------------------------------------
-
-  level_kinds <- results %>%
-    purrr::map(
-      ~ .x$native_path
-    ) %>%
-    purrr::flatten() %>%
-    purrr::map_chr(~ .x$level_kind) %>%
-    unique()
-
-
-  # --------------------------------------------------------
-  # Build one row for each classification
-  # --------------------------------------------------------
-
-  output <- results %>%
-    purrr::map_dfr(function(x) {
-
-      row <- list()
-
-      # -----------------------------
-      # Hierarchy
-      # -----------------------------
-
-      for (level in x$native_path) {
-
-        level_name <- level_to_name(
-          level$level_kind
-        )
-
-        row[[level_name]] <- level$name
-      }
-
-
-      # -----------------------------
-      # Score
-      #
-      # For generic classifiers the
-      # score corresponds to the leaf.
-      # -----------------------------
-
-      last_level <- x$native_path[[length(x$native_path)]]
-
-      last_level_name <- level_to_name(
-        last_level$level_kind
-      )
-
-      row[[paste0(last_level_name, "_score")]] <- x$score
-
-
-      # -----------------------------
-      # Cutoff
-      # -----------------------------
-
-      row$Cutoff <- ifelse(
-        x$score >= x$cutoff,
-        "PASS",
-        "FAIL"
-      )
-
-      tibble::as_tibble(row)
-    })
-
-
-  # --------------------------------------------------------
-  # Put columns in hierarchy order
-  # --------------------------------------------------------
-
-  hierarchy_columns <- level_kinds %>%
-    purrr::map(level_to_name)
-
-  score_columns <- paste0(
-    hierarchy_columns,
-    "_score"
-  )
-
-  # Keep only score for the leaf for generic classifiers
-  # and arrange hierarchy before score.
-  existing_hierarchy <- hierarchy_columns[
-    hierarchy_columns %in% names(output)
-  ]
-
-  existing_scores <- score_columns[
-    score_columns %in% names(output)
-  ]
-
-  output %>%
-    select(
-      all_of(unlist(hierarchy_columns)),
-      all_of(unlist(existing_scores)),
-      Cutoff
-    )
-}
-
-
-# ============================================================
-# MARLIN
-# ============================================================
-
-make_marlin_table <- function(df) {
-
-  class_results <- df$combined$classification_scores %>%
-    purrr::keep(
-      ~ .x$classifier_run_id == "marlin"
-    )
-
-
-  # --------------------------------------------------------
-  # Extract lineage probabilities
-  # --------------------------------------------------------
-
-  lineage_scores <- df$inference$lineage_probabilities %>%
-    purrr::map_dfr(function(x) {
-
+  scores_for("marlin") %>%
+    map_dfr(function(x) {
+      lineage <- level_value(x, "lineage")
+      group   <- level_value(x, "mcf")
       tibble(
-        Lineage = x$label,
-        Lineage_score = as.numeric(x$probability)
+        Lineage       = lineage,
+        Lineage_score = unname(lineage_scores[lineage]),
+        Group         = group,
+        Group_score   = unname(group_scores[group]),
+        Class         = x$leaf_name,
+        Class_score   = x$score,
+        Cutoff        = pass_fail(x$score >= x$cutoff)
       )
-    })
-
-
-  # --------------------------------------------------------
-  # Extract group probabilities
-  # --------------------------------------------------------
-
-  group_scores <- df$inference$group_probabilities %>%
-    purrr::map_dfr(function(x) {
-
-      tibble(
-        Group = x$label,
-        Group_score = as.numeric(x$probability)
-      )
-    })
-
-
-  # --------------------------------------------------------
-  # Extract class/top probabilities
-  # --------------------------------------------------------
-
-  output <- class_results %>%
-    purrr::map_dfr(function(x) {
-
-      tibble(
-        Lineage = get_path_value(
-          x,
-          "lineage"
-        ),
-
-        Group = get_path_value(
-          x,
-          "mcf"
-        ),
-
-        Class = x$leaf_name,
-
-        Class_score = as.numeric(
-          x$score
-        ),
-
-        Class_cutoff = as.numeric(
-          x$cutoff
-        )
-      )
-    })
-
-
-  # --------------------------------------------------------
-  # Add independent lineage/group scores
-  # --------------------------------------------------------
-
-  output <- output %>%
-    left_join(
-      lineage_scores,
-      by = "Lineage"
-    ) %>%
-    left_join(
-      group_scores,
-      by = "Group"
-    )
-
-
-  # --------------------------------------------------------
-  # Final cutoff
-  #
-  # Here PASS/FAIL refers to the final class score.
-  # --------------------------------------------------------
-
-  output %>%
-    mutate(
-      Cutoff = if_else(
-        Class_score >= Class_cutoff,
-        "PASS",
-        "FAIL"
-      )
-    ) %>%
-    select(
-      Lineage,
-      Lineage_score,
-      Group,
-      Group_score,
-      Class,
-      Class_score,
-      Cutoff
-    ) %>%
+    }) %>%
     arrange(desc(Class_score)) %>%
-    head(5)
+    head(TOP_N)
 }
 
 
-# ============================================================
-# TUCAN
-# ============================================================
+# ---- Tucan: family and class scores come from the sampling block ----
+# Columns: Family, Family_score, Class, Class_score, Cutoff
+make_tucan_table <- function() {
+  tucan         <- parsed$tucan
+  sampling      <- tucan$samplings[[1]]
+  family_scores <- lookup(sampling$family_scores, "family", "score")
 
-make_tucan_table <- function(df) {
-
-  Class_cutoff <- 0.7
-
-  sampling <- df$tucan$samplings[[1]]
-
-  family_scores <- sampling[["family_scores"]] %>%
-    purrr::map_dfr(function(x) {
-
-      tibble(
-        Family = x$family,
-        Family_score = as.numeric(x$score))
-    })
-
-
-  # --------------------------------------------------------
-  # Connect class to family
-  #
-  # If each Tucan class result has a family/path field,
-  # use that to create the relationship.
-  # --------------------------------------------------------
-
-  class_results <- sampling[["scores"]] %>%
-    purrr::map_dfr(function(x) {
-
-      family <- NA_character_
-
-      if (!is.null(x$native_path)) {
-        family <- get_path_value(
-          x,
-          "family"
-        )
-      }
-
-      tibble(
-        Family = x$family,
-        Class = x$name,
-        Class_score = as.numeric(x$score)
-      )
-    })
-
-
-  output <- class_results %>%
-    left_join(
-      family_scores,
-      by = "Family"
-    )
-
-
-  output %>%
-    mutate(
-      Cutoff = if_else(
-        Class_score >= Class_cutoff,
-        "PASS",
-        "FAIL"
-      )
-    ) %>%
-    select(
-      Family,
-      Family_score,
-      Class,
-      Class_score,
-      Cutoff
-    ) %>%
+  sampling$scores %>%
+    map_dfr(~ tibble(
+      Family      = .x$family,
+      Family_score = unname(family_scores[.x$family]),
+      Class       = .x$name,
+      Class_score = as.numeric(.x$score)
+    )) %>%
+    mutate(Cutoff = pass_fail(Class_score >= tucan$cutoff)) %>%
     arrange(desc(Class_score)) %>%
-    head(5)
+    head(TOP_N)
 }
 
 
-# ============================================================
-# Generate all classifier tables
-# ============================================================
-
-classifier_tables <- list()
-
-for (classifier_id in classifier_list) {
-
-  message("Processing: ", classifier_id)
-
-  if (classifier_id == "marlin") {
-
-    classifier_tables[[classifier_id]] <-
-      make_marlin_table(
-        parsed_json
-      )
-
-  } else if (classifier_id == "tucan") {
-
-    classifier_tables[[classifier_id]] <-
-      make_tucan_table(
-        parsed_json
-      )
-
-  } else {
-
-    classifier_tables[[classifier_id]] <-
-      make_generic_table(
-        classification_scores,
-        classifier_id
-      )
+# ---- Optic: PASS/FAIL comes from accepted_call, not score >= cutoff ----
+# Optic only stores leaf probabilities, so the score shown at each level is the
+# sum of the leaf probabilities underneath it (the "unconditional mass").
+# Columns: Level1, Level1_score, Level2, Level2_score, ..., Score, Cutoff
+make_optic_table <- function() {
+  rows   <- scores_for("optic")
+  paths  <- map(rows, ~ map_chr(.x$native_path, "name"))
+  leaf_p <- map_dbl(rows, "score")
+ 
+  node_score <- function(prefix) {
+    n      <- length(prefix)
+    inside <- map_lgl(paths, ~ length(.x) >= n && identical(.x[seq_len(n)], prefix))
+    sum(leaf_p[inside])
   }
+ 
+  top   <- order(-leaf_p)[seq_len(min(TOP_N, length(rows)))]
+  depth <- max(lengths(paths[top]))
+ 
+  map_dfr(top, function(i) {
+    path <- paths[[i]]
+    row  <- list()
+    for (d in seq_len(depth)) {
+      has_level <- d <= length(path)
+      row[[paste0("Level", d)]]            <- if (has_level) path[d] else NA_character_
+      row[[paste0("Level", d, "_score")]]  <- if (has_level) round(node_score(path[seq_len(d)]), 4) else NA_real_
+    }
+    row$Cutoff <- pass_fail(isTRUE(rows[[i]]$accepted_call))
+    as_tibble(row)
+  })
 }
 
 
-# ============================================================
-# Write TSVs
-# ============================================================
+# =============================================================
+# 4. Build and write everything
+# =============================================================
 
-purrr::iwalk(
-  classifier_tables,
-  function(table, classifier_id) {
+build_table <- function(id) {
+  switch(id,
+    marlin = make_marlin_table(),
+    tucan  = make_tucan_table(),
+    optic  = make_optic_table(),
+    make_generic_table(id)          # everything else
+  )
+}
 
-    filename <- classifier_id %>%
-      stringr::str_replace_all(":", "_") %>%
-      paste0(".tsv")
+write_table <- function(table, name) {
+  file <- paste0(sample_id, "_", str_replace_all(name, ":", "_"), ".tsv")
+  write_tsv(table, file)
+}
 
-    filename_withsample <- paste(sample_id, filename, sep = "_")
-
-    readr::write_tsv(
-      table,
-      filename_withsample
-    )
-  }
-)
+for (id in classifier_ids) {
+  message("Processing: ", id)
+  write_table(build_table(id), id)
+}

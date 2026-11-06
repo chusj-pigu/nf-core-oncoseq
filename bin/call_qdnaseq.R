@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+# Copyright (c) the nf-core community under an open-source MIT license.
 
 # Script to call CNVs with QDNAseq based on run_qdnaseq.R of wf-human-variation of epi2me https://github.com/epi2me-labs/wf-human-variation
 

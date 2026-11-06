@@ -1,5 +1,7 @@
 #!/usr/bin/env Rscript
 
+# Copyright (c) the nf-core community under an open-source MIT license.
+
 suppressPackageStartupMessages({
     library(optparse)
     library(tidyverse)

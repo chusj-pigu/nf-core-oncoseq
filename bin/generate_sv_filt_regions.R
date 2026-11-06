@@ -1,4 +1,7 @@
 #!/usr/bin/env Rscript
+# Copyright (c) the nf-core community under an open-source MIT license.
+
+# Usage: Rscript generate_sv_filt_regions.R --target gene_list.txt --exclude sv_exclude.txt --min_support INT
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -161,7 +164,7 @@ process_vcf <- function(vcf) {
       strand2 = str_split_i(gsub(".*STRANDS?=([^;]+);.*", "\\1", V8), pattern = "", i = 2)
     ) %>%
     filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
-    filter(SUPPORT > min_support) %>%
+    filter(SOURCE == "stellerator" | SUPPORT > min_support) %>%
     filter_stellerator_pairs(min_rows = 3) %>%
     mutate(
       N_GENES = count_genes(GENE_FULL),
