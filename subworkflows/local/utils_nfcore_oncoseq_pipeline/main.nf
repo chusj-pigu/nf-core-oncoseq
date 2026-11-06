@@ -250,7 +250,7 @@ workflow PIPELINE_INITIALISATION {
                 faiFinal = null
             }
 
-            tuple([id: genome], faFinal, faiFinal)
+            tuple([id: genomeRes], faFinal, faiFinal)
         }
         .set { ch_ref }
 
@@ -287,10 +287,12 @@ workflow PIPELINE_INITIALISATION {
     ch_ref_fasta = ch_to_index
         .mix(ch_ref_branched.fa_indexed)
         .map { meta, fasta, _fai -> tuple(meta, fasta) }
+        .view()
 
     // FAI channel: tuple(meta, fai)
     ch_ref_fai = SAMTOOLS_FAIDX.out.fai
         .mix(ch_ref_branched.fa_indexed.map { meta, _fasta, fai -> tuple(meta, fai) })
+        .view()
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -301,8 +303,9 @@ workflow PIPELINE_INITIALISATION {
     ch_slop_in = ch_adaptive
         .groupTuple(by:[1,2])
         .map { meta, bed, padding, _lf ->
+            def padding_minus = padding > 0 ? -padding : 0
             def id_bed = bed.baseName
-            tuple([id: id_bed] + [padding: padding] + [sample:meta.id], bed)
+            tuple([id: id_bed] + [padding: padding_minus] + [sample:meta.id], bed)
         }
 
     BEDTOOLS_SLOP(
