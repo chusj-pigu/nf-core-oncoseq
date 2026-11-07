@@ -65,7 +65,7 @@ With `--input` samplesheet:
 
 This pipeline is optimized to use with hg38 reference genome. When using hg19 or hs1, some steps will be automatically skipped due to lack of support in the underlying tools.
 
-![nf-core-oncoseq summary of full workflow](assets/pipeline_adaptive.svg)
+![nf-core-oncoseq summary of full workflow](assets/pipeline_v1.svg)
 
 ---
 
