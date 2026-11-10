@@ -287,12 +287,10 @@ workflow PIPELINE_INITIALISATION {
     ch_ref_fasta = ch_to_index
         .mix(ch_ref_branched.fa_indexed)
         .map { meta, fasta, _fai -> tuple(meta, fasta) }
-        .view()
 
     // FAI channel: tuple(meta, fai)
     ch_ref_fai = SAMTOOLS_FAIDX.out.fai
         .mix(ch_ref_branched.fa_indexed.map { meta, _fasta, fai -> tuple(meta, fai) })
-        .view()
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -307,7 +305,7 @@ workflow PIPELINE_INITIALISATION {
             def id_bed = bed.baseName
             tuple([id: id_bed] + [padding: padding_minus] + [sample:meta.id], bed)
         }
-        .filter { meta, bed -> meta.padding > 0 }
+        .filter { meta, bed -> meta.padding != 0 }
 
     BEDTOOLS_SLOP(
         ch_slop_in,
