@@ -643,7 +643,7 @@ workflow ONCOSEQ {
     if (genome == "hg38") {
         PHARMCAT(
             ch_snp_to_pharmcat,
-            ref,
+            ch_ref,
             ch_ref_fai
         )
     }
