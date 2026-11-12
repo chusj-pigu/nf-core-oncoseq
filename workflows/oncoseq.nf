@@ -199,7 +199,7 @@ workflow ONCOSEQ {
     MAPPING(
         ch_to_map,
         ch_ref,
-        ref_fai
+        ch_ref_fai
     )
 
     // cfDNA with mapped input: filter the BAM after mapping
@@ -535,9 +535,9 @@ workflow ONCOSEQ {
             genome
         )
 
-        ch_vcf_to_concat = SNP_CALLING.out.vcf
+        ch_vcf_to_concat = SNP_ANNOTATION.out.vcf_vep
             .map { meta, vcf_file, tbi ->
-                def merged_id = meta.id.replaceAll(/_(clairsto|deepsomatic|clair3)$/, '')
+                def merged_id = meta.id.replaceAll(/_(clairsto|deepsomatic|clair3)_vep$/, '')
                 tuple(id: merged_id, vcf_file, tbi)
             }
             .groupTuple()
@@ -553,7 +553,7 @@ workflow ONCOSEQ {
         PHASING_VARIANTS (
             ch_bam_to_process,
             ch_ref,
-            ref_fai,
+            ch_ref_fai,
             ch_snp_vcf_concat
         )
 
@@ -644,7 +644,7 @@ workflow ONCOSEQ {
         PHARMCAT(
             ch_snp_to_pharmcat,
             ref,
-            ref_fai
+            ch_ref_fai
         )
     }
 
@@ -656,7 +656,7 @@ workflow ONCOSEQ {
 
     CNV_CALLING(
         ch_bam_to_process,
-        ref,
+        ch_ref,
         genome
     )
 
@@ -665,8 +665,8 @@ workflow ONCOSEQ {
             ch_bam_to_process,
             ch_bed_for_calling,
             bed_nopad_final,
-            ref,
-            ref_fai
+            ch_ref,
+            ch_ref_fai
         )
 
         ch_kar_baf_plot = NASVAR.out.baf_plot
