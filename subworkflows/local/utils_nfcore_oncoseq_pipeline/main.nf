@@ -299,13 +299,12 @@ workflow PIPELINE_INITIALISATION {
     */
 
     ch_slop_in = ch_adaptive
-        .groupTuple(by:[1,2])
-        .map { meta, bed, padding, _lf ->
+        .groupTuple(by: [1,2])
+        .map { metas, bed, padding, _lf ->
             def padding_minus = padding > 0 ? -padding : 0
-            def id_bed = bed.baseName
-            tuple([id: id_bed] + [padding: padding_minus] + [sample:meta.id], bed)
+            tuple([id: bed.baseName, padding: padding_minus, samples: metas], bed)
         }
-        .filter { meta, bed -> meta.padding != 0 }
+        .filter { meta, _bed -> meta.padding != 0 }
 
     BEDTOOLS_SLOP(
         ch_slop_in,
@@ -313,10 +312,14 @@ workflow PIPELINE_INITIALISATION {
     )
 
     ch_bednopad = BEDTOOLS_SLOP.out.bed
-        .transpose()
-        .map { meta, bed ->
-            tuple(id:meta.sample[0],bed) }
-        .mix(ch_adaptive.filter { _meta, bed, padding, _lf -> padding <= 0 }.map { meta, bed, _padding, _lf -> tuple(meta,bed) })
+        .flatMap { meta, bed ->
+            meta.samples.collect { sample_meta -> tuple(sample_meta, bed) }
+        }
+        .mix(
+            ch_adaptive
+                .filter { _meta, _bed, padding, _lf -> padding <= 0 }
+                .map { meta, bed, _padding, _lf -> tuple(meta, bed) }
+        )
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
