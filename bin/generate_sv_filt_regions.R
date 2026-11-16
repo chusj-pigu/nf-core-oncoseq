@@ -169,6 +169,7 @@ process_vcf <- function(vcf) {
     filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
     filter(SOURCE == "stellerator" | SUPPORT > min_support) %>%
     filter_stellerator_pairs(min_rows = min_support, min_support = min_support) %>%
+    mutate(
       N_GENES = count_genes(GENE_FULL),
       GENE = map_chr(GENE_FULL, cap_genes, head_n = 5, tail_n = 5)
     )
