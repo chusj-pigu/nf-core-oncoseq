@@ -133,19 +133,22 @@ extract_genes_delins <- function(x) {
   sub(".*_", "", x)
 }
 
-# Keep stellerator rows only if the same gene / gene-partner pair
-# is seen in at least `min_rows` rows. Other callers are left untouched.
-filter_stellerator_pairs <- function(df, min_rows = 3) {
+# Keep stellerator rows if EITHER:
+#   - the same gene / gene-partner pair appears in >= min_rows rows, OR
+#   - the row's own SR support is >= min_support.
+filter_stellerator_pairs <- function(df, min_rows = 0, min_support = 0) {
   df %>%
     mutate(
       .gene1 = str_extract(V8, "(?<=(^|;)GENE1=)[^;]+"),
       .gene2 = str_extract(V8, "(?<=(^|;)GENE2=)[^;]+"),
-      # order-independent key so A/B and B/A count as the same pair
       .pair_key = paste(pmin(.gene1, .gene2), pmax(.gene1, .gene2), sep = "|")
     ) %>%
     group_by(SOURCE, .pair_key) %>%
-    filter(SOURCE != "stellerator" |
-             (!is.na(.gene1) & !is.na(.gene2) & n() >= min_rows)) %>%
+    filter(
+      SOURCE != "stellerator" |
+        (!is.na(.gene1) & !is.na(.gene2) & n() >= min_rows) |
+        (!is.na(SUPPORT) & SUPPORT >= min_support)
+    ) %>%
     ungroup() %>%
     select(-.gene1, -.gene2, -.pair_key)
 }
@@ -165,8 +168,7 @@ process_vcf <- function(vcf) {
     ) %>%
     filter(SOURCE == "stellerator" | str_detect(V8, "HIGH|MODERATE")) %>%
     filter(SOURCE == "stellerator" | SUPPORT > min_support) %>%
-    filter_stellerator_pairs(min_rows = 3) %>%
-    mutate(
+    filter_stellerator_pairs(min_rows = min_support, min_support = min_support) %>%
       N_GENES = count_genes(GENE_FULL),
       GENE = map_chr(GENE_FULL, cap_genes, head_n = 5, tail_n = 5)
     )
