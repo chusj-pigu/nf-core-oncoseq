@@ -131,11 +131,11 @@ workflow PHARMCAT {
 
     // Restore meta id to original to match sample field in vcf
     ch_vcf_to_preprocess = ch_bcftools_count.pos
-        .join(ch_preprocessed_vcf)
-        .map { meta, vcf_file, vcf_index ->
-            def meta_annotate = modifyMetaId(meta, 'replace', '_snp_vep_pharmcat', '', '')
-            tuple(meta_annotate, vcf_file, vcf_index)
-        }
+         .join(ch_preprocessed_vcf)
+         .map { meta, vcf_file, vcf_index ->
+            def new_id = meta.id.replaceAll(/_snp_(phased|vep)_pharmcat/, '')
+            tuple(id:new_id, vcf_file, vcf_index)
+         }
 
     // Parse pharmcat gene list if provided
     ch_pharmcat_genes = params.pharmcat_genes
