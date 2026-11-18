@@ -19,7 +19,7 @@ def addTypeToChannel(ch, type) {
 workflow CLASSY {
     // Input channels:
     //   fastq_ch: Channel of tuples [meta, reads] (reads can be file or directory)
-    //   ref:      Channel of tuples [meta, ref, ref_fasta, ref_fai]
+    //   ref:      Channel of tuples [meta, ref, ref_fasta]
     take:
     input         // Channel: from mapping workflow
     ref       // Channel: from input samplesheet
@@ -30,10 +30,7 @@ workflow CLASSY {
     ch_versions = channel.empty()
 
     ch_classy_in = input
-        .join(ref)
-        .map { meta, bam, bai, ref_id, ref_fasta, _red_idx ->
-            tuple(meta, bam, bai, ref_id, ref_fasta)
-            }
+        .combine(ref)
 
     CLASSY_COMBINED(ch_classy_in)
 
@@ -73,6 +70,7 @@ workflow CLASSY {
         .join(addTypeToChannel(PARSE_JSON_COMBINED.out.alma, "Alma"))
         .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.lamprey, "Lamprey")))
         .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.marlin, "Marlin")))
+        .mix(ch_tumor_branched.blood.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 
@@ -81,12 +79,14 @@ workflow CLASSY {
         .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.mpact, "MPACT")))
         .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_brainstem, "Sturgeon Brainstem")))
         .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_general, "Sturgeon General")))
+        .mix(ch_tumor_branched.brain.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 
     ch_json_solid = ch_tumor_branched.solid
         .join(addTypeToChannel(PARSE_JSON_COMBINED.out.pancan, "CrossNN PanCancer"))
         .mix(ch_tumor_branched.solid.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "Tucan")))
+        .mix(ch_tumor_branched.solid.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 
@@ -100,6 +100,7 @@ workflow CLASSY {
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_brainstem, "Sturgeon Brainstem")))
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.sturgeon_general, "Sturgeon General")))
         .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.tucan, "Tucan")))
+        .mix(ch_tumor_branched.other.join(addTypeToChannel(PARSE_JSON_COMBINED.out.optic, "Optic")))
         .groupTuple()
         .transpose()
 

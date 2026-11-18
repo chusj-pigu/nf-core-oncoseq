@@ -44,6 +44,8 @@ process PARSE_JSON_COMBINED {
     tuple val(meta),
         path("*tucan.tsv"),
         emit: tucan, optional: true
+    tuple val(meta),
+        path("*optic.tsv"), emit: optic
     path "versions.yml",
         emit: versions
 

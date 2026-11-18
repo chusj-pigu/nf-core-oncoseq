@@ -1,0 +1,106 @@
+nextflow_workflow {
+
+    name "Test Workflow VCF_ANNOTATION"
+    script "subworkflows/local/variant_calling/annotation.nf"
+    workflow "VCF_ANNOTATION"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                vep_version = "115"
+                ref_cache = "${projectDir}/test_data/realistic_data"
+            }
+            workflow {
+                """
+                ch_clair3_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_clair3_snp.vcf.gz")
+                ch_clair3_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_clair3_snp.vcf.gz.csi")
+                ch_clairsto_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_clairsto_snp.vcf.gz")
+                ch_clairsto_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_clairsto_snp.vcf.gz.tbi")
+                ch_deeps_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_deepsomatic_snp.vcf.gz")
+                ch_deeps_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_deepsomatic_snp.vcf.gz.tbi")
+                ch_sev_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_sv_severus.vcf.gz")
+                ch_sev_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_sv_severus.vcf.gz.tbi")
+                ch_sni_vcf0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_sv_sniffles.vcf.gz")
+                ch_sni_idx0 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HCC1395_sv_sniffles.vcf.gz.csi")
+                ch_clair3_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_clair3_snp.vcf.gz")
+                ch_clair3_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_clair3_snp.vcf.gz.csi")
+                ch_clairsto_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_clairsto_snp.vcf.gz")
+                ch_clairsto_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_clairsto_snp.vcf.gz.tbi")
+                ch_deeps_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_deepsomatic_snp.vcf.gz")
+                ch_deeps_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_deepsomatic_snp.vcf.gz.tbi")
+                ch_sev_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_sv_severus.vcf.gz")
+                ch_sev_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_sv_severus.vcf.gz.tbi")
+                ch_sni_vcf1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_sv_sniffles.vcf.gz")
+                ch_sni_idx1 = channel.fromPath("${projectDir}/test_data/variant_calling/annotation/HG003_sv_sniffles.vcf.gz.csi")
+
+                ch_clair3_0 = ch_clair3_vcf0
+                    .combine(ch_clair3_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_clair3_snp', vcf, idx)}
+                ch_clairsto_0 = ch_clairsto_vcf0
+                    .combine(ch_clairsto_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_clairsto_snp', vcf, idx)}
+                ch_deeps_0 = ch_deeps_vcf0
+                    .combine(ch_deeps_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_deepsomatic_snp', vcf, idx)}
+                ch_sev_0 = ch_sev_vcf0
+                    .combine(ch_sev_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_sv_severus', vcf, idx)}
+                ch_sni_0 = ch_sni_vcf0
+                    .combine(ch_sni_idx0)
+                    .map { vcf, idx ->
+                        tuple(id:'HCC1395_sv_sniffles', vcf, idx)}
+                ch_clair3_1 = ch_clair3_vcf1
+                    .combine(ch_clair3_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_clair3_snp', vcf, idx)}
+                ch_clairsto_1 = ch_clairsto_vcf1
+                    .combine(ch_clairsto_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_clairsto_snp', vcf, idx)}
+                ch_deeps_1 = ch_deeps_vcf1
+                    .combine(ch_deeps_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_deepsomatic_snp', vcf, idx)}
+                ch_sev_1 = ch_sev_vcf1
+                    .combine(ch_sev_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_sv_severus', vcf, idx)}
+                ch_sni_1 = ch_sni_vcf1
+                    .combine(ch_sni_idx1)
+                    .map { vcf, idx ->
+                        tuple(id:'HG003_sv_sniffles', vcf, idx)}
+                input[0] = ch_clair3_0
+                    .mix(ch_clairsto_0)
+                    .mix(ch_deeps_0)
+                    .mix(ch_clair3_1)
+                    .mix(ch_clairsto_1)
+                    .mix(ch_deeps_1)
+                    .mix(ch_sev_0)
+                    .mix(ch_sev_1)
+                    .mix(ch_sni_1)
+                    .mix(ch_sni_0)
+
+                ref = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa")
+                ref_index = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/ref/GRCh38_no_alt_chr17-chr20.fa.fai")
+                input[1] = ref
+                    .combine(ref_index)
+                    .map { ref, ref_fai ->
+                        tuple(id:"hg38", ref, ref_fai) }
+                input[2] = channel.fromPath("${projectDir}/test_data/realistic_data/vep")
+                input[3] = "hg38"
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+
+    }
+
+}

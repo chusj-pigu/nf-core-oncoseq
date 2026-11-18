@@ -7,14 +7,11 @@ include { DORADO_BASECALL                           } from '../../../modules/loc
 include { DORADO_DEMULTIPLEX                        } from '../../../modules/local/dorado/main.nf'
 include { DORADO_TRIM                               } from '../../../modules/local/dorado/main.nf'
 include { SAMTOOLS_QSFILTER                         } from '../../../modules/local/samtools/main.nf'
-include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_PASS } from '../../../modules/local/samtools/main.nf'
-include { SAMTOOLS_TOFASTQ as SAMTOOLS_TOFASTQ_FAIL } from '../../../modules/local/samtools/main.nf'
-include { SEQKIT_STATS as SEQKIT_STATS_PASS         } from '../../../modules/local/seqkit/main.nf'
-include { SEQKIT_STATS as SEQKIT_STATS_FAIL         } from '../../../modules/local/seqkit/main.nf'
-include { paramsSummaryMap                          } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc                      } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { SAMTOOLS_TOFASTQ                          } from '../../../modules/local/samtools/main.nf'
+include { HTSLIB_BGZIPTABIX                         } from '../../../modules/nf-core/htslib/bgziptabix/main'
+include { SEQKIT_STATS                              } from '../../../modules/nf-core/seqkit/stats/main'
+
 include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText                    } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 include { modifyMetaId                              } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
@@ -93,16 +90,21 @@ workflow BASECALL_MULTIPLEX {
             tuple(new_meta, ubam)
         }
 
-    SAMTOOLS_TOFASTQ_PASS(ch_new_sample_ids_pass)
-    SAMTOOLS_TOFASTQ_FAIL(ch_new_sample_ids_fail)
+    SAMTOOLS_TOFASTQ(ch_new_sample_ids_pass.mix(ch_new_sample_ids_fail))
 
-    SEQKIT_STATS_PASS(SAMTOOLS_TOFASTQ_PASS.out.fq)              // Read stats for passed reads
-    SEQKIT_STATS_FAIL(SAMTOOLS_TOFASTQ_FAIL.out.fq)              // Reads stats for failed reads
+    SEQKIT_STATS(SAMTOOLS_TOFASTQ.out.fq)
 
-    ch_fastq_pass = SAMTOOLS_TOFASTQ_PASS.out.fq
+    ch_fastq_pass = SAMTOOLS_TOFASTQ.out.fq
+        .filter { meta, _reads -> meta.id.contains('pass')}
         .map { meta, fq ->
          def meta_restore = [id : meta.id.replace('_pass', '')]
          tuple(meta_restore, fq)}
+
+    ch_stats_pass = SEQKIT_STATS.out.stats
+        .filter { meta, _tbl -> meta.id.contains('pass')}
+        .map { meta, table ->
+        def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+        tuple(meta_restore, table)}
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -113,17 +115,32 @@ workflow BASECALL_MULTIPLEX {
         .mix(DORADO_DEMULTIPLEX.out.versions)
         .mix(DORADO_TRIM.out.versions)
         .mix(SAMTOOLS_QSFILTER.out.versions)
-        .mix(SAMTOOLS_TOFASTQ_PASS.out.versions)
-        .mix(SAMTOOLS_TOFASTQ_FAIL.out.versions)
-        .mix(SEQKIT_STATS_PASS.out.versions)
-        .mix(SEQKIT_STATS_FAIL.out.versions)
+        .mix(SAMTOOLS_TOFASTQ.out.versions)
 
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+        .mix(topic_versions_string)
 
     emit:
     fastq          = ch_fastq_pass
-    stats_pass     = SEQKIT_STATS_PASS.out.stats        // TODO: QUARTO REPORT
-    stats_fail     = SEQKIT_STATS_FAIL.out.stats        // TODO: QUARTO REPORT
-    versions       = ch_versions
+    stats_pass     = ch_stats_pass
+    versions       = ch_collated_versions
 
 }
 

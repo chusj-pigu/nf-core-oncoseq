@@ -1,0 +1,89 @@
+nextflow_workflow {
+
+    name "Test Workflow VARIANT_PROCESS"
+    script "subworkflows/local/variant_calling/variant_process.nf"
+    workflow "VARIANT_PROCESS"
+
+    test("Should run without failures") {
+
+        when {
+            params {
+                sv_exclude = "${projectDir}/assets/sv_exclude.txt"
+                snp_exclude = "${projectDir}/assets/snp_exclude.txt"
+            }
+            workflow {
+                """
+                // ---- input[0]: bam + bai ----
+                ch_bam0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam")
+                ch_bai0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam.bai")
+                ch_bam1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam")
+                ch_bai1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam.bai")
+
+                ch_input0 = ch_bam0
+                    .combine(ch_bai0)
+                    .map { bam, bai -> tuple([id:'HCC1395'], bam, bai) }
+                ch_input1 = ch_bam1
+                    .combine(ch_bai1)
+                    .map { bam, bai -> tuple([id:'HG003'], bam, bai) }
+
+                input[0] = ch_input0.mix(ch_input1)
+
+                // ---- input[1]: bed ----
+                ch_bed0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395.bed")
+                    .map { bed -> tuple([id:'HCC1395'], bed) }
+                ch_bed1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003.bed")
+                    .map { bed -> tuple([id:'HG003'], bed) }
+
+                input[1] = ch_bed0.mix(ch_bed1)
+
+                def vcf_dir  = "${projectDir}/test_data/variant_calling/variant_process/"
+                def samples  = ['HCC1395', 'HG003']
+                def suffixes = [
+                    'clair3_snp_vep_filt',
+                    'clairsto_snp_vep_filt',
+                    'deepsomatic_snp_vep_filt',
+                    'sv_sniffles_vep_filt',
+                    'sv_stellerator',
+                    'sv_severus_vep_filt_empty'
+                ]
+
+                def vcf_list = []
+                samples.each { s ->
+                    suffixes.each { x ->
+                        def prefix = s + '_' + x
+                        vcf_list << [
+                            [id: prefix],
+                            file(vcf_dir + prefix + '.vcf.gz'),
+                            file(vcf_dir + prefix + '.vcf.gz.tbi')
+                        ]
+                    }
+                }
+
+                input[2] = channel.fromList(vcf_list)
+
+                input[3] = channel.fromList(
+                    samples.collect { s -> [[id: s], file(vcf_dir + s + '_cnv_qdnaseq_calls.bed')] }
+                )
+
+                input[4] = channel.fromList(
+                    samples.collect { s -> [[id: s], file(vcf_dir + s + '_cnv_qdnaseq_segs.bed')] }
+                )
+
+                input[5] = channel.fromPath("${projectDir}/assets/sv-list.csv")
+
+                input[6] = channel.fromList(
+                    samples.collect { s -> [[id: s], file(vcf_dir + s + '_delly_out.cov.gz')] }
+                )
+
+                input[7] = channel.fromList(
+                    samples.collect { s -> [[id: s], file(vcf_dir + s + '_cnv_delly.bed')] }
+                )
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+    }
+}

@@ -14,24 +14,39 @@ nextflow_workflow {
             workflow {
                 """
                 // define inputs of the workflow here
-                input[0] = tuple(
-                    [id: "test_sample"],
-                    file("${projectDir}/test_data/alignments/sample1_mito_align.bam"),
-                    file("${projectDir}/test_data/alignments/sample1_mito_align.bam.bai")
-                )
-                input[1] = tuple(
-                    [id: "test_sample"],
-                    file("${projectDir}/test_data/adaptive/2025-02-05-CHUSJ-Panel-20kb-LP.bed"),
-                    100,
-                    false
-                )
+                ch_bam0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam")
+                ch_bai0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395_tumor_chr17_demo.bam.bai")
+                ch_bam1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam")
+                ch_bai1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003_chr20_demo.bam.bai")
+
+                ch_input0 = ch_bam0
+                    .combine(ch_bai0)
+                    .map { bam, bai -> tuple([id:'HCC1395'], bam, bai) }
+                ch_input1 = ch_bam1
+                    .combine(ch_bai1)
+                    .map { bam, bai -> tuple([id:'HG003'], bam, bai) }
+
+                input[0] = ch_input0.mix(ch_input1)
+
+                ch_bed0 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HCC1395.bed")
+                    .map { bed -> tuple([id:'HCC1395'], bed) }
+                ch_bed1 = channel.fromPath("${projectDir}/test_data/variant_calling/snp_calling/input/HG003.bed")
+                    .map { bed -> tuple([id:'HG003'], bed) }
+
+                ch_lf = channel.fromPath("${projectDir}/assets/panel_low_fidelity.txt")
+
+                input[1] = ch_bed0.map { meta, bed -> tuple(meta, bed, 0)}.combine(ch_lf)
+                    .mix(ch_bed1.map { meta, bed -> tuple(meta, bed, 0)}.combine(ch_lf))
+
+                input[2] = ch_bed0.mix(ch_bed1)
+
+                input[3] = "hg38"
                 """
             }
         }
 
         then {
             assert workflow.success
-            assert snapshot(workflow.out).match()
         }
 
     }

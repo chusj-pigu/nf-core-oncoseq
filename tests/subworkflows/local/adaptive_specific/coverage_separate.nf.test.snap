@@ -1,0 +1,87 @@
+{
+    "Should run without failures": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "HCC1395"
+                        },
+                        "HCC1395_coverage_mapq.svg:md5,a24f02cf7c88e985dbd33e7de5685a4f"
+                    ],
+                    [
+                        {
+                            "id": "HG003"
+                        },
+                        "HG003_coverage_mapq.svg:md5,f40e78521b6a5421999266b32bc3a2aa"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "HCC1395"
+                        },
+                        "HCC1395_coverage_mean_coverage.csv:md5,0f902fb6e247896c360c2bb0378be6fa"
+                    ],
+                    [
+                        {
+                            "id": "HG003"
+                        },
+                        "HG003_coverage_mean_coverage.csv:md5,f3443551fdf92805c924dd9c65a499b4"
+                    ]
+                ],
+                "2": [
+                    "BEDTOOLS_SUBTRACT:\n  bedtools: 2.31.1",
+                    "COVERAGE_PLOT:\n  R: R version 4.1.2 (2021-11-01) -- \"Bird Hippie\"",
+                    "MOSDEPTH_BACKGROUND:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "MOSDEPTH_NOFILT:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "MOSDEPTH_PRIMARY:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "MOSDEPTH_UNIQUE:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "Workflow:\n    nf-core-oncoseq: vpre-release\n    Nextflow: 26.04.4"
+                ],
+                "coverage_plot": [
+                    [
+                        {
+                            "id": "HCC1395"
+                        },
+                        "HCC1395_coverage_mapq.svg:md5,a24f02cf7c88e985dbd33e7de5685a4f"
+                    ],
+                    [
+                        {
+                            "id": "HG003"
+                        },
+                        "HG003_coverage_mapq.svg:md5,f40e78521b6a5421999266b32bc3a2aa"
+                    ]
+                ],
+                "coverage_tbl": [
+                    [
+                        {
+                            "id": "HCC1395"
+                        },
+                        "HCC1395_coverage_mean_coverage.csv:md5,0f902fb6e247896c360c2bb0378be6fa"
+                    ],
+                    [
+                        {
+                            "id": "HG003"
+                        },
+                        "HG003_coverage_mean_coverage.csv:md5,f3443551fdf92805c924dd9c65a499b4"
+                    ]
+                ],
+                "versions": [
+                    "BEDTOOLS_SUBTRACT:\n  bedtools: 2.31.1",
+                    "COVERAGE_PLOT:\n  R: R version 4.1.2 (2021-11-01) -- \"Bird Hippie\"",
+                    "MOSDEPTH_BACKGROUND:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "MOSDEPTH_NOFILT:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "MOSDEPTH_PRIMARY:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "MOSDEPTH_UNIQUE:\n  gzip: 1.14\n  mosdepth: 0.3.14",
+                    "Workflow:\n    nf-core-oncoseq: vpre-release\n    Nextflow: 26.04.4"
+                ]
+            }
+        ],
+        "meta": {
+            "nf-test": "0.9.2",
+            "nextflow": "26.04.4"
+        },
+        "timestamp": "2026-10-22T13:44:12.66845337"
+    }
+}

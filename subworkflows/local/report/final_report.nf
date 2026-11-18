@@ -29,7 +29,7 @@ workflow MIDNIGHT_REPORT {
 */
 
     ch_id = ch_params
-        .map { meta, refid, ref_fasta, ref_index, bed_file, padding, lowfid ->
+        .map { meta, _bed_file, _padding, _lowfid ->
             meta }
         .unique()
 
@@ -88,24 +88,24 @@ workflow MIDNIGHT_REPORT {
 
         ch_subtitle = ch_params
             .join(ch_cfdna)
-            .map { meta, refid, _ref_fasta, _ref_index, bed_file, _padding, _lowfid, _purity, filter ->
+            .map { meta, bed_file, _padding, _lowfid, _purity, filter ->
                 def bed = bed_file.name
                 def skip_modes = params.skip_mapping ? "and bam files as input, skipping mapping." :
                     (params.skip_basecalling ? "and fastq files as input, skipping basecalling." :
                         "using pod5 files as input, basecalling model ${params.basecall_model}")
                 def modif = params.m_bases ? " and modified basecalling model ${params.m_bases}" : ""
                 def filt = filter == "yes" ? "Reads longer than ${params.max_length} bp were filtered out before mapping." : ""
-                tuple(meta, "Ouputs summary for oncoseq workflow, using reference genome ${refid}, targeted panel bed file ${bed}, ${skip_modes}${modif}. ${filt}")}
+                tuple(meta, "Ouputs summary for oncoseq workflow, using reference genome ${params.genome}, targeted panel bed file ${bed}, ${skip_modes}${modif}. ${filt}")}
 
     } else {
         ch_subtitle = ch_params
-            .map { meta, refid, _ref_fasta, _ref_index, bed_file, _padding, _lowfid ->
+            .map { meta, bed_file, _padding, _lowfid ->
                 def bed = bed_file.name
                 def skip_modes = params.skip_mapping ? "and bam files as input, skipping mapping." :
                     (params.skip_basecalling ? "and fastq files as input, skipping basecalling." :
                         "using pod5 files as input, basecalling model ${params.basecall_model}")
                 def modif = params.m_bases ? " and modified basecalling model ${params.m_bases}" : ""
-                tuple(meta, "Ouputs summary for oncoseq workflow, using reference genome ${refid}, targeted panel bed file ${bed}, ${skip_modes}${modif}")}
+                tuple(meta, "Ouputs summary for oncoseq workflow, using reference genome ${params.genome}, targeted panel bed file ${bed}, ${skip_modes}${modif}")}
     }
 
     ch_template = channel.fromPath(params.report_template)

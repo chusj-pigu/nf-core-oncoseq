@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "nf_core_oncoseq",
+  "project_id": "71303ee8-e8a8-42eb-af9a-492f18eb3f1e"
+}

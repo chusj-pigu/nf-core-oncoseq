@@ -10,22 +10,15 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { MINIMAP2_ALIGN                         } from '../../../modules/local/minimap2/main.nf'         // minimap2 alignment
-include { SAMTOOLS_TOBAM                         } from '../../../modules/local/samtools/main.nf'         // Convert SAM to BAM
-include { SAMTOOLS_SORT as SAMTOOLS_SORT    } from '../../../modules/local/samtools/main.nf'         // Sort BAM
-include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_SUB  } from '../../../modules/local/samtools/main.nf'         // Index BAM
-include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_FULL } from '../../../modules/local/samtools/main.nf'         // Index BAM
-include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_CHUNK } from '../../../modules/local/samtools/main.nf'         // Merge BAMs
-include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_FINAL } from '../../../modules/local/samtools/main.nf'         // Merge BAMs
-include { SAMTOOLS_TOFASTQ       } from '../../../modules/local/samtools/main.nf'
-include { CRAMINO_STATS          } from '../../../modules/local/cramino/main.nf'
-include { SEQKIT_STATS           } from '../../../modules/local/seqkit/main.nf'          // Coverage stats
+include { MINIMAP2_ALIGN                         } from '../../../modules/nf-core/minimap2/align/main'         // minimap2 alignment
+include { SAMTOOLS_INDEX                         } from '../../../modules/nf-core/samtools/index/main'         // Index BAM
+include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_CHUNK } from '../../../modules/nf-core/samtools/merge/main'         // Merge BAMs
+include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_FINAL } from '../../../modules/nf-core/samtools/merge/main'         // Merge BAMs
+include { CRAMINO                                } from '../../../modules/nf-core/cramino/main'
+include { SEQKIT_STATS                           } from '../../../modules/nf-core/seqkit/stats/main'
+// functions
 include { modifyMetaId           } from '../utils_nfcore_oncoseq_pipeline'
-include { QUARTO_TABLE           } from '../../../modules/local/quarto/main.nf'           // Reporting (optional)
-include { paramsSummaryMap       } from 'plugin/nf-schema'                                // Parameter summary
-include { paramsSummaryMultiqc   } from '../../../subworkflows/nf-core/utils_nfcore_pipeline' // MultiQC summary
 include { softwareVersionsToYAML } from '../../../subworkflows/nf-core/utils_nfcore_pipeline' // Version reporting
-include { methodsDescriptionText } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline' // Methods for MultiQC
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,14 +32,10 @@ workflow MAPPING {
     take:
     in_ch       // Channel: from basecalling workflow, from --fastq if --skip_mapping is used, or from input samplesheet if skip_mapping is used
     ref       // Channel: from input samplesheet
+    fai
 
 
     main:
-    ch_versions = Channel.empty() // For collecting version info
-
-    ch_ref = ref
-        .map { meta, genome, ref_fasta, _ref_fai ->
-            tuple(meta, genome, ref_fasta) }
 
     // Only expand in_ch if skip_basecalling is true
     if (params.skip_basecalling) {
@@ -72,151 +61,173 @@ workflow MAPPING {
                 SEQKIT_STATS(in_ch)
                 ch_seqkit_out = SEQKIT_STATS.out.stats
             } else {
-                ch_seqkit_out = Channel.empty()
+                ch_seqkit_out = channel.empty()
             }
         } else {
-            ch_seqkit_out = Channel.empty()
+            ch_seqkit_out = channel.empty()
         }
 
     // Merge bams if multiple bam are provided when skip_mapping is used
     if (params.skip_mapping) {
         in_ch
-            .flatMap { meta, bams ->
-                // Ensure 'bams' is a list and flatten it
-                def dir_list = bams instanceof List ? bams.flatten().sort() : [bams]
-                def dir = file(dir_list[0])
-
-                if (dir.isDirectory()) {
-                    bams = dir.listFiles().findAll { f -> f.name ==~ /.*\.bam$/ }
-
-                    if (bams.size() == 1) {
-                        def bam_single = bams
-                        def bai = dir.listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }
-                        def type = bai.size() > 0 ? 'single' : 'to_index'
-                        return [tuple(meta, type, bams.flatten(), bai.flatten())]
-                    }
-                    else {
-                        // Case 2: Multiple BAMs → split into chunks of 20 for merging
-                        def counter = 0
-                        return bams.collate(5).collect { chunk ->
-                            counter += 1
-                            def meta_chunk = modifyMetaId(meta, 'add_suffix', '', '', "_chunk${counter}")
-                            tuple(meta_chunk, 'multi', chunk)
-                        }
-                    }
-                }
-                else {
-                    def bai = dir.getParent().listFiles().findAll { f -> f.name ==~ /.*\.bai$/ }
-                    def type = bai.size() > 0 ? 'single' : 'to_index'
-                    def index = bai.size() > 0 ? bai : 'index'
-                    def bam_file = bams
-                    return [tuple(meta, type, bam_file, index)]   // Only bam file is provided
-                }
+            .flatMap { meta, bams -> resolveBamInput(meta, bams) }
+            .branch { _meta, type, _bam, _bai ->
+                single:   type == 'single'
+                multi:    type == 'multi'
+                to_index: type == 'to_index'
             }
-            .set { bam_chunks_ch }
+            .set { bams_chunk_sep }
 
-            // Process only chunks (tuples with list of bams)
-            bam_chunks_ch
-                .branch { list ->
-                    single: list[1] == 'single'
-                    multi: list[1] == 'multi'
-                    to_index: list[1] == 'to_index'
-                }
-                .set { bams_chunk_sep }
 
-            SAMTOOLS_MERGE_CHUNK(bams_chunk_sep.multi.map{ meta_chunk, _type, chunk -> tuple(meta_chunk, chunk) } )
+            SAMTOOLS_MERGE_CHUNK(
+                bams_chunk_sep.multi.map { meta_chunk, _type, chunk, chunk_index -> tuple(meta_chunk, chunk, chunk_index) },
+                ref.join(fai).map { meta, fasta, index -> tuple(meta, fasta, index, []) }.first(),
+                'bai'
+                )
 
-            SAMTOOLS_MERGE_CHUNK.out.bamfile
-                .map { meta, bam ->
+            SAMTOOLS_MERGE_CHUNK.out.bam
+                .join(SAMTOOLS_MERGE_CHUNK.out.index)
+                .map { meta, bam, bai ->
                     def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', /_chunk\d+$/)
-                    tuple(meta_restore, bam)
+                    tuple(meta_restore, bam, bai)
                 }
                 .groupTuple()           // Group by original meta.id
                 .set { final_merge_ch }
 
             // Count resulting bams
             ch_count = final_merge_ch
-                .map { meta, bam_list -> tuple(meta, bam_list.size(), bam_list) }
+                .map { meta, bam_list, bai_list -> tuple(meta, bam_list.size(), bam_list, bai_list) }
 
             // Separate samples that require further merging from those that have only one resulting merged bam
             ch_count
-                .branch { meta, bam_count, bam_list ->
+                .branch { _meta, bam_count, _bam_list, _bai_list ->
                     single_bam: bam_count == 1
                     multi_bam: bam_count > 1
                 }
                 .set { ch_bam_merged }
 
             // Make another round of merging from those merged chunks
-            SAMTOOLS_MERGE_FINAL(ch_bam_merged.multi_bam.map{ meta, size, bam_list -> tuple(meta, bam_list) })
+            SAMTOOLS_MERGE_FINAL(
+                ch_bam_merged.multi_bam.map{ meta, _size, bam_list, bai_list -> tuple(meta, bam_list, bai_list) },
+                ref.join(fai).map { meta, fasta, index -> tuple(meta, fasta, index, []) }.first(),
+                'bai'
+            )
 
-            ch_to_index = SAMTOOLS_MERGE_FINAL.out.bamfile
-                .mix(ch_bam_merged.single_bam.map{ meta, size, bam_list -> tuple(meta, bam_list) })
-                .mix(bams_chunk_sep.to_index.map{ meta, _type, bam, bai -> tuple(meta, bam) })
+            ch_to_index = bams_chunk_sep.to_index
+                .map{ meta, _type, bam, _bai -> tuple(meta, bam) }
 
             ch_single_bam = bams_chunk_sep.single
                 .map { meta, _type, bam, bai ->
                 tuple(meta, bam, bai) }
 
-            SAMTOOLS_INDEX_FULL(ch_to_index)
-            bam_ch = SAMTOOLS_INDEX_FULL.out.bamfile_index
+            SAMTOOLS_INDEX(ch_to_index)
+
+            ch_bam_indexed = ch_to_index
+                .join(SAMTOOLS_INDEX.out.index)
+                .mix(ch_bam_merged.single_bam.map { meta, _bam_count, bam_list, bai_list -> tuple(meta, bam_list, bai_list) })
+                .mix(SAMTOOLS_MERGE_FINAL.out.bam.join(SAMTOOLS_MERGE_FINAL.out.index))
+
+            bam_ch = ch_bam_indexed
                 .mix(ch_single_bam)
 
-            CRAMINO_STATS(bam_ch)
-
-            ch_versions = SAMTOOLS_MERGE_CHUNK.out.versions
-                .mix(SAMTOOLS_INDEX_FULL.out.versions)
-                .mix(CRAMINO_STATS.out.versions)
+            CRAMINO(bam_ch)
 
         } else {
 
-            // Prepare mapping input: clean up meta.id and join with reference
-            ch_mapping_in = in_ch
-                .join(ch_ref)
-                .map { meta, fastq, genome, ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${genome}")
-                    tuple(meta_ref, fastq, ref_fasta)
-                    }
-
             // Run minimap2 alignment
-            MINIMAP2_ALIGN(ch_mapping_in)
+            MINIMAP2_ALIGN(
+                in_ch,
+                ref,
+                true,
+                'bai',
+                false,
+                false
+            )
 
-            // Convert SAM to BAM
-            SAMTOOLS_TOBAM(MINIMAP2_ALIGN.out.sam)
-            // Sort and index BAM
-            SAMTOOLS_SORT(SAMTOOLS_TOBAM.out.bamfile)
-            SAMTOOLS_INDEX_FULL(SAMTOOLS_SORT.out.sortedbam)
-
-            // Restore meta ID by removing ref id
-
-            ch_ref_id = ch_ref
-                .map { meta, genome, _ref_fasta ->
-                    def meta_ref = modifyMetaId(meta, 'add_suffix', '', '', "_${genome}")
-                    tuple(meta_ref, meta.id) }
-
-            bam_ch = SAMTOOLS_INDEX_FULL.out.bamfile_index
-                .join(ch_ref_id)
-                .map { meta, bam, bai, meta_restore ->
-                    tuple(id:meta_restore, bam, bai) }
+            bam_ch = MINIMAP2_ALIGN.out.bam
+                .join(MINIMAP2_ALIGN.out.index)
 
             // Compute coverage stats
-            CRAMINO_STATS(bam_ch)
+            CRAMINO(bam_ch)
 
-            // Collect versions from all modules
-            ch_versions = MINIMAP2_ALIGN.out.versions
-                .mix(SAMTOOLS_TOBAM.out.versions)
-                .mix(SAMTOOLS_SORT.out.versions)
-                .mix(SAMTOOLS_INDEX_FULL.out.versions)
-                .mix(CRAMINO_STATS.out.versions)
         }
 
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        Collect software version information from all processes for inclusion in reports
+        and pipeline provenance tracking. Essential for reproducibility.
+    */
+
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(topic_versions.versions_file)
+        .mix(topic_versions_string)
+
     emit:
-    bam      = bam_ch                                   // Final sorted BAM with index
-    coverage = CRAMINO_STATS.out.stats                // Coverage stats
-    seqkit   = ch_seqkit_out                          // Input fastq stats
-    versions = ch_versions                            // All tool versions
+    bam      = bam_ch                               // Final sorted BAM with index
+    coverage = CRAMINO.out.stats                   // Coverage stats
+    seqkit   = ch_seqkit_out                       // Input fastq stats
+    versions = ch_collated_versions               // All tool versions
 }
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
+
+// Look for sample.bam.bai or sample.bai next to the BAM
+def findBamIndex(bam) {
+    return [
+        bam.resolveSibling("${bam.name}.bai"),
+        bam.resolveSibling("${bam.baseName}.bai")
+    ].find { it -> it.exists() }
+}
+
+def resolveBamInput(meta, bams) {
+    // Normalise: a path, a list of paths, or a directory
+    def inputs = (bams instanceof Collection ? bams.flatten() : [bams]).collect { it -> file(it) }
+
+    def bam_files = inputs.collectMany { f ->
+        f.isDirectory()
+            ? f.listFiles().findAll { it -> it.name.endsWith('.bam') }.sort()
+            : [f]
+    }
+
+    if (bam_files.isEmpty()) {
+        throw new IllegalArgumentException("No BAM files found for sample ${meta.id}")
+    }
+
+    // [bam, bai-or-null] pairs
+    def pairs = bam_files.collect { bam -> [bam, findBamIndex(bam)] }
+
+    // Single BAM
+    if (pairs.size() == 1) {
+        def (bam, bai) = pairs[0]
+        return [ tuple(meta, bai ? 'single' : 'to_index', bam, bai ?: []) ]
+    }
+
+    // Multiple BAMs: every one needs an index
+    def missing = pairs.findAll { it -> !it[1] }.collect { it -> it[0].name }
+    if (missing) {
+        throw new IllegalArgumentException(
+            "Missing BAM index for sample ${meta.id}: ${missing.join(', ')}")
+    }
+
+    // Chunks of 5, transposed into (bam list, bai list)
+    return pairs.collate(5).withIndex().collect { chunk, i ->
+        def meta_chunk = modifyMetaId(meta, 'add_suffix', '', '', "_chunk${i + 1}")
+        tuple(meta_chunk, 'multi', chunk.collect { it -> it[0] }, chunk.collect { it -> it[1] })
+    }
+}

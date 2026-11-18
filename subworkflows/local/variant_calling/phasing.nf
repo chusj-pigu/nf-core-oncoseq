@@ -3,21 +3,14 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+include { WHATSHAP_PHASE    } from '../../../modules/nf-core/whatshap/phase/main'
+include { WHATSHAP_HAPLOTAG } from '../../../modules/nf-core/whatshap/haplotag/main'
+include { WHATSHAP_STATS    } from '../../../modules/nf-core/whatshap/stats/main'
+include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_PHASED    } from '../../../modules/nf-core/samtools/index/main'
 
-// BCFtools for VCF indexing
-include { BCFTOOLS_INDEX    } from '../../../modules/local/bcftools/main.nf'
-
-// WhatsHap suite for phasing operations
-include { WHATSHAP_PHASE    } from '../../../modules/local/whatshap/main.nf'
-include { WHATSHAP_HAPLOTAG } from '../../../modules/local/whatshap/main.nf'
-include { WHATSHAP_STATS    } from '../../../modules/local/whatshap/main.nf'
-
-// SAMtools for BAM operations
-include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_PHASED   } from '../../../modules/local/samtools/main.nf'
-include { SAMTOOLS_FAIDX } from '../../../modules/local/samtools/main.nf'
-
-// Utility function for metadata manipulation
-include { modifyMetaId } from '../utils_nfcore_oncoseq_pipeline'
+// functions
+include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
+include { modifyMetaId                 } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -28,97 +21,94 @@ include { modifyMetaId } from '../utils_nfcore_oncoseq_pipeline'
 //
 // WORKFLOW: Phase variants using WhatsHap
 //
-// This workflow performs variant phasing using WhatsHap to determine which variants
-// are on the same chromosome copy (haplotype). It processes both regular variants
-// and ClinVar-annotated variants, producing phased VCFs and haplotype-tagged BAMs.
-//
 workflow PHASING_VARIANTS {
 
 
     take:
     bam         // channel: BAM files with index from mapping workflow [meta, bam, bai]
-    ref         // channel: reference genome files [meta, ref_dir, ref_fasta, ref_fai]
-    vcf_ch      // channel: VCF files to be phased [meta, vcf, vcf_tbi]
+    ref         // channel: reference genome files [meta, ref_dir, ref_fasta]
+    fai         // channel: reference genome index
+    vcf         // channel: VCF files to be phased [meta, vcf, vcf_tbi]
 
     main:
 
-    // Extract reference FASTA and index from reference channel
-    // TODO: Validate that reference index exists and is current
+    ch_vcf_to_phase = vcf
+        .join(bam.map { meta, bamfile, bai ->
+            def meta_joined = modifyMetaId(meta, 'add_suffix', '', '', '_snp')
+            tuple(meta_joined, bamfile, bai)})
+        .map { meta, vcf_file, tbi, bamfile, bai ->
+            def meta_phased = modifyMetaId(meta, 'add_suffix', '', '', '_phased')
+            tuple(meta_phased, vcf_file, tbi, bamfile, bai, [])}
+
     ch_ref = ref
-        .map { meta, _ref, ref_fasta, ref_fai ->
-            tuple(meta, ref_fasta, ref_fai) }
+        .join(fai)
+        .first()
 
-    // Separate regular variants from ClinVar-annotated variants
-    // Regular variants (somatic_snp, germline_snp) for phasing
-    ch_snv_vcf = vcf_ch
-        .map { meta, vcf, vcf_tbi ->
-            // Remove variant type suffixes to get base sample ID, but keep original for tracking
-            def base_meta = modifyMetaId(meta, 'replace', '_somatic_snp_snpeff', '', '')
-            base_meta = modifyMetaId(base_meta, 'replace', '_germline_snp_snpeff', '', '')
-            tuple(base_meta, meta, vcf, vcf_tbi)
-        }
+    WHATSHAP_PHASE(
+        ch_vcf_to_phase,
+        ch_ref
+    )
 
-    // Prepare input channels for phasing by joining BAM, VCF, and reference files
-    // Regular variants channel
-    ch_phase_snv_in = bam
-        .join(ch_snv_vcf)
-        .join(ch_ref)
-        .map { _meta, bamfile, bai, base_meta, vcf, vcf_tbi, ref_fasta, ref_idx ->
-                tuple(base_meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx)
-        }
+    ch_phased_vcf = WHATSHAP_PHASE.out.vcf
+        .join(WHATSHAP_PHASE.out.tbi)
+        .join(bam.map { meta,bamfile, bai ->
+            def meta_phased = modifyMetaId(meta, 'add_suffix', '', '', '_snp_phased')
+            tuple(meta_phased, bamfile, bai)})
 
-    // STEP 1: Phase variants using WhatsHap
-    // This determines which variants are on the same haplotype
-    WHATSHAP_PHASE(ch_phase_snv_in)
-
-    // STEP 2: Index the phased VCF files
-    // Add '_phased' suffix to metadata for proper file naming
-    ch_phased_vcf = WHATSHAP_PHASE.out.vcf_phased
-        .map { meta, vcf ->
-            def meta_phased = modifyMetaId(meta, 'add_suffix', '', '', '_phased')
-            tuple(meta_phased, vcf) }
-
-    // Index phased VCF files for downstream analysis
-    BCFTOOLS_INDEX(ch_phased_vcf)
-
-    // STEP 3: Prepare input for haplotype tagging
-    // Reconstruct channel with BAM, reference, and indexed phased VCF
-    ch_phased_indexed_vcf = ch_phase_snv_in
-        .map { meta, bamfile, bai, _vcf, _vcf_tbi, ref_fasta, ref_idx ->
-            def meta_phased = modifyMetaId(meta, 'add_suffix', '', '', '_phased')
-            tuple(meta_phased, bamfile, bai, ref_fasta, ref_idx)
-        }
-        .join(BCFTOOLS_INDEX.out.vcf_tbi)
-        .map { meta, bamfile, bai, ref_fasta, ref_idx, vcf, vcf_tbi ->
-            tuple(meta, bamfile, bai, vcf, vcf_tbi, ref_fasta, ref_idx)
-        }
-
-    // STEP 4: Create haplotype-tagged BAM files
-    // Tag reads in BAM with haplotype information based on phased variants
-    WHATSHAP_HAPLOTAG(ch_phased_indexed_vcf)
+    WHATSHAP_HAPLOTAG(
+        ch_phased_vcf,
+        ref,
+        fai,
+        false
+    )
 
     // Index the haplotype-tagged BAM files
-    SAMTOOLS_INDEX_PHASED(WHATSHAP_HAPLOTAG.out.bam_hap)
+    SAMTOOLS_INDEX_PHASED(WHATSHAP_HAPLOTAG.out.bam)
 
-    // STEP 5: Generate phasing statistics
-    // Extract VCF files for statistics calculation
-    ch_whatshap_stats_in = ch_phased_indexed_vcf
-        .map { meta,_bamfile,_bai,vcf,vcf_tbi,_ref,_ref_idx ->
-            tuple(meta,vcf,vcf_tbi) }
+    ch_haptag_bam = WHATSHAP_HAPLOTAG.out.bam
+        .join(SAMTOOLS_INDEX_PHASED.out.index)
 
     // Calculate phasing statistics (block lengths, switch errors, etc.)
-    WHATSHAP_STATS(ch_whatshap_stats_in)
+    WHATSHAP_STATS(
+        WHATSHAP_PHASE.out.vcf,
+        false,
+        true,
+        false
+    )
 
+     /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        COLLECT VERSIONS
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        Collect software version information from all processes for inclusion in reports
+        and pipeline provenance tracking. Essential for reproducibility.
+    */
 
-    ch_versions = WHATSHAP_PHASE.out.versions
-        .mix(WHATSHAP_HAPLOTAG.out.versions)
-        .mix(WHATSHAP_STATS.out.versions)
-        .mix(BCFTOOLS_INDEX.out.versions)
+    def topic_versions = channel.topic("versions")
+        .distinct()
+        .branch { entry ->
+            versions_file: entry instanceof Path
+            versions_tuple: true
+        }
+
+    def topic_versions_string = topic_versions.versions_tuple
+        .map { process, tool, version ->
+            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+        }
+        .groupTuple(by:0)
+        .map { process, tool_versions ->
+            tool_versions.unique().sort()
+            "${process}:\n${tool_versions.join('\n')}"
+        }
+
+    ch_collated_versions = softwareVersionsToYAML(topic_versions.versions_file)
+        .mix(topic_versions_string)
 
     emit:
-    haptag_bam       = SAMTOOLS_INDEX_PHASED.out.bamfile_index    // Haplotype-tagged BAM files with index
-    phased_vcf       = WHATSHAP_PHASE.out.vcf_phased       // Phased VCF files
-    versions         = ch_versions                          // Software versions for reporting
+    haptag_bam       = ch_haptag_bam                            // Haplotype-tagged BAM files with index
+    phased_vcf       = WHATSHAP_PHASE.out.vcf                   // Phased VCF files
+    phased_tbi       = WHATSHAP_PHASE.out.tbi
+    versions         = ch_collated_versions                    // Software versions for reporting
 
 }
 
