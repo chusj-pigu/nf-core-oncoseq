@@ -6,7 +6,7 @@
 include { DORADO_BASECALL                           } from '../../../modules/local/dorado/main.nf'
 include { SAMTOOLS_QSFILTER                         } from '../../../modules/local/samtools/main.nf'
 include { SAMTOOLS_TOFASTQ                          } from '../../../modules/local/samtools/main.nf'
-include { HTSLIB_BGZIPTABIX                         } from '../../../modules/nf-core/htslib/bgziptabix/main'
+include { HTSLIB_BGZIPTABIX as FASTQ_GZIP           } from '../../../modules/nf-core/htslib/bgziptabix/main'
 include { SEQKIT_STATS                              } from '../../../modules/nf-core/seqkit/stats/main'
 
 include { softwareVersionsToYAML                    } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -61,7 +61,18 @@ workflow BASECALL_SIMPLEX {
         def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
         tuple(meta_restore, table)}
 
-    ch_fastq_pass = SAMTOOLS_TOFASTQ.out.fq
+    ch_to_gzip = SAMTOOLS_TOFASTQ.out.fq
+        .map { meta, fq ->
+            tuple(meta, fq, [], [])}
+
+    FASTQ_GZIP(
+        ch_to_gzip,
+        "compress",
+        false,
+        []
+    )
+
+    ch_fastq_pass = FASTQ_GZIP.out.output
         .filter { meta, _reads -> meta.id.contains('pass')}
         .map { meta, reads ->
             def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
