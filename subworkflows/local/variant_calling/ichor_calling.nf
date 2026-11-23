@@ -4,7 +4,6 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { HMMCOPY_WIG       } from '../../../modules/local/ichorcna/main.nf'
-include { ICHORCNA_DOWNLOAD } from '../../../modules/local/ichorcna/main.nf'
 include { ICHORCNA          } from '../../../modules/local/ichorcna/main.nf'
 
 
@@ -31,15 +30,14 @@ workflow ICHORCNA_CALLING {
         .combine(mapq_wig)
     HMMCOPY_WIG(ch_hmmwig_in)
 
-    ch_samplesheet_wig = cfdna_samplesheet
+    ch_ichor_in = cfdna_samplesheet
         .combine(ref)
         .join(HMMCOPY_WIG.out.wig)
         .map { meta, purity, _filter, genome, _genome_fasta, wig ->
             tuple(meta, genome.id, wig, purity) }
 
-    ICHORCNA_DOWNLOAD(ch_samplesheet_wig)
 
-    ICHORCNA(ICHORCNA_DOWNLOAD.out.seq_info)
+    ICHORCNA(ch_ichor_in)
 
     ch_versions = HMMCOPY_WIG.out.versions
         .mix(ICHORCNA.out.versions)
