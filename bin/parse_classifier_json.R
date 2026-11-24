@@ -131,16 +131,16 @@ make_optic_table <- function() {
   rows   <- scores_for("optic")
   paths  <- map(rows, ~ map_chr(.x$native_path, "name"))
   leaf_p <- map_dbl(rows, "score")
- 
+
   node_score <- function(prefix) {
     n      <- length(prefix)
     inside <- map_lgl(paths, ~ length(.x) >= n && identical(.x[seq_len(n)], prefix))
     sum(leaf_p[inside])
   }
- 
+
   top   <- order(-leaf_p)[seq_len(min(TOP_N, length(rows)))]
   depth <- max(lengths(paths[top]))
- 
+
   map_dfr(top, function(i) {
     path <- paths[[i]]
     row  <- list()
@@ -155,6 +155,52 @@ make_optic_table <- function() {
 }
 
 
+# ---- ALMA3 (v3.1): one combined table, lineage -> family -> type -> subtype ----
+# Rows are the top TOP_N entries of the deepest head present (normally subtype).
+# The score at each level comes from that level's own head, matched on the
+# full native_path.
+# The leading "presence = present" level is dropped (identical on every row).
+# PASS/FAIL uses accepted_call (v3.1 off-path cutoffs are null).
+# Columns: Lineage, Lineage_score, Family, Family_score, Type, Type_score,
+#          Subtype, Subtype_score, Cutoff
+make_alma3_table <- function() {
+  alma_ids  <- classifier_ids[str_starts(classifier_ids, "alma3:")]
+  alma_rows <- unlist(map(alma_ids, scores_for), recursive = FALSE)
+
+  path_names <- function(x) map_chr(x$native_path, "name")
+  path_key   <- function(nms) paste(nms, collapse = " > ")
+
+  # Score of every node in every ALMA3 head, keyed by its full path
+  node_scores <- setNames(
+    map_dbl(alma_rows, ~ as.numeric(.x$score)),
+    map_chr(alma_rows, ~ path_key(path_names(.x)))
+  )
+
+  # Deepest head available
+  depth_order <- c("alma3:subtype", "alma3:type", "alma3:family", "alma3:lineage")
+  leaf_id     <- depth_order[depth_order %in% alma_ids][1]
+  if (is.na(leaf_id)) return(tibble())
+  leaf_score_col <- paste0(str_to_title(str_remove(leaf_id, "^alma3:")), "_score")
+
+  scores_for(leaf_id) %>%
+    map_dfr(function(x) {
+      kinds <- map_chr(x$native_path, "level_kind")
+      nms   <- path_names(x)
+      row   <- list()
+      for (d in seq_along(nms)) {
+        if (kinds[d] == "presence") next
+        col <- str_to_title(kinds[d])
+        row[[col]]                    <- nms[d]
+        row[[paste0(col, "_score")]]  <- unname(node_scores[path_key(nms[seq_len(d)])])
+      }
+      row$Cutoff <- pass_fail(isTRUE(x$accepted_call))
+      as_tibble(row)
+    }) %>%
+    arrange(desc(.data[[leaf_score_col]])) %>%
+    head(TOP_N)
+}
+
+
 # =============================================================
 # 4. Build and write everything
 # =============================================================
@@ -164,7 +210,7 @@ build_table <- function(id) {
     marlin = make_marlin_table(),
     tucan  = make_tucan_table(),
     optic  = make_optic_table(),
-    make_generic_table(id)          # everything else
+    make_generic_table(id)
   )
 }
 
@@ -173,7 +219,14 @@ write_table <- function(table, name) {
   write_tsv(table, file)
 }
 
-for (id in classifier_ids) {
+is_alma3 <- str_starts(classifier_ids, "alma3:")
+
+for (id in classifier_ids[!is_alma3]) {
   message("Processing: ", id)
   write_table(build_table(id), id)
+}
+
+if (any(is_alma3)) {
+  message("Processing: alma3 (combined)")
+  write_table(make_alma3_table(), "alma")
 }

@@ -19,7 +19,7 @@ process PARSE_JSON_COMBINED {
         emit: alma
     tuple val(meta),
         path("*crossnn_capper_et_al.tsv"),
-        emit: capper
+        emit: capper, optional: true
     tuple val(meta),
         path("*crossnn_pancan_devel_v5i.tsv"),
         emit: pancan
@@ -31,10 +31,10 @@ process PARSE_JSON_COMBINED {
         emit: marlin
     tuple val(meta),
         path("*mpact.tsv"),
-        emit: mpact
+        emit: mpact, optional: true
     tuple val(meta),
         path("*nanomix_llse.tsv"),
-        emit: nanomix
+        emit: nanomix, optional: true
     tuple val(meta),
         path("*sturgeon_brainstem.tsv"),
         emit: sturgeon_brainstem, optional: true
