@@ -66,3 +66,7 @@
 	path = modules/local/deepsomatic
 	url = https://github.com/chusj-pigu/wf-modules
 	branch = deepsomatic
+[submodule "modules/local/bonefish"]
+	path = modules/local/bonefish
+	url = https://github.com/chusj-pigu/wf-modules
+	branch = bonefish

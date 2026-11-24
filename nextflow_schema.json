@@ -337,6 +337,10 @@
             "default": null,
             "description": "Specify a different container for Classy module (default: same as pipeline container)"
         },
+        "use_bonefish": {
+            "type": "boolean",
+            "description": "Turn on mapping with bonefish"
+        },
         "skip_mapping": {
             "type": "boolean"
         },

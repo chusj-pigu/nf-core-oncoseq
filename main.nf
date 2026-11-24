@@ -154,6 +154,9 @@ params {
     // Specify a different container for Classy module (default: same as pipeline container)
     classy_container: String
 
+    // Use Bonefish to align instead of minimap2
+    use_bonefish: Boolean
+
     // -- ichorCNA parameters --------------------------------------------------
 
     // Maximum length (in bases) of reads to include in cfdna analysis (if filter true in samplesheet)

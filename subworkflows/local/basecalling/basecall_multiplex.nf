@@ -75,52 +75,60 @@ workflow BASECALL_MULTIPLEX {
 
     SAMTOOLS_QSFILTER(DORADO_TRIM.out.bam)
 
-     // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
-    ch_new_sample_ids_pass = SAMTOOLS_QSFILTER.out.ubam_pass
-        .map { meta, ubam ->
-            def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add pass to meta in tuples for output naming
-            def new_meta = [id : meta.id + '_' + meta_suffix]
-            tuple(new_meta, ubam)
-        }
+    ch_versions = DORADO_BASECALL.out.versions
+        .mix(DORADO_DEMULTIPLEX.out.versions)
+        .mix(DORADO_TRIM.out.versions)
+        .mix(SAMTOOLS_QSFILTER.out.versions)
 
-    ch_new_sample_ids_fail = SAMTOOLS_QSFILTER.out.ubam_fail
-        .map { meta, ubam ->
-            def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add fail to meta in tuples for output naming
-            def new_meta = [id : meta.id + '_' + meta_suffix]
-            tuple(new_meta, ubam)
-        }
+    if (params.use_bonefish) {
+        ch_reads_pass = SAMTOOLS_QSFILTER.out.ubam_pass
 
-    SAMTOOLS_TOFASTQ(ch_new_sample_ids_pass.mix(ch_new_sample_ids_fail))
+        ch_stats_pass = channel.empty()
+    } else {
+        // Get the sample_ids from the demux_samplesheet that specify each barcode to each sample_id
+        ch_new_sample_ids_pass = SAMTOOLS_QSFILTER.out.ubam_pass
+            .map { meta, ubam ->
+                def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add pass to meta in tuples for output naming
+                def new_meta = [id : meta.id + '_' + meta_suffix]
+                tuple(new_meta, ubam)
+            }
 
-    SEQKIT_STATS(SAMTOOLS_TOFASTQ.out.fq)
+        ch_new_sample_ids_fail = SAMTOOLS_QSFILTER.out.ubam_fail
+            .map { meta, ubam ->
+                def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')       // Add fail to meta in tuples for output naming
+                def new_meta = [id : meta.id + '_' + meta_suffix]
+                tuple(new_meta, ubam)
+            }
 
-    ch_stats_pass = SEQKIT_STATS.out.stats
-        .filter { meta, _tbl -> meta.id.contains('pass')}
-        .map { meta, table ->
-        def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
-        tuple(meta_restore, table)}
+        SAMTOOLS_TOFASTQ(ch_new_sample_ids_pass.mix(ch_new_sample_ids_fail))
 
-    PIGZ_COMPRESS(
-        SAMTOOLS_TOFASTQ.out.fq
-    )
+        SEQKIT_STATS(SAMTOOLS_TOFASTQ.out.fq)
 
-    ch_fastq_pass = PIGZ_COMPRESS.out.archive
-        .filter { meta, _reads -> meta.id.contains('pass')}
-        .map { meta, fq ->
-         def meta_restore = [id : meta.id.replace('_pass', '')]
-         tuple(meta_restore, fq)}
+        ch_stats_pass = SEQKIT_STATS.out.stats
+            .filter { meta, _tbl -> meta.id.contains('pass')}
+            .map { meta, table ->
+            def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+            tuple(meta_restore, table)}
+
+        PIGZ_COMPRESS(
+            SAMTOOLS_TOFASTQ.out.fq
+        )
+
+        ch_reads_pass = PIGZ_COMPRESS.out.archive
+            .filter { meta, _reads -> meta.id.contains('pass')}
+            .map { meta, fq ->
+             def meta_restore = [id : meta.id.replace('_pass', '')]
+             tuple(meta_restore, fq)}
+
+        ch_versions = ch_versions
+            .mix(SAMTOOLS_TOFASTQ.out.versions)
+    }
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         COLLECT VERSIONS
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
-    ch_versions = DORADO_BASECALL.out.versions
-        .mix(DORADO_DEMULTIPLEX.out.versions)
-        .mix(DORADO_TRIM.out.versions)
-        .mix(SAMTOOLS_QSFILTER.out.versions)
-        .mix(SAMTOOLS_TOFASTQ.out.versions)
-
     def topic_versions = channel.topic("versions")
         .distinct()
         .branch { entry ->
@@ -142,7 +150,7 @@ workflow BASECALL_MULTIPLEX {
         .mix(topic_versions_string)
 
     emit:
-    fastq          = ch_fastq_pass
+    fastq          = ch_reads_pass
     stats_pass     = ch_stats_pass
     versions       = ch_collated_versions
 

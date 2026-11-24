@@ -32,54 +32,62 @@ workflow BASECALL_SIMPLEX {
 
     SAMTOOLS_QSFILTER(DORADO_BASECALL.out.ubam)
 
-    // Add pass and fail to meta in tuples for output naming
+    ch_versions = DORADO_BASECALL.out.versions
+        .mix(SAMTOOLS_QSFILTER.out.versions)
 
-    ch_ubam_pass = SAMTOOLS_QSFILTER.out.ubam_pass
-        .map { meta, ubam ->
-            def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
-            tuple(new_meta, ubam)
-            }
+    if (params.use_bonefish) {
+        ch_reads_pass = SAMTOOLS_QSFILTER.out.ubam_pass
 
-    ch_ubam_fail = SAMTOOLS_QSFILTER.out.ubam_fail
-        .map { meta, ubam ->
-            def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
-            def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
-            tuple(new_meta, ubam)
-            }
+        ch_stats_pass = channel.empty()
+    } else {
+        // Add pass and fail to meta in tuples for output naming
 
-    ch_to_fastq = ch_ubam_pass
-        .mix(ch_ubam_fail)
+        ch_ubam_pass = SAMTOOLS_QSFILTER.out.ubam_pass
+            .map { meta, ubam ->
+                def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
+                def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
+                tuple(new_meta, ubam)
+                }
 
-    SAMTOOLS_TOFASTQ(ch_to_fastq)
+        ch_ubam_fail = SAMTOOLS_QSFILTER.out.ubam_fail
+            .map { meta, ubam ->
+                def meta_suffix = ubam.baseName.tokenize('_')[-1].replace('.bam', '')
+                def new_meta = modifyMetaId(meta, 'add_suffix', '', '', "_${meta_suffix}")
+                tuple(new_meta, ubam)
+                }
 
-    SEQKIT_STATS(SAMTOOLS_TOFASTQ.out.fq)
+        ch_to_fastq = ch_ubam_pass
+            .mix(ch_ubam_fail)
 
-    ch_stats_pass = SEQKIT_STATS.out.stats
-        .filter { meta, _tbl -> meta.id.contains('pass')}
-        .map { meta, table ->
-        def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
-        tuple(meta_restore, table)}
+        SAMTOOLS_TOFASTQ(ch_to_fastq)
 
-    PIGZ_COMPRESS(
-        SAMTOOLS_TOFASTQ.out.fq
-    )
+        SEQKIT_STATS(SAMTOOLS_TOFASTQ.out.fq)
 
-    ch_fastq_pass = PIGZ_COMPRESS.out.archive
-        .filter { meta, _reads -> meta.id.contains('pass')}
-        .map { meta, reads ->
-            def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
-            tuple(new_meta, reads)}
+        ch_stats_pass = SEQKIT_STATS.out.stats
+            .filter { meta, _tbl -> meta.id.contains('pass')}
+            .map { meta, table ->
+            def meta_restore = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+            tuple(meta_restore, table)}
 
+        PIGZ_COMPRESS(
+            SAMTOOLS_TOFASTQ.out.fq
+        )
+
+        ch_reads_pass = PIGZ_COMPRESS.out.archive
+            .filter { meta, _reads -> meta.id.contains('pass')}
+            .map { meta, reads ->
+                def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_pass')
+                tuple(new_meta, reads)}
+
+        ch_versions = ch_versions
+            .mix(SAMTOOLS_TOFASTQ.out.versions)
+    }
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         COLLECT VERSIONS
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     */
-    ch_versions = DORADO_BASECALL.out.versions
-        .mix(SAMTOOLS_QSFILTER.out.versions)
-        .mix(SAMTOOLS_TOFASTQ.out.versions)
 
     def topic_versions = channel.topic("versions")
         .distinct()
@@ -102,7 +110,7 @@ workflow BASECALL_SIMPLEX {
         .mix(topic_versions_string)
 
     emit:
-    fastq          = ch_fastq_pass
+    fastq          = ch_reads_pass
     stats_pass     = ch_stats_pass
     versions       = ch_collated_versions
 

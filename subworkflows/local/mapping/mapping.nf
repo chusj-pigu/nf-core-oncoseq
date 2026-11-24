@@ -11,6 +11,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { MINIMAP2_ALIGN                         } from '../../../modules/nf-core/minimap2/align/main'         // minimap2 alignment
+include { BONEFISH_ALIGN                         } from '../../../modules/local/bonefish/main'         // minimap2 alignment
 include { SAMTOOLS_INDEX                         } from '../../../modules/nf-core/samtools/index/main'         // Index BAM
 include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_CHUNK } from '../../../modules/nf-core/samtools/merge/main'         // Merge BAMs
 include { SAMTOOLS_MERGE as SAMTOOLS_MERGE_FINAL } from '../../../modules/nf-core/samtools/merge/main'         // Merge BAMs
@@ -46,9 +47,9 @@ workflow MAPPING {
                 def dir = file(dir_list[0])
 
                 if (dir.isDirectory()) {
-                    // Collect all FASTQ files with common extensions
+                    // Collect all FASTQ or BAM files with common extensions
                     def files = dir.listFiles().findAll { f ->
-                        f.name ==~ /.*\.(fastq|fq)(\.gz)?$/
+                        f.name ==~ /.*\.((fastq|fq)(\.gz)?|bam)$/
                     }
                     return tuple(meta, files)
                 } else {
@@ -58,7 +59,15 @@ workflow MAPPING {
             .set { in_ch }
 
             if (!params.cfdna) {
-                SEQKIT_STATS(in_ch)
+                // SeqKit only handles FASTQ: drop BAM files, skip samples with none left
+                in_ch
+                    .map { meta, files ->
+                        tuple(meta, files.findAll { f -> !(f.name ==~ /.*\.bam$/) })
+                    }
+                    .filter { meta, files -> files }
+                    .set { ch_seqkit_in }
+
+                SEQKIT_STATS(ch_seqkit_in)
                 ch_seqkit_out = SEQKIT_STATS.out.stats
             } else {
                 ch_seqkit_out = channel.empty()
@@ -129,6 +138,18 @@ workflow MAPPING {
 
             bam_ch = ch_bam_indexed
                 .mix(ch_single_bam)
+
+            CRAMINO(bam_ch)
+
+        } else if (params.use_bonefish) {
+
+            BONEFISH_ALIGN(
+                in_ch,
+                ref
+            )
+
+            bam_ch = BONEFISH_ALIGN.out.bam
+                .join(BONEFISH_ALIGN.out.bai)
 
             CRAMINO(bam_ch)
 
