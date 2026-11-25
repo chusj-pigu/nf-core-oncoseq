@@ -209,7 +209,7 @@ params {
     genome: String = 'hg38'
 
     // Use gpu to run Clair3
-    clair3_gpu: Boolean
+    snp_calling_gpu: Boolean
 
     // Path to comma-separated file containing information about the samples in the experiment.
     input: Path

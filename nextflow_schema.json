@@ -421,9 +421,9 @@
             "default": "GRCh38",
             "description": "Human genome assembly identifier"
         },
-        "clair3_gpu": {
+        "snp_calling_gpu": {
             "type": "boolean",
-            "description": "Use gpu to run Clair3"
+            "description": "Use gpu to run Clair3 and Deepsomatic"
         }
     }
 }
