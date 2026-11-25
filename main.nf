@@ -208,7 +208,7 @@ params {
     // Human genome assembly identifier
     genome: String = 'hg38'
 
-    // Use gpu to run Clair3
+    // Use gpu to run Clair3 and Deepsomatic
     snp_calling_gpu: Boolean
 
     // Path to comma-separated file containing information about the samples in the experiment.
