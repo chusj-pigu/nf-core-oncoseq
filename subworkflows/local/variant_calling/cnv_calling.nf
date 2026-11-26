@@ -23,6 +23,7 @@ workflow CNV_CALLING {
     take:
     bam        // channel: from mapping workflow, includes index
     ref         // reference channel with index
+    ref_index
     genome
 
     main:
@@ -49,7 +50,8 @@ workflow CNV_CALLING {
 
     DELLY_CNV(
         bam,
-        ref
+        ref,
+        ref_index
     )
 
     BCFTOOLS_INDEX(

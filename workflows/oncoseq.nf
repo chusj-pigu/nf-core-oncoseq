@@ -649,6 +649,7 @@ workflow ONCOSEQ {
     CNV_CALLING(
         ch_bam_to_process,
         ch_ref,
+        ch_ref_fai,
         genome
     )
 
