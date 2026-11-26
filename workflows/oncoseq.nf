@@ -37,7 +37,6 @@ include { COVERAGE_SEPARATE } from '../subworkflows/local/adaptive_specific/cove
 // Tumor classification
 include { CLASSY               } from '../subworkflows/local/methylation_analysis/classy.nf'
 include { SAMTOOLS_COUNT_READS } from '../modules/local/samtools/main.nf'
-include { SAMTOOLS_TOFASTQ as SAMTOOLS_TIME_FASTQ } from '../modules/local/samtools/main.nf'
 
 // Time series
 include { SPLIT_BAMS_TIME } from '../subworkflows/local/time_series_evaluation/split_bams.nf'
@@ -45,6 +44,7 @@ include { CRAMINO         } from '../modules/nf-core/cramino/main'
 
 // Realtime
 include { ONTIME_TIME_RANGE } from '../modules/local/ontime/main.nf'
+include { CAT_FASTQ         } from '../modules/nf-core/cat/fastq/main'
 
 // Reporting
 include { MIDNIGHT_REPORT   } from '../subworkflows/local/report/final_report.nf'
@@ -227,19 +227,11 @@ workflow ONCOSEQ {
 
     if (params.realtime) {
 
-        if (params.skip_mapping) {
-            // We have to convert bam to fastq when bam input is from MinKnow :
-
-            ch_bam = MAPPING.out.bam
+        ch_bam = MAPPING.out.bam
             .map { meta, bam, _bai ->
                 tuple(meta,bam) }
 
-            SAMTOOLS_TIME_FASTQ(ch_bam)
-
-            ONTIME_TIME_RANGE(SAMTOOLS_TIME_FASTQ.out.fq)
-        } else {
-            ONTIME_TIME_RANGE(ch_reads)
-        }
+        ONTIME_TIME_RANGE(ch_bam)
     }
 
     /*
