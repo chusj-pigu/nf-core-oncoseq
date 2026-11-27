@@ -18,6 +18,8 @@ option_list <- list(
                 help = "Background coverage [default: %default]", metavar = "NUMBER"),
     make_option(c("-l", "--lowgenes"), type = "character", default = NULL,
                 help = "Path to text file containing list of low fidelity genes separated by a newline [default: %default]", metavar = "FILE"),
+    make_option(c("-c", "--chrmap"), type = "character", default = NULL,
+                help = "Path to TSV mapping BAM chromosome names to UCSC names (from chrom_name_map.sh) [default: %default]", metavar = "FILE"),
     make_option(c("-o", "--output"), type = "character", default = "output.pdf",
                 help = "Output pdf name [default: %default]", metavar = "FILE")
 )
@@ -39,13 +41,55 @@ bed_label <- function(path) {
   sub("\\..*$", "", sub(".*_", "", basename(path)))
 }
 
+# Load the chromosome name mapping produced from the BAM header (chrom_name_map.sh):
+# tab-separated original_name -> UCSC name, with a "# convention: X" comment line.
+# Returns a named character vector (names = original, values = UCSC), or NULL.
+load_chrom_map <- function(path) {
+  if (is.null(path) || !file.exists(path)) {
+    return(NULL)
+  }
+  lines <- readLines(path)
+  convention <- sub("^# convention: ", "", grep("^# convention:", lines, value = TRUE)[1])
+  message("Chromosome naming convention detected from BAM header: ", convention)
+  if (convention %in% c("MIXED", "UNKNOWN")) {
+    warning("Chromosome naming convention is ", convention, "; check the reference/BAM header.")
+  }
+  fields <- strsplit(grep("^#", lines, value = TRUE, invert = TRUE), "\t")
+  fields <- Filter(function(x) length(x) == 2, fields)
+  if (length(fields) == 0) {
+    return(NULL)
+  }
+  setNames(vapply(fields, `[`, "", 2), vapply(fields, `[`, "", 1))
+}
+
+# Rename chromosomes using the mapping; names absent from the mapping are kept as-is
+normalize_chr <- function(chr) {
+  chr <- as.character(chr)
+  if (is.null(chrom_map)) {
+    return(chr)
+  }
+  unname(ifelse(chr %in% names(chrom_map), chrom_map[chr], chr))
+}
+
+chrom_map <- load_chrom_map(opt$chrmap)
+
+# "0001_chr1_GNB1" / "0001_1_GNB1" / "0001_NC_060925.1_GNB1" -> "GNB1"
+# Strips "<index>_<chrom>_". NCBI accessions (NC_xxxxxx.x) contain an underscore,
+# so they are matched explicitly; other chromosome names must not contain one.
+# The chromosome in the name is not necessarily the row's chromosome (e.g. PAR
+# genes on chrY labelled with chrX), so it is matched by pattern, not by value.
+strip_gene_prefix <- function(gene) {
+  sub("^\\d+_(NC_\\d+(\\.\\d+)?|[^_]+)_", "", as.character(gene))
+}
+
 # Read, rename, and de-duplicate gene names in a bed file
 process_bed <- function(input_bed) {
   bed <- read.delim(input_bed, header = FALSE) %>%
     dplyr::rename(chr = V1, start = V2, end = V3, gene = V4, coverage = V5) %>%
+    mutate(chr = normalize_chr(chr)) %>%
+    mutate(gene = strip_gene_prefix(gene)) %>%
     arrange(chr, start, end) %>%
     rename_with(~ bed_label(input_bed), coverage) %>%
-    mutate(gene = gsub("^\\d{4}_.+?_", "", gene)) %>%
     mutate(gene = ifelse(duplicated(gene), paste(gene, chr, sep = "_"), gene))
   return(bed)
 }
@@ -237,6 +281,14 @@ tryCatch({
   bed_list <- lapply(input, process_bed)
   names(bed_list) <- bed_label(input)
   stopifnot(setequal(names(bed_list), c("nofilter", "primary", "mapq60")))
+
+  # Safety check: downstream logic expects UCSC names (chrX/chrY exclusion, facet annotations)
+  bed_chrs <- unique(bed_list[["nofilter"]]$chr)
+  if (!any(grepl("^chr", bed_chrs))) {
+    warning("No UCSC-style chromosome names after mapping (found: ",
+            paste(head(bed_chrs, 5), collapse = ", "),
+            "). Sex-chromosome exclusion and facet annotations will not work.")
+  }
 
   # Median / mean for primary alignments only
   median <- median(bed_list[["primary"]]$primary)

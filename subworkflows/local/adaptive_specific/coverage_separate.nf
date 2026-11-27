@@ -11,6 +11,7 @@ include { MOSDEPTH as MOSDEPTH_PRIMARY    } from '../../../modules/nf-core/mosde
 include { MOSDEPTH as MOSDEPTH_UNIQUE     } from '../../../modules/nf-core/mosdepth'
 include { PIGZ_UNCOMPRESS                 } from '../../../modules/nf-core/pigz/uncompress/main'
 include { COVERAGE_PLOT                   } from '../../../modules/local/adaptive_specific/main.nf'
+include { SAMTOOLS_SPLITHEADER            } from '../../../modules/nf-core/samtools/splitheader/main'
 // functions
 include { softwareVersionsToYAML       } from '../../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { modifyMetaId                 } from '../../../subworkflows/local/utils_nfcore_oncoseq_pipeline'
@@ -139,6 +140,13 @@ workflow COVERAGE_SEPARATE {
             def new_meta = modifyMetaId(meta, 'remove_suffix', '', '', '_panel_mapq60')
             tuple(new_meta, bedfile) }
 
+    // Extract @SQ lines from the BAM header; COVERAGE_PLOT uses them to detect the
+    // chromosome naming convention (UCSC / NCBI / Ensembl) and map names to UCSC style
+
+    SAMTOOLS_SPLITHEADER(
+        bam.map { meta, bamfile, _bai -> tuple(meta, bamfile) }
+    )
+
     // Now we join all the variables by sample_id (meta)
 
     ch_bed_joined = ch_nofilt_bed_out
@@ -146,6 +154,7 @@ workflow COVERAGE_SEPARATE {
         .join(ch_mapq60_bed_out)
         .join(ch_coverage_bg)
         .join(bed.map{ meta,_bedfile,_padding,low_fidelity -> tuple(meta,low_fidelity) })
+        .join(SAMTOOLS_SPLITHEADER.out.sequences)
 
     COVERAGE_PLOT(ch_bed_joined)
 
