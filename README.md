@@ -95,8 +95,14 @@ This pipeline is optimized to use with hg38 reference genome. When using hg19 or
 
 The `--bed` file is used as the analysis BED file for all modes. SNPs are called exclusively within regions in the bed file, and structural variants are filtered with it. It can correspond to the enrichment BED file provided to the sequencer for adaptive sampling, or to a custom BED file for analysis. If not provided, the default is a 657-region panel of interest for oncology research. The default padding is 20 kb, which is appropriate for the default panel.
 
+Some steps (e.g. coverage of regions of interest, structural variant calling) need the regions **without** padding. This BED file is chosen as follows (first match wins):
+
+1. `bed_nopad` column of the samplesheet;
+2. `--bed_nopad`, only for samples that use the global `--bed` (not a sample-specific `bed` from the samplesheet);
+3. otherwise, it is computed by removing `padding` bp from each side of the regions in the padded BED file.
+
 > [!NOTE]
-> If the provided BED file does not include padding around regions of interest, use `--padding 0` to avoid cutting into them. The BED file must be in the same coordinate system as the reference genome used for mapping.
+> If the provided BED file does not include padding around regions of interest, use `--padding 0` to avoid cutting into them. If the padding is asymmetric (different on each side of the regions), it cannot be removed with a single `--padding` value: provide the unpadded BED file with `--bed_nopad` or the `bed_nopad` samplesheet column. BED files (`.bed` or gzipped `.bed.gz`) must be in the same coordinate system as the reference genome used for mapping.
 
 ---
 
@@ -162,6 +168,7 @@ Most input can be provided as command line parameters if they are common, but th
 | `kit` | | `string` | | Barcoding kit for demultiplexing (e.g. `SQK-NBD114-24`). Required alongside `project` and `barcode` when using `--demux`. |
 | `barcode` | | `string` | | Barcode ID for demultiplexing (e.g. `barcode01`). Required alongside `project` and `kit` when using `--demux`. |
 | `bed` | | `path` | `--bed` | BED file for adaptive sampling regions. Samplesheet takes priority over `--bed`. |
+| `bed_nopad` | | `path` | `--bed_nopad` | Same regions as `bed` but without padding. Required for asymmetric padding. Samplesheet takes priority over `--bed_nopad`; if neither applies, it is computed from `bed` and `padding`. |
 | `padding` | | `integer` | `--padding` | Padding around BED regions (bp). Samplesheet takes priority over `--padding`. |
 | `low_fidelity` | | `path` | `--low_fidelity` | Text file listing low-fidelity genes to exclude from coverage. Samplesheet takes priority over `--low_fidelity`. |
 | `purity` | | `float` | | Tumor purity estimate (0–1) for cf-DNA analysis. Required when using `--cfdna`. |
@@ -216,7 +223,8 @@ To run in real time while data is still sequencing, use `--realtime [INT]` where
 
 | Parameter | Required | Type | Default | Description |
 |-----------|----------|------|---------|-------------|
-| `--padding` | | `integer` | `20000` | Padding (bp) around target regions used for adaptive sampling sequencing. |
+| `--padding` | | `integer` | `20000` | Padding (bp) around target regions used for adaptive sampling sequencing. Not used to compute the unpadded BED for samples that have a `bed_nopad` file. |
+| `--bed_nopad` | | `path` | | BED file with the same regions as `--bed` but without padding. Required when padding is asymmetric. Only applies to samples using the global `--bed`. If not set, it is computed by removing `--padding` from `--bed`. |
 | `--low_fidelity` | | `path` | assets/panel_low_fidelity.txt | Text file listing low-fidelity genes to exclude from coverage. |
 
 ---

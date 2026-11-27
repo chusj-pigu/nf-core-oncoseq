@@ -81,17 +81,20 @@ workflow PIPELINE_INITIALISATION {
     )
 
 
+    // Column order must follow the property order of assets/schema_input.json
+    // (meta fields first, then the remaining properties in declaration order)
     def cols = ['meta', 'project', 'input', 'ubam', 'kit', 'barcode',
-                'bed', 'padding', 'lf', 'purity', 'filter', 'tumor_type']
+                'bed', 'bed_nopad', 'padding', 'lf', 'purity', 'filter', 'tumor_type']
 
     ch_rows = channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .map { row -> [cols, row].transpose().collectEntries() }
 
     // Global defaults
-    def ubam_ph     = file(params.ubam, checkIfExists: true)
-    def bed_default = file(params.bed, checkIfExists: true)
-    def lf_default  = file(params.low_fidelity, checkIfExists: true)
+    def ubam_ph           = file(params.ubam, checkIfExists: true)
+    def bed_default       = file(params.bed, checkIfExists: true)
+    def bed_nopad_default = params.bed_nopad ? file(params.bed_nopad, checkIfExists: true) : []
+    def lf_default        = file(params.low_fidelity, checkIfExists: true)
 
     // --- Main input: [ meta, input, ubam ] ---
     ch_in_samplesheet = ch_rows
@@ -130,49 +133,65 @@ workflow PIPELINE_INITIALISATION {
     ch_tumor_type = ch_rows
         .map { row -> tuple(row.meta, row.tumor_type ?: 'other') }
 
-    // --- Adaptive: [ meta, bed, padding, lf ], per-sample value or global default ---
-    ch_adaptive_branched = ch_rows
+    // --- Adaptive: [ meta, bed, padding, lf, bed_nopad ] ---
+    // Priority for each value: samplesheet > params > default.
+    // bed_nopad priority:
+    //   1. samplesheet bed_nopad column
+    //   2. --bed_nopad, only when the sample uses the global --bed (it describes that bed)
+    //   3. [] -> computed later by shrinking bed by padding (symmetric padding only)
+    ch_adaptive_raw = ch_rows
         .map { row ->
-            if (!row.padding) {
+            if (!row.padding && !row.bed_nopad) {
                 def padding_kb = params.padding / 1000
-                log.warn("Using padding of ${padding_kb}kb around ROI for all samples")
+                log.warn("Sample ${row.meta.id}: using padding of ${padding_kb}kb around ROI")
             }
-            if (!row.bed && params.bed.contains("v2.0.1-pre-merge-panel-20kb-pad.bed")) {
-                log.warn("Using default bed file ${params.bed} for all samples")
+            if (!row.bed && params.bed.toString().contains("v2.0.1-pre-merge-panel-20kb-pad.bed")) {
+                log.warn("Sample ${row.meta.id}: using default bed file ${params.bed}")
             }
+            def bed_nopad = row.bed_nopad ? file(row.bed_nopad)
+                : (!row.bed ? bed_nopad_default : [])
             tuple(
                 row.meta,
                 row.bed ? file(row.bed) : bed_default,
                 row.padding instanceof Number ? row.padding : params.padding,
-                row.lf  ? file(row.lf)  : lf_default
+                row.lf  ? file(row.lf)  : lf_default,
+                bed_nopad
             )
         }
-        .branch { _meta, bed, _padding, _lf ->
-            gz   : bed.name.endsWith('.gz') || bed.name.endsWith('.bgz')
-            plain: true
-        }
 
-    // Decompress each unique gzipped BED once. The source path is kept in meta
-    // so the result can be joined back without a hash-based key.
-    ch_bed_to_decompress = ch_adaptive_branched.gz
-        .map    { _meta, bed, _padding, _lf -> bed }
+    // Decompress each unique gzipped BED (padded or not) once. The source path is
+    // kept in meta so the result can be mapped back without a hash-based key.
+    ch_bed_to_decompress = ch_adaptive_raw
+        .flatMap { _meta, bed, _padding, _lf, bed_nopad -> [bed, bed_nopad] }
+        .filter  { bed -> bed && isGz(bed) }
         .unique()
-        .map    { bed -> tuple([id: bed.simpleName, src: bed], bed) }
+        .map     { bed -> tuple([id: bed.simpleName, src: bed], bed) }
 
     PIGZ_UNGZ_BED(
         ch_bed_to_decompress,
     )
 
+    // Single value: [ src_path: decompressed_path ] (empty map if nothing to decompress)
     ch_bed_decompressed = PIGZ_UNGZ_BED.out.file
-        .map { meta, bed -> tuple(meta.src, bed) }
+        .map { meta, bed -> [meta.src, bed] }
+        .toList()
+        .map { pairs -> pairs.collectEntries() }
 
-    // combine(by: 0) because many samples can share one BED
-    ch_adaptive = ch_adaptive_branched.plain.mix(
-        ch_adaptive_branched.gz
-            .map     { meta, bed, padding, lf -> tuple(bed, meta, padding, lf) }
-            .combine(ch_bed_decompressed, by: 0)
-            .map     { _src, meta, padding, lf, bed -> tuple(meta, bed, padding, lf) }
-    )
+    ch_adaptive_full = ch_adaptive_raw
+        .combine(ch_bed_decompressed)
+        .map { meta, bed, padding, lf, bed_nopad, gz_map ->
+            tuple(
+                meta,
+                gz_map[bed] ?: bed,
+                padding,
+                lf,
+                bed_nopad ? (gz_map[bed_nopad] ?: bed_nopad) : []
+            )
+        }
+
+    // Emitted bed channel keeps its original shape: [ meta, bed, padding, lf ]
+    ch_adaptive = ch_adaptive_full
+        .map { meta, bed, padding, lf, _bed_nopad -> tuple(meta, bed, padding, lf) }
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -294,17 +313,25 @@ workflow PIPELINE_INITIALISATION {
 
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Create bed file wihtout padding around ROI
+    Bed file without padding around ROI
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Use the provided bed_nopad when available (required for asymmetric padding),
+    otherwise shrink the padded bed by the (symmetric) padding value.
     */
 
-    ch_slop_in = ch_adaptive
-        .groupTuple(by: [1,2])
-        .map { metas, bed, padding, _lf ->
-            def padding_minus = padding > 0 ? -padding : 0
-            tuple([id: bed.baseName, padding: padding_minus, samples: metas], bed)
+    ch_bednopad_branched = ch_adaptive_full
+        .branch { _meta, _bed, _padding, _lf, bed_nopad ->
+            provided: bed_nopad
+            compute : true
         }
-        .filter { meta, _bed -> meta.padding != 0 }
+
+    ch_slop_in = ch_bednopad_branched.compute
+        .filter { _meta, _bed, padding, _lf, _bed_nopad -> padding > 0 }
+        .map    { meta, bed, padding, _lf, _bed_nopad -> tuple(meta, bed, padding) }
+        .groupTuple(by: [1,2])
+        .map { metas, bed, padding ->
+            tuple([id: bed.baseName, padding: -padding, samples: metas], bed)
+        }
 
     BEDTOOLS_SLOP(
         ch_slop_in,
@@ -316,11 +343,13 @@ workflow PIPELINE_INITIALISATION {
             meta.samples.collect { sample_meta -> tuple(sample_meta, bed) }
         }
         .mix(
-            ch_adaptive
-                .filter { _meta, _bed, padding, _lf -> padding <= 0 }
-                .map { meta, bed, _padding, _lf -> tuple(meta, bed) }
+            // padding <= 0: bed already has no padding
+            ch_bednopad_branched.compute
+                .filter { _meta, _bed, padding, _lf, _bed_nopad -> padding <= 0 }
+                .map    { meta, bed, _padding, _lf, _bed_nopad -> tuple(meta, bed) },
+            ch_bednopad_branched.provided
+                .map    { meta, _bed, _padding, _lf, bed_nopad -> tuple(meta, bed_nopad) }
         )
-
     /*
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Basecalling model checkup and download
@@ -483,26 +512,22 @@ workflow PIPELINE_INITIALISATION {
     */
 
     if (params.demux) {
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .map {
-                meta, project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
-                if (project && kit && !barcode ) {
-                    throw new IllegalArgumentException("Please provide barcode for sample ${meta.id ?: meta}")
+        ch_rows
+            .map { row ->
+                if (row.project && row.kit && !row.barcode ) {
+                    throw new IllegalArgumentException("Please provide barcode for sample ${row.meta.id ?: row.meta}")
                 }
-                if (project && !kit && barcode) {
-                    throw new IllegalArgumentException("Please provide multplexing kit used for sample ${meta.id ?: meta}")
+                if (row.project && !row.kit && row.barcode) {
+                    throw new IllegalArgumentException("Please provide multplexing kit used for sample ${row.meta.id ?: row.meta}")
                 }
-                if (project && !kit && !barcode) {
-                    throw new IllegalArgumentException("Please provide multplexing kit used and barcode for sample ${meta.id ?: meta}")
+                if (row.project && !row.kit && !row.barcode) {
+                    throw new IllegalArgumentException("Please provide multplexing kit used and barcode for sample ${row.meta.id ?: row.meta}")
                 }
             }
     } else {
-        channel
-            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-            .map {
-                _meta, _project, _input, _ubam, kit, barcode, _bed, _padding, _low_fidelity, _purity, _filter, _tumor_type ->
-                if (kit || barcode) {
+        ch_rows
+            .map { row ->
+                if (row.kit || row.barcode) {
                     throw new IllegalArgumentException("Please use --demux option for demultiplexing samples")
                 }
             }

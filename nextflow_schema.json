@@ -216,6 +216,12 @@
             "description": "Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)",
             "default": "/workspaces/nf-core-oncoseq/assets/NO_BED"
         },
+        "bed_nopad": {
+            "type": "string",
+            "format": "file-path",
+            "exists": true,
+            "description": "Bed file with the same regions as --bed but without padding (required for asymmetric padding). If not set, it is computed by removing --padding from --bed."
+        },
         "demux": {
             "type": "boolean",
             "description": "turn on multiplex basecalling"

@@ -79,6 +79,9 @@ params {
     // Bed file used for adaptive mode (default is latest CRA-CHUSJ panel)
     bed: Path = "${projectDir}/assets/v2.0.1-pre-merge-panel-20kb-pad.bed"
 
+    // Same regions as --bed without padding (needed for asymmetric padding; computed from --padding if unset)
+    bed_nopad: Path?
+
     // turn on multiplex basecalling
     demux: Boolean
 

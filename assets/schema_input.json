@@ -88,6 +88,12 @@
                 "exists": true,
                 "errorMessage": "Absolute path to bed file path must be provided"
             },
+            "bed_nopad": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "errorMessage": "Absolute path to bed file (without padding included in coordinates) path must be provided"
+            },
             "padding": {
                 "type": "number",
                 "pattern": "^\\d+$",
